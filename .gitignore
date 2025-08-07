@@ -1,0 +1,17 @@
+# Binaries
+**/bin/
+bin-int/
+Intermediates/
+
+*.log
+
+# Visual Studio files and folder
+.vs/
+**.sln
+**.vcxproj
+**.vcxproj.filters
+**.vcxproj.user
+**.csproj
+
+# Directories
+Hominem/vendor/VulkanSDK

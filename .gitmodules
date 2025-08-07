@@ -1,0 +1,6 @@
+[submodule "Hominem/vendor/GLFW"]
+	path = Hominem/vendor/GLFW
+	url = https://github.com/ThreeByYV/glfw
+[submodule "Hominem/vendor/spdlog"]
+	path = Hominem/vendor/spdlog
+	url = https://github.com/gabime/spdlog.git
