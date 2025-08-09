@@ -12,7 +12,6 @@ int main(int argc, char** argv)
 
     Hominem::Application app;
     app.PushLayer(new Hominem::ExampleLayer());
-    app.PushOverlay(new Hominem::ImGuiLayer());
 
     app.Run();
 }

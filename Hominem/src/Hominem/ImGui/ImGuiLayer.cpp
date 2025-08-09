@@ -3,8 +3,8 @@
 
 #include "imgui.h"
 #include "GLFW/glfw3.h"
-#include "Platform/OpenGL/imgui_impl_opengl3.h"
-#include "Platform/OpenGL/imgui_impl_glfw.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
 
 #include "Hominem/Core/Application.h"
 
@@ -18,14 +18,30 @@ namespace Hominem {
 
 	void ImGuiLayer::OnAttach()
 	{
+
 		// Setup Dear ImGui context
+		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; 
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
 
 		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
+
+		ImGuiStyle& style = ImGui::GetStyle();
+
+		//When ImGui viewports are enabled, we change the windowRounding a little
+		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+		{
+			style.WindowRounding = 0.0f;
+			style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+
+			style.WindowMinSize = ImVec2(32, 32);
+		}
 
 		// Setup Platform/Renderer backends
 		Application& app = Application::Get();
@@ -36,37 +52,47 @@ namespace Hominem {
 
 	}
 
-	void ImGuiLayer::OnDetach()
+
+	void ImGuiLayer::Begin()
 	{
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
 	}
 
-	void ImGuiLayer::OnUpdate()
+	void ImGuiLayer::End()
 	{
-		//Setting window size for ImGui before the frame begins
 		ImGuiIO& io = ImGui::GetIO();
 		Application& app = Application::Get();
 		io.DisplaySize = ImVec2(app.GetWindow().GetWidth(), app.GetWindow().GetHeight());
 
-		//Getting and setting delta time for Dear ImGui
-		float time = (float)glfwGetTime();
-		io.DeltaTime = m_Time > 0.0f ? (time - m_Time) : (1.0f / 60.0f); //else case for if GLFW hasn't set the time yet i.e its the first frame
-
-		//Begining the ImGui frame
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-
-		static bool show = true;
-		ImGui::ShowDemoWindow(&show);
-
+		//Rendering
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+		{
+			GLFWwindow* backup_current_context = glfwGetCurrentContext();
+			ImGui::UpdatePlatformWindows();
+			ImGui::RenderPlatformWindowsDefault();
+
+			glfwMakeContextCurrent(backup_current_context);
+		}
 	}
 
-	void ImGuiLayer::OnEvent(Event& event)
+	void ImGuiLayer::OnImGuiRender()
 	{
+		static bool show = true;
+		ImGui::ShowDemoWindow(&show);
 	}
+
+	void ImGuiLayer::OnDetach()
+	{
+		ImGui_ImplOpenGL3_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+	}
+
 
 	ImGuiLayer::~ImGuiLayer()
 	{

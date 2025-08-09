@@ -5,6 +5,7 @@
 #include "Hominem/Events/Event.h"
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Core/LayerStack.h"
+#include "Hominem/ImGui/ImGuiLayer.h"
 
 
 namespace Hominem {
@@ -35,6 +36,7 @@ namespace Hominem {
         bool OnWindowClose(WindowCloseEvent& e);
        
         std::unique_ptr<Window> m_Window;
+        ImGuiLayer* m_ImGuiLayer; //by default Hominem always will have a ImGui layer existing
         bool m_Running;
         LayerStack m_LayerStack;
     private:

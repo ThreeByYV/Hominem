@@ -5,7 +5,6 @@
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Events/KeyEvent.h"
 
-
 namespace Hominem {
 
 	static bool s_IsGLFWInitialized = false;
@@ -135,7 +134,7 @@ namespace Hominem {
 		{
 				WindowData& data = *(WindowData*)glfwGetWindowUserPointer(window);
 
-				MouseScrolledEvent event((float)xPos, (float)yPos);
+				MouseMovedEvent  event((float)xPos, (float)yPos);
 				data.EventCallback(event);
 
 				/*HMN_CORE_INFO("Mouse Position: ({0}, {1})", xPos, yPos);*/
