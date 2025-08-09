@@ -7,3 +7,6 @@
 [submodule "Hominem/vendor/imgui"]
 	path = Hominem/vendor/imgui
 	url = https://github.com/ThreeByYV/imgui.git
+[submodule "Hominem/vendor/glm"]
+	path = Hominem/vendor/glm
+	url = https://github.com/icaven/glm.git

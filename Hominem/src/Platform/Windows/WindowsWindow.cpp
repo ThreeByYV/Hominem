@@ -6,7 +6,6 @@
 #include "Hominem/Events/KeyEvent.h"
 
 
-
 namespace Hominem {
 
 	static bool s_IsGLFWInitialized = false;
@@ -45,6 +44,10 @@ namespace Hominem {
 
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
 		glfwMakeContextCurrent(m_Window);
+
+		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+		HMN_CORE_ASSERT(status, "Failed to initialize Glad!");
+
 		glfwSetWindowUserPointer(m_Window, &m_Data); //we can use m_Data below now by using GLFW Callbacks
 		SetVSync(true);
 

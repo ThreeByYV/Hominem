@@ -77,7 +77,7 @@ namespace Hominem {
         Event& m_Event;
     };
 
-    //for a logging library implemantation
+    //for logging library 
     inline std::ostream& operator <<(std::ostream& os, const Event& e)
     {
         return os << e.ToString();

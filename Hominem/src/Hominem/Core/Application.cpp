@@ -1,13 +1,15 @@
 #include "hmnpch.h"
 #include "Application.h"
 
-#include <GLFW/glfw3.h>
+#include <glad/glad.h>
 
+#include "Input.h"
+#include "glm/glm.hpp"
 
 namespace Hominem {
 
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
-
+	 
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application()
@@ -45,8 +47,13 @@ namespace Hominem {
 			glClear(GL_COLOR_BUFFER_BIT);
 
 			for (Layer* layer : m_LayerStack)
+			{
 				layer->OnUpdate();
+			}
 
+			auto [x, y] = Input::GetMousePosition();
+			//HMN_CORE_TRACE("{0}, {1}", x, y);
+				
 			m_Window->OnUpdate();
 		}
 	}

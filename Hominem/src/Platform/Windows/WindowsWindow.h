@@ -2,6 +2,8 @@
 
 #include "Hominem/Core/Window.h"
 #include "Hominem/Core/Log.h"
+
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 namespace Hominem {

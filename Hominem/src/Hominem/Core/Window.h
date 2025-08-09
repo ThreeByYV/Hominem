@@ -35,7 +35,7 @@ namespace Hominem {
 
 		virtual unsigned int GetWidth() const = 0;
 		virtual unsigned int GetHeight() const = 0;
-		virtual void* GetNativeWindow() const = 0;
+		virtual void* GetNativeWindow() const = 0; //depending on the window library using void* since it could return anything
 
 		//Window attributes
 		virtual void SetEventCallback(const EventCallbackFn& callback) = 0;

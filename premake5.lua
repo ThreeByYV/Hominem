@@ -14,6 +14,7 @@ IncludeDir = {}
 IncludeDir["GLFW"] = "Hominem/vendor/GLFW/include"
 IncludeDir["Glad"] = "Hominem/vendor/Glad/include"
 IncludeDir["ImGui"] = "Hominem/vendor/imgui" 
+IncludeDir["glm"] = "Hominem/vendor/glm" 
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -36,6 +37,8 @@ project "Hominem"
         "%{prj.name}/src/**.h",
         "%{prj.name}/src/**.cpp",
         "%{prj.name}/src/**.hpp",
+        "%{prj.name}/vendor/glm/glm/**.hpp",
+        "%{prj.name}/vendor/glm/glm/**.inl"
     }
 
     includedirs
@@ -44,7 +47,8 @@ project "Hominem"
         "%{prj.name}/src",
         "%{IncludeDir.GLFW}",
         "%{IncludeDir.Glad}",
-        "%{IncludeDir.ImGui}"
+        "%{IncludeDir.ImGui}",
+        "%{IncludeDir.glm}"
     }
 
     links

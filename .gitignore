@@ -4,6 +4,7 @@ bin-int/
 Intermediates/
 
 *.log
+*.ini
 
 # Visual Studio files and folder
 .vs/
