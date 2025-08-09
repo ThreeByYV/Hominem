@@ -13,15 +13,17 @@ outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 IncludeDir = {}
 IncludeDir["GLFW"] = "Hominem/vendor/GLFW/include"
 IncludeDir["Glad"] = "Hominem/vendor/Glad/include"
-
+IncludeDir["ImGui"] = "Hominem/vendor/imgui" 
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
+include "Hominem/vendor/imgui"
 
 project "Hominem"
     location "Hominem"
     kind "ConsoleApp"
     language "C++"
+    cppdialect "C++20" 
 
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
@@ -41,31 +43,32 @@ project "Hominem"
         "%{prj.name}/vendor/spdlog/include",
         "%{prj.name}/src",
         "%{IncludeDir.GLFW}",
-         "%{IncludeDir.Glad}"
+        "%{IncludeDir.Glad}",
+        "%{IncludeDir.ImGui}"
     }
 
     links
     {
         "GLFW",
         "Glad",
-        "opengl32.lib"
+        "ImGui",
+        "opengl32",
+        "gdi32",     
+        "user32" 
     }
 
+    filter "files:**/imgui*.cpp"
+        flags { "NoPCH" }
+
     filter "system:windows"
-        cppdialect "C++20"
         staticruntime "Off"
         systemversion "latest"
-         buildoptions { "/utf-8" } 
+        buildoptions { "/utf-8" } 
 
         defines
         {         
             "HMN_PLATFORM_WINDOWS",
         }
-
-        -- postbuildcommands
-        -- {
-        --     {"{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/Sandbox"}
-        -- }
     
     filter "configurations:Debug"
         defines "HMN_DEBUG"
@@ -81,7 +84,3 @@ project "Hominem"
         defines "HMN_DIST"
         optimize "On"
         runtime "Release"
-
-    -- filter { "system:windows", "configurations:Release" }
-    --     buildoptions "/MT"
-

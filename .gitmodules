@@ -4,3 +4,6 @@
 [submodule "Hominem/vendor/spdlog"]
 	path = Hominem/vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "Hominem/vendor/imgui"]
+	path = Hominem/vendor/imgui
+	url = https://github.com/ThreeByYV/imgui.git

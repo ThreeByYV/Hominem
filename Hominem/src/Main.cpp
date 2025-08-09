@@ -4,7 +4,6 @@
 
 #include "Hominem/Core/Hominem.h"
 
-
 int main(int argc, char** argv)
 {
     Hominem::Log::Init();
@@ -12,6 +11,7 @@ int main(int argc, char** argv)
 
     Hominem::Application app;
     app.PushLayer(new Hominem::ExampleLayer());
+    app.PushOverlay(new Hominem::ImGuiLayer());
     app.Run();
 }
 

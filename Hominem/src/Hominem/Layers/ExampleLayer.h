@@ -4,7 +4,7 @@
 
 namespace Hominem {
 
-	class ExampleLayer : public Hominem::Layer
+	class ExampleLayer : public Layer
 	{
 	public:
 		ExampleLayer()
@@ -14,7 +14,7 @@ namespace Hominem {
 
 		void OnUpdate() override
 		{
-			HMN_CORE_INFO("ExampleLayer::Update");
+			/*HMN_CORE_INFO("ExampleLayer::Update");*/
 		}
 
 		void OnEvent(Hominem::Event& event) override
