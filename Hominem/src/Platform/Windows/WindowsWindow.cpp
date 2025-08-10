@@ -5,6 +5,9 @@
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Events/KeyEvent.h"
 
+#include "Platform/OpenGL/OpenGLContext.h"
+
+
 namespace Hominem {
 
 	static bool s_IsGLFWInitialized = false;
@@ -32,6 +35,8 @@ namespace Hominem {
 
 		HMN_CORE_INFO("Creating window {0} ({1}, {2})", props.Title, props.Width, props.Height);
 
+
+
 		if (!s_IsGLFWInitialized)
 		{
 			int success = glfwInit();
@@ -42,12 +47,12 @@ namespace Hominem {
 		}
 
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-		glfwMakeContextCurrent(m_Window);
-
-		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-		HMN_CORE_ASSERT(status, "Failed to initialize Glad!");
-
-		glfwSetWindowUserPointer(m_Window, &m_Data); //we can use m_Data below now by using GLFW Callbacks
+		
+		m_Context = new OpenGLContext(m_Window);
+		m_Context->Init();
+		
+		
+		glfwSetWindowUserPointer(m_Window, &m_Data); //we can use m_Data below now by using GLFW Callback s
 		SetVSync(true);
 
 		//Set GLFW callbacks
@@ -150,7 +155,7 @@ namespace Hominem {
 	void WindowsWindow::OnUpdate()
 	{
 		glfwPollEvents();
-		glfwSwapBuffers(m_Window);
+		m_Context->SwapBuffers();
 	}
  
 

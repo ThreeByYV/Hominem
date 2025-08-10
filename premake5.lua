@@ -41,6 +41,12 @@ project "Hominem"
         "%{prj.name}/vendor/glm/glm/**.inl"
     }
 
+    defines
+    {
+    "_CRT_SECURE_NO_WARNINGS"
+
+    }
+
     includedirs
     {
         "%{prj.name}/vendor/spdlog/include",
@@ -55,17 +61,13 @@ project "Hominem"
     {
         "GLFW",
         "Glad",
-        "ImGui",
-        "opengl32",
-        "gdi32",     
-        "user32" 
+        "ImGui"
     }
 
     filter "files:**/imgui*.cpp"
         flags { "NoPCH" }
 
     filter "system:windows"
-        staticruntime "Off"
         systemversion "latest"
         buildoptions { "/utf-8" } 
 
@@ -76,12 +78,12 @@ project "Hominem"
     
     filter "configurations:Debug"
         defines "HMN_DEBUG"
-        symbols "On"
+        symbols "on"
         runtime "Debug"    
 
     filter "configurations:Release"
         defines "HMN_RELEASE"
-        optimize "On"
+        optimize "on"
         runtime "Release"
 
     filter "configurations:Dist"

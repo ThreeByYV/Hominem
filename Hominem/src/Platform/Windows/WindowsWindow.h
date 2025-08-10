@@ -3,7 +3,8 @@
 #include "Hominem/Core/Window.h"
 #include "Hominem/Core/Log.h"
 
-#include <glad/glad.h>
+#include "Hominem/Renderer/GraphicsContext.h"
+
 #include <GLFW/glfw3.h>
 
 namespace Hominem {
@@ -32,6 +33,9 @@ namespace Hominem {
 
 	private:
 		GLFWwindow* m_Window;
+
+		//for now only support one graphics API per window, but in future could update this to support multiple in the same frame
+		GraphicsContext* m_Context;
 
 		struct WindowData
 		{
