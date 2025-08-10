@@ -30,4 +30,5 @@ Going to focus on getting the core 3D rendering pipeline solid before diving int
 #### Planned: October 2025
 This is where it gets interesting - time to start implementing the 2.5D magic. Cel-shading, custom normal manipulation, and getting those clean outlines working. The goal is to make 3D models look like they were hand-drawn.
 #### Planned: November 2025
-Advanced 2.5D features and polish. Want to get the lighting looking really stylized and art-directable. Maybe some post-processing effects to really sell the hand-drawn aesthetic.
+
+Advanced 2.5D features and polish. Want to get the lighting looking really stylized and art-directable. Maybe some post-processing effects to really sell the hand-drawn aesthetic. Even possibly using AMD FSR SDK for AI image upscaling
