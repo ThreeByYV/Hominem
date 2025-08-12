@@ -14,6 +14,6 @@
 	#define HMN_ASSERT(x, ...) { if(!(x)) { HMN_ERROR("Assertion Failed: {0}", __VA_ARGS__); __debugbreak(); } }
 	#define HMN_CORE_ASSERT(x, ...) { if(!(x)) { HMN_CORE_ERROR("Assertion Failed: {0}", __VA_ARGS__); __debugbreak(); } }
 #else
-	#define HZ_ASSERT(x, ...)
+	#define HMN_ASSERT(x, ...)
 	#define HMN_CORE_ASSERT(x, ...)
 #endif
