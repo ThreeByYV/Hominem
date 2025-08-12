@@ -43,8 +43,7 @@ project "Hominem"
 
     defines
     {
-    "_CRT_SECURE_NO_WARNINGS"
-
+        "_CRT_SECURE_NO_WARNINGS"
     }
 
     includedirs
@@ -77,7 +76,10 @@ project "Hominem"
         }
     
     filter "configurations:Debug"
-        defines "HMN_DEBUG"
+         defines { 
+            "HMN_DEBUG",
+            "HMN_ENABLE_ASSERTS" 
+        }
         symbols "on"
         runtime "Debug"    
 

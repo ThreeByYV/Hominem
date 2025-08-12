@@ -1,37 +1,20 @@
 #include "hmnpch.h"
 #include "Application.h"
 
-#include <glad/glad.h>
 #include "Hominem/Renderer/Buffer.h"
 #include "Input.h"
 #include "glm/glm.hpp"
+#include "Hominem/Events/KeyEvent.h"
+#include "Hominem/Core/KeyCodes.h"
+#include "Hominem/Renderer/RenderCommand.h"
+#include "Hominem/Renderer/Renderer.h"
+
 
 namespace Hominem {
 
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
 	 
 	Application* Application::s_Instance = nullptr;
-
-	static GLenum ShaderDataTypeToOpenGLBaseType(ShaderDataType type)
-	{
-		switch (type)
-		{
-			case ShaderDataType::Float:     return GL_FLOAT;
-			case ShaderDataType::Float2:    return GL_FLOAT;
-			case ShaderDataType::Float3:    return GL_FLOAT;
-			case ShaderDataType::Float4:    return GL_FLOAT;
-			case ShaderDataType::Mat3:      return GL_FLOAT;
-			case ShaderDataType::Mat4:      return GL_FLOAT;
-			case ShaderDataType::Int:       return GL_INT;
-			case ShaderDataType::Int2:      return GL_INT;
-			case ShaderDataType::Int3:      return GL_INT;
-			case ShaderDataType::Int4:      return GL_INT;
-			case ShaderDataType::Bool:      return GL_BOOL;
-		}
-
-		HMN_CORE_ASSERT(false, "Unknown ShaderDataType on convert to OpenGL Base!");
-		return 0;
-	}
 
 	Application::Application()
 	{
@@ -43,9 +26,9 @@ namespace Hominem {
 
 		m_ImGuiLayer = new ImGuiLayer();
 
-
 		PushOverlay(m_ImGuiLayer);
 
+		m_VertexArray.reset(VertexArray::Create());
 
 		float vertices[4 * 3] = {
 			-0.5f, -0.5f, 0.0f,  // 0: Bottom-left
@@ -61,29 +44,16 @@ namespace Hominem {
 		};
 
 		m_VertexBuffer->SetLayout(layout);
+		m_VertexArray->AddVertexBuffer(m_VertexBuffer); //todo may need to leverage Unbind more, since there could be bad associations to the bind VAO
 
-		uint32_t index = 0;
-		for (const auto& element : m_VertexBuffer->GetLayout())
-		{
-			glEnableVertexAttribArray(index);
 
-			glVertexAttribPointer(index,
-				element.GetComponentCount(),
-				ShaderDataTypeToOpenGLBaseType(element.Type), 
-				element.Normalized ? GL_TRUE : GL_FALSE, 
-				m_VertexBuffer->GetLayout().GetStride(),
-				(const void*)element.Offset);
-
-			index++;
-		}
-
-		
 		unsigned int indices[6] = {
 			0, 1, 2,  // First triangle (bottom-left, bottom-right, top-right)
 			2, 3, 0   // Second triangle (top-right, top-left, bottom-left)
 		};
 
 		m_IndexBuffer.reset(IndexBuffer::Create(indices, sizeof(indices) / sizeof(uint32_t)));
+		m_VertexArray->SetIndexBuffer(m_IndexBuffer);
 	}
 
 	//this function leverages the EventDispatcher to pass an event to the correct method
@@ -106,11 +76,14 @@ namespace Hominem {
 	{
 		while (m_Running)
 		{
-			glClearColor(0.1f, 0.1f, 0.1f, 1);
-			glClear(GL_COLOR_BUFFER_BIT);
+			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
+			RenderCommand::Clear();
 
-			glBindVertexArray(m_VertexArray);
-			glDrawElements(GL_TRIANGLES, m_IndexBuffer->GetCount(), GL_UNSIGNED_INT, nullptr);
+			Renderer::BeginScene();
+
+			Renderer::Submit(m_VertexArray);
+
+			Renderer::EndScene();
 
 			for (Layer* layer : m_LayerStack)
 			{
@@ -125,9 +98,6 @@ namespace Hominem {
 			}
 
 			m_ImGuiLayer->End();
-
-			auto [x, y] = Input::GetMousePosition();
-			//HMN_CORE_TRACE("{0}, {1}", x, y);
 				
 			m_Window->OnUpdate();
 		}
