@@ -6,9 +6,6 @@
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Core/LayerStack.h"
 #include "Hominem/ImGui/ImGuiLayer.h"
-#include "Hominem/Renderer/Buffer.h" 
-#include "Hominem/Renderer/Shader.h"
-#include "Hominem/Renderer/VertexArray.h"
 
 
 namespace Hominem {
@@ -42,10 +39,6 @@ namespace Hominem {
         ImGuiLayer* m_ImGuiLayer; //by default Hominem always will have a ImGui layer existing
         bool m_Running;
         LayerStack m_LayerStack;
-
-        std::shared_ptr<VertexArray> m_VertexArray;
-        std::shared_ptr<VertexBuffer> m_VertexBuffer;
-        std::shared_ptr<IndexBuffer> m_IndexBuffer;
 
        
     private:

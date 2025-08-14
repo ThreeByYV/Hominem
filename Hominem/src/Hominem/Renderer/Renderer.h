@@ -1,17 +1,30 @@
 #pragma once
+
 #include "RenderCommand.h"
+#include "Camera.h"
+#include "Shader.h"
 
 namespace Hominem {
 
 	class Renderer 
 	{
 	public:
-		static void BeginScene(); // todo take in scene params here
+		static void BeginScene(OrthographicCamera& camera); // todo take in scene params here
 		static void EndScene();
 
-		static void Submit(const std::shared_ptr<VertexArray>& vertexArray);
+		static void Submit(const std::shared_ptr<VertexArray>& vertexArray, const std::shared_ptr<Shader>& shader);
 
 		inline static RendererAPI::API GetAPI() { return RendererAPI::GetAPI(); }
+
+	private:
+		struct SceneData
+		{
+			glm::mat4 ViewProjectionMatrix;
+		};
+
+		static SceneData* m_SceneData;
+
 	};
+
 
 }

@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "Application.h"
-
+#include "Core.h"
 #include "Hominem/Renderer/Buffer.h"
 #include "Input.h"
 #include "glm/glm.hpp"
@@ -10,10 +10,11 @@
 #include "Hominem/Renderer/Renderer.h"
 
 
+#include "Hominem/Renderer/Camera.h"
+
+
 namespace Hominem {
 
-#define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
-	 
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application()
@@ -22,38 +23,11 @@ namespace Hominem {
 		
 		s_Instance = this;
 		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
-		m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
+		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
 		m_ImGuiLayer = new ImGuiLayer();
 
 		PushOverlay(m_ImGuiLayer);
-
-		m_VertexArray.reset(VertexArray::Create());
-
-		float vertices[4 * 3] = {
-			-0.5f, -0.5f, 0.0f,  // 0: Bottom-left
-			 0.5f, -0.5f, 0.0f,  // 1: Bottom-right  
-			 0.5f,  0.5f, 0.0f,  // 2: Top-right
-			-0.5f,  0.5f, 0.0f   // 3: Top-left
-		};
-
-		m_VertexBuffer.reset(VertexBuffer::Create(vertices, sizeof(vertices)));
-
-		BufferLayout layout = {
-			{ ShaderDataType::Float3, "a_Pos" }
-		};
-
-		m_VertexBuffer->SetLayout(layout);
-		m_VertexArray->AddVertexBuffer(m_VertexBuffer); //todo may need to leverage Unbind more, since there could be bad associations to the bind VAO
-
-
-		unsigned int indices[6] = {
-			0, 1, 2,  // First triangle (bottom-left, bottom-right, top-right)
-			2, 3, 0   // Second triangle (top-right, top-left, bottom-left)
-		};
-
-		m_IndexBuffer.reset(IndexBuffer::Create(indices, sizeof(indices) / sizeof(uint32_t)));
-		m_VertexArray->SetIndexBuffer(m_IndexBuffer);
 	}
 
 	//this function leverages the EventDispatcher to pass an event to the correct method
@@ -62,7 +36,7 @@ namespace Hominem {
 		HMN_CORE_TRACE("Event received: {}", e.ToString());
 		
 		EventDispatcher dispatcher(e);
-		dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(OnWindowClose));
+		dispatcher.Dispatch<WindowCloseEvent>(HMN_BIND_EVENT_FN(Application::OnWindowClose));
 
 
 		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin(); )
@@ -76,14 +50,6 @@ namespace Hominem {
 	{
 		while (m_Running)
 		{
-			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
-			RenderCommand::Clear();
-
-			Renderer::BeginScene();
-
-			Renderer::Submit(m_VertexArray);
-
-			Renderer::EndScene();
 
 			for (Layer* layer : m_LayerStack)
 			{

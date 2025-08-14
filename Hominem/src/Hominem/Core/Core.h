@@ -17,3 +17,5 @@
 	#define HMN_ASSERT(x, ...)
 	#define HMN_CORE_ASSERT(x, ...)
 #endif
+
+#define HMN_BIND_EVENT_FN(x) std::bind(&x, this, std::placeholders::_1)
