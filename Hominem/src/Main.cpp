@@ -1,8 +1,9 @@
 #include "hmnpch.h"
+#include "Hominem/Core/Hominem.h"
+#include "Hominem/Layers/GameLayer.h"
 
 #ifdef HMN_PLATFORM_WINDOWS
 
-#include "Hominem/Core/Hominem.h"
 
 int main(int argc, char** argv)
 {
@@ -11,7 +12,7 @@ int main(int argc, char** argv)
     HMN_CORE_TRACE("Initialized Log");
 
     Hominem::Application app;
-    app.PushLayer(new Hominem::ExampleLayer());
+    app.PushLayer(new Hominem::GameLayer());
 
     app.Run();
 }
