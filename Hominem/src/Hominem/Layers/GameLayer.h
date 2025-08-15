@@ -65,26 +65,26 @@ namespace Hominem {
 			m_Shader.reset(new Hominem::Shader(vertexSrc, fragmentSrc));
 		}
 
-		void OnUpdate() override
-		{
+		void OnUpdate(Hominem::Timestep ts) override
+		{			
 			if (Hominem::Input::IsKeyPressed(HMN_KEY_LEFT))
 			{
-				m_CameraPosition.x += m_CameraSpeed;
+				m_CameraPosition.x += m_CameraSpeed * ts;
 			}
 
 			else if (Hominem::Input::IsKeyPressed(HMN_KEY_RIGHT))
 			{
-				m_CameraPosition.x -= m_CameraSpeed;
+				m_CameraPosition.x -= m_CameraSpeed * ts;
 			}
 
 		    if (Hominem::Input::IsKeyPressed(HMN_KEY_UP))
 			{
-				m_CameraPosition.y -= m_CameraSpeed;
+				m_CameraPosition.y -= m_CameraSpeed * ts;
 			}
 
 			else if (Hominem::Input::IsKeyPressed(HMN_KEY_DOWN))
 			{
-				m_CameraPosition.y += m_CameraSpeed;
+				m_CameraPosition.y += m_CameraSpeed * ts;
 			}
 
 			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
@@ -115,9 +115,10 @@ namespace Hominem {
 		std::shared_ptr<VertexBuffer> m_VertexBuffer;
 		std::shared_ptr<IndexBuffer> m_IndexBuffer;
 		std::shared_ptr<Shader> m_Shader;
-		float m_CameraSpeed = 0.05f;
+		float m_CameraSpeed = 5.0f;
+		float m_CameraRotationSpeed = 180.0f;
 
-		OrthographicCamera m_Camera;
+		Hominem::OrthographicCamera m_Camera;
 		glm::vec3 m_CameraPosition;
 
 	};

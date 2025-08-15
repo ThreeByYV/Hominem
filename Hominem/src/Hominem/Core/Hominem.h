@@ -3,7 +3,7 @@
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/EntryPoint.h"
 #include "Hominem/Core/Core.h"
- 
+#include "Hominem/Core/Timestep.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Core/MouseButtonCodes.h"
