@@ -131,7 +131,7 @@ namespace Hominem {
 		float m_CameraSpeed = 5.0f;
 		float m_CameraRotationSpeed = 180.0f;
 
-		Hominem::OrthographicCamera m_Camera;
+		OrthographicCamera m_Camera;
 		glm::vec3 m_CameraPosition;
 
 		glm::vec3 m_SquarePosition;
