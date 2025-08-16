@@ -13,15 +13,15 @@ namespace Hominem {
 	class OpenGLShader : public Shader
 	{
 	public:
-		OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc);
+		OpenGLShader(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc);
+		OpenGLShader(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
 		OpenGLShader(const std::string& filepath);
-		OpenGLShader(const std::filesystem::path& path);
-		OpenGLShader(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
 
 		~OpenGLShader();
 
 		void Bind() const override;
 		void Unbind() const override;
+		const std::string& GetName() const override { return m_Name; }
 
 
 		void UploadUniformInt(const std::string& name, int value);
@@ -35,6 +35,7 @@ namespace Hominem {
 		void UploadUniformMat4(const std::string& name, const glm::mat4& matrix);
 
 	private:
+		std::string m_Name;
 		uint32_t m_RendererID;
 		mutable std::unordered_map<std::string, GLint> m_UniformLocationCache;
 	private:

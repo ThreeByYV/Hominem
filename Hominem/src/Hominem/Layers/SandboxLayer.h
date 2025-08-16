@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+
 namespace Hominem {
 
 	class SandboxLayer : public Layer
@@ -45,7 +46,10 @@ namespace Hominem {
 			m_IndexBuffer.reset(IndexBuffer::Create(indices, sizeof(indices) / sizeof(uint32_t)));
 			m_VertexArray->SetIndexBuffer(m_IndexBuffer);
 
-			m_Shader.reset(Shader::Create("src/Hominem/Resources/Shaders/frag.glsl"));
+			auto squareShader = m_ShaderLibrary.Load("src/Hominem/Resources/Shaders/frag.glsl");
+		
+			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->Bind();
+
 		}
 
 		void OnUpdate(Timestep ts) override
@@ -82,11 +86,10 @@ namespace Hominem {
 
 			glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
 
-			std::dynamic_pointer_cast<OpenGLShader>(m_Shader)->Bind();
-			std::dynamic_pointer_cast<OpenGLShader>(m_Shader)->UploadUniformFloat3("u_Color", m_SquareColor);
-			
-			std::dynamic_pointer_cast<OpenGLShader>(m_Shader)->UploadUniformMat4("g_World", m_WorldPos);
+			auto squareShader = m_ShaderLibrary.Get("frag");
 
+			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->UploadUniformFloat3("u_Color", m_SquareColor);
+			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->UploadUniformMat4("g_World", m_WorldPos);
 
 			for (int y = 0; y < 20; y++)
 			{
@@ -94,7 +97,7 @@ namespace Hominem {
 				{
 					glm::vec3 pos(x * 0.11f, y * 0.11f, 0.0f);
 					glm::mat4 transform = glm::translate(glm::mat4(1.0f), pos) * scale;	
-				    Renderer::Submit(m_VertexArray, m_Shader, transform);
+				    Renderer::Submit(m_VertexArray, squareShader, transform);
 				}
 			}
 			
@@ -114,10 +117,10 @@ namespace Hominem {
 		}
 
 	private:
+		ShaderLibrary m_ShaderLibrary;
 		Ref<VertexArray> m_VertexArray;
 		Ref<VertexBuffer> m_VertexBuffer;
 		Ref<IndexBuffer> m_IndexBuffer;
-		Ref<Shader> m_Shader;
 		float m_CameraSpeed = 5.0f;
 		float m_CameraRotationSpeed = 180.0f;
 

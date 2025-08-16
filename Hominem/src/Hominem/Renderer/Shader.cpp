@@ -6,65 +6,79 @@
 
 namespace Hominem {
 
-	Shader* Shader::Create(const std::string& filepath)
+	Ref<Shader> Shader::Create(const std::string& filepath)
 	{
 		switch (Renderer::GetAPI())
 		{
 			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return new OpenGLShader(filepath);
+			case RendererAPI::API::OpenGL: return std::make_shared<OpenGLShader>(filepath);
 		}
 
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
 	}
 
-	//Shader* Shader::Create(const std::filesystem::path& path)
-	//{
-	//	switch (Renderer::GetAPI())
-	//	{
-	//	case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-	//	case RendererAPI::API::OpenGL: return new OpenGLShader(path);
-	//	}
-
-	//	HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-	//	return nullptr;
-	//}
-
-
-	Shader* Shader::Create(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
+	Ref<Shader> Shader::Create(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 	{
 		switch (Renderer::GetAPI())
 		{
 			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return new OpenGLShader(vertexPath, fragmentPath);
+			case RendererAPI::API::OpenGL: return std::make_shared <OpenGLShader>(name, vertexPath, fragmentPath);
 		}
 
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
 	}
 
-	//Shader* Shader::ReloadShader(uint32_t shaderHandle, const std::string& shaderPath)
-	//{
-	//	switch (Renderer::GetAPI())
-	//	{
-	//		case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-	//		case RendererAPI::API::OpenGL: return new OpenGLShader->ReloadShader(shaderPath);
-	//	}
-
-	//	HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-	//	return nullptr;
-	//}
-
-	Shader* Shader::Create(const std::string& vertexSrc, const std::string& fragmentSrc)
+	Ref<Shader> Shader::Create(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc)
 	{
 		switch (Renderer::GetAPI())
 		{
 			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return new OpenGLShader(vertexSrc, fragmentSrc);
+			case RendererAPI::API::OpenGL: return std::make_shared <OpenGLShader>(name, vertexSrc, fragmentSrc);
 		}
 
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
+	}
+
+	void ShaderLibrary::Add(const std::string& name, const Ref<Shader>& shader)
+	{
+		//suppports adding a custom shader name instead of default filename
+		HMN_CORE_ASSERT(!Exists(name), "Shader already exists in Shader Library!");
+		m_Shaders[name] = shader;
+	}
+
+
+	void ShaderLibrary::Add(const Ref<Shader>& shader)
+	{
+		auto& name = shader->GetName();
+		Add(name, shader);
+	}
+
+	Ref<Shader> ShaderLibrary::Get(const std::string& name)
+	{
+		HMN_CORE_ASSERT(Exists(name), "Shader not found in the Shader Library!");
+		return m_Shaders[name];
+	}
+
+	Ref<Shader> ShaderLibrary::Load(const std::string& filepath)
+	{
+		auto shader = Shader::Create(filepath);
+		Add(shader);
+		return shader;
+	}
+
+	Ref<Shader> ShaderLibrary::Load(const std::string& name, const std::string& filepath)
+	{
+		auto shader = Shader::Create(filepath);
+		Add(shader);
+		return shader;
+	}
+
+	bool ShaderLibrary::Exists(const std::string& name) const
+	{
+		return m_Shaders.find(name) != m_Shaders.end();
 	}
 
 }
