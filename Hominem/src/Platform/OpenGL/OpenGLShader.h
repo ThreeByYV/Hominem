@@ -1,8 +1,12 @@
 #pragma once
 
 #include "Hominem/Renderer/Shader.h"
+#include <unordered_map>
 #include <glm/glm.hpp>
+#include <filesystem>
 
+typedef unsigned int GLenum;
+typedef int GLint;
 
 namespace Hominem {
 
@@ -10,10 +14,15 @@ namespace Hominem {
 	{
 	public:
 		OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc);
+		OpenGLShader(const std::string& filepath);
+		OpenGLShader(const std::filesystem::path& path);
+		OpenGLShader(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
+
 		~OpenGLShader();
 
 		void Bind() const override;
 		void Unbind() const override;
+
 
 		void UploadUniformInt(const std::string& name, int value);
 		
@@ -24,7 +33,15 @@ namespace Hominem {
 		
 		void UploadUniformMat3(const std::string& name, const glm::mat3& matrix);
 		void UploadUniformMat4(const std::string& name, const glm::mat4& matrix);
+
 	private:
 		uint32_t m_RendererID;
+		mutable std::unordered_map<std::string, GLint> m_UniformLocationCache;
+	private:
+		static std::string ReadTextFile(const std::filesystem::path& path);
+		std::unordered_map<GLenum, std::string> PreProcess(const std::string& source);
+		void Compile(std::unordered_map<GLenum, std::string> shaderSources);
+		
+		GLint GetUniformLocation(const std::string& name) const;
 	};
 }

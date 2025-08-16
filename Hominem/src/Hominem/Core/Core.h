@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 
 //#if defined(_WIN32) || defined(_WIN64)
 //	#ifdef HOMINEM_BUILD_DLL
@@ -19,3 +20,12 @@
 #endif
 
 #define HMN_BIND_EVENT_FN(x) std::bind(&x, this, std::placeholders::_1)
+
+namespace Hominem {
+
+	template<typename T>
+	using Scope = std::unique_ptr<T>;
+
+	template<typename T>
+	using Ref = std::shared_ptr<T>;
+}
