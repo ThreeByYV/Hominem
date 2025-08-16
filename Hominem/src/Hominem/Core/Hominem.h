@@ -16,5 +16,6 @@
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Renderer/VertexArray.h"
 #include "Hominem/Renderer/Camera.h"
+#include "Hominem/Renderer/Texture.h"
 
 #include "Hominem/ImGui/ImGuiLayer.h"
