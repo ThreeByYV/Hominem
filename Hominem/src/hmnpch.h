@@ -8,7 +8,7 @@
 #include <cmath>
 #include <cstdio>
 
-
+#include <array>
 #include <string>
 #include <fstream>
 #include <sstream>

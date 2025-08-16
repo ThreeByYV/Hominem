@@ -20,14 +20,8 @@ namespace Hominem {
 		return 0;
 	}
 
-	//OpenGLShader::OpenGLShader(const std::filesystem::path& path)
-	//{
-	//	std::string source = ReadTextFile(path);
-	//	auto shaderSources = PreProcess(source);
-	//	Compile(shaderSources);
-	//}
-
-	OpenGLShader::OpenGLShader(const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
+	OpenGLShader::OpenGLShader(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
+		: m_Name(name)
 	{
 		std::unordered_map<GLenum, std::string> sources;
 
@@ -44,9 +38,25 @@ namespace Hominem {
 		std::string source = ReadTextFile(filepath);
 		auto shaderSources = PreProcess(source);
 		Compile(shaderSources);
+
+		//Get the name from a filepath
+		
+		//Resources/Shaders/frag.glsl
+		auto lastSlash = filepath.find_last_of("/\\");
+		//frag.glsl
+		lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1; //skip the slash
+		
+		auto lastDot = filepath.rfind('.');
+		
+		//Resources/Shaders/frag
+		auto count = lastDot == std::string::npos ? filepath.size() - lastSlash : lastDot - lastSlash;
+		
+		m_Name = filepath.substr(lastSlash, count);
+
 	}
 
-	OpenGLShader::OpenGLShader(const std::string& vertexSrc, const std::string& fragmentSrc)
+	OpenGLShader::OpenGLShader(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc)
+		: m_Name(name)
 	{
 		std::unordered_map<GLenum, std::string> sources;
 
@@ -110,9 +120,11 @@ namespace Hominem {
 	{
 		GLuint program = glCreateProgram();
 
-		std::vector<GLenum> glShaderIDs;
-		glShaderIDs.reserve(shaderSources.size()); //no dynamic allocation, not needed
-		
+		HMN_CORE_ASSERT(shaderSources.size() <= 2, "We only support 2 shaders for now");
+		std::array<GLenum, 2> glShaderIDs;
+
+		int glShaderIDIndex = 0;
+
 		for (auto& keyValue : shaderSources)
 		{
 			GLenum shaderType = keyValue.first;
@@ -145,7 +157,7 @@ namespace Hominem {
 			}
 
 			glAttachShader(program, shader);
-			glShaderIDs.push_back(shader);
+			glShaderIDs[glShaderIDIndex++] = shader;
 		}
 
 		m_RendererID = program; //rendererID can never be invalid program since everything above was successful
