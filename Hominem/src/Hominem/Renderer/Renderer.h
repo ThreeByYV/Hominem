@@ -9,6 +9,8 @@ namespace Hominem {
 	class Renderer 
 	{
 	public:
+		static void Init();
+
 		static void BeginScene(OrthographicCamera& camera); // todo take in scene params here
 		static void EndScene();
 

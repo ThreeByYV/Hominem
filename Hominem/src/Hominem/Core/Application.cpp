@@ -24,8 +24,10 @@ namespace Hominem {
 		s_Instance = this;
 		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
-		m_ImGuiLayer = new ImGuiLayer();
+		
+		Renderer::Init();
 
+		m_ImGuiLayer = new ImGuiLayer();
 		PushOverlay(m_ImGuiLayer);
 	}
 
