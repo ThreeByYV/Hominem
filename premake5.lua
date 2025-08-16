@@ -15,6 +15,8 @@ IncludeDir["GLFW"] = "Hominem/vendor/GLFW/include"
 IncludeDir["Glad"] = "Hominem/vendor/Glad/include"
 IncludeDir["ImGui"] = "Hominem/vendor/imgui" 
 IncludeDir["glm"] = "Hominem/vendor/glm" 
+IncludeDir["stb_image"] = "Hominem/vendor/stb_image" 
+
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -37,6 +39,8 @@ project "Hominem"
         "%{prj.name}/src/**.h",
         "%{prj.name}/src/**.cpp",
         "%{prj.name}/src/**.hpp",
+        "%{prj.name}/vendor/stb_image/**.h",
+        "%{prj.name}/vendor/stb_image/**.cpp",
         "%{prj.name}/vendor/glm/glm/**.hpp",
         "%{prj.name}/vendor/glm/glm/**.inl"
     }
@@ -53,7 +57,8 @@ project "Hominem"
         "%{IncludeDir.GLFW}",
         "%{IncludeDir.Glad}",
         "%{IncludeDir.ImGui}",
-        "%{IncludeDir.glm}"
+        "%{IncludeDir.glm}",
+        "%{IncludeDir.stb_image}"
     }
 
     links

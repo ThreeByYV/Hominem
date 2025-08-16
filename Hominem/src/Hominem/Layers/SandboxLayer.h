@@ -21,17 +21,18 @@ namespace Hominem {
 		{
 			m_VertexArray.reset(Hominem::VertexArray::Create());
 
-			float vertices[4 * 3] = {
-				-0.5f, -0.5f, 0.0f,  // 0: Bottom-left
-				 0.5f, -0.5f, 0.0f,  // 1: Bottom-right  
-				 0.5f,  0.5f, 0.0f,  // 2: Top-right
-				-0.5f,  0.5f, 0.0f   // 3: Top-left
+			float vertices[4 * 5] = {
+				-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  // 0: Bottom-left
+				 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,  // 1: Bottom-right  
+				 0.5f,  0.5f, 0.0f, 1.0f, 1.0f,  // 2: Top-right
+				-0.5f,  0.5f, 0.0f, 0.0f, 1.0f   // 3: Top-left
 			};
 
 			m_VertexBuffer.reset(Hominem::VertexBuffer::Create(vertices, sizeof(vertices)));
 
 			BufferLayout layout = {
-				{ ShaderDataType::Float3, "a_Pos" }
+				{ ShaderDataType::Float3, "a_Pos" },
+				{ ShaderDataType::Float2, "a_TexCoord" }
 			};
 
 			m_VertexBuffer->SetLayout(layout);
@@ -47,9 +48,11 @@ namespace Hominem {
 			m_VertexArray->SetIndexBuffer(m_IndexBuffer);
 
 			auto squareShader = m_ShaderLibrary.Load("src/Hominem/Resources/Shaders/frag.glsl");
-		
-			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->Bind();
-
+			auto textureShader = m_ShaderLibrary.Load("src/Hominem/Resources/Shaders/texture.glsl");
+			
+			m_Texture = Texture2D::Create("src/Hominem/Resources/Textures/drip.jpg");
+			std::dynamic_pointer_cast<OpenGLShader>(textureShader)->Bind();
+			std::dynamic_pointer_cast<OpenGLShader>(textureShader)->UploadUniformInt("u_Texture", 0); //the bound texture slot is 0
 		}
 
 		void OnUpdate(Timestep ts) override
@@ -87,9 +90,8 @@ namespace Hominem {
 			glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
 
 			auto squareShader = m_ShaderLibrary.Get("frag");
-
+			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->Bind();
 			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->UploadUniformFloat3("u_Color", m_SquareColor);
-			std::dynamic_pointer_cast<OpenGLShader>(squareShader)->UploadUniformMat4("g_World", m_WorldPos);
 
 			for (int y = 0; y < 20; y++)
 			{
@@ -100,6 +102,10 @@ namespace Hominem {
 				    Renderer::Submit(m_VertexArray, squareShader, transform);
 				}
 			}
+			
+			auto textureShader = m_ShaderLibrary.Get("texture");
+			m_Texture->Bind();
+			Renderer::Submit(m_VertexArray, textureShader, glm::scale(glm::mat4(1.0f), glm::vec3(1.5f)));
 			
 			Renderer::EndScene();	
 		} 
@@ -121,6 +127,7 @@ namespace Hominem {
 		Ref<VertexArray> m_VertexArray;
 		Ref<VertexBuffer> m_VertexBuffer;
 		Ref<IndexBuffer> m_IndexBuffer;
+		Ref<Texture2D> m_Texture;
 		float m_CameraSpeed = 5.0f;
 		float m_CameraRotationSpeed = 180.0f;
 
