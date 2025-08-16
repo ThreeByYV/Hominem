@@ -1,6 +1,11 @@
 #pragma once
 
 #include "Hominem/Core/Hominem.h"
+#include "Platform/OpenGL/OpenGLShader.h"
+
+#include "imgui.h"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace Hominem {
 
@@ -10,7 +15,8 @@ namespace Hominem {
 		GameLayer()			        
 			: Layer("MainGame"),
 			  m_Camera(-2.0f, 2.0f, -2.0f, 2.0f), //   -x     +x    -y    +y
-			  m_CameraPosition(0.0f)
+			  m_CameraPosition(0.0f),
+		      m_SquarePosition(0.0f)
 		{
 			m_VertexArray.reset(Hominem::VertexArray::Create());
 
@@ -44,47 +50,49 @@ namespace Hominem {
 		
 			layout(location = 0) in vec3 a_Pos;
 			uniform mat4 u_ViewProjection;	
+			uniform mat4 u_Transform;
     
 			void main()
 			{
-				gl_Position = u_ViewProjection * vec4(a_Pos, 1.0);
+				gl_Position = u_ViewProjection * u_Transform * vec4(a_Pos, 1.0);
 			}
-			)";
+			)"; 
 
 			std::string fragmentSrc = R"(
 			#version 330 core
 		
 			layout(location = 0) out vec4 color;
+			uniform vec3 u_Color;
     
 			void main()
 			{
-				color = vec4(1.0, 0.0, 0.0, 1.0);
+				color = vec4(u_Color, 1.0f);
 			}
 			)";
 
-			m_Shader.reset(new Hominem::Shader(vertexSrc, fragmentSrc));
+			m_Shader.reset(Hominem::Shader::Create(vertexSrc, fragmentSrc));
 		}
 
 		void OnUpdate(Hominem::Timestep ts) override
 		{			
 			if (Hominem::Input::IsKeyPressed(HMN_KEY_LEFT))
 			{
-				m_CameraPosition.x += m_CameraSpeed * ts;
+				m_CameraPosition.x -= m_CameraSpeed * ts;
 			}
 
 			else if (Hominem::Input::IsKeyPressed(HMN_KEY_RIGHT))
 			{
-				m_CameraPosition.x -= m_CameraSpeed * ts;
+				m_CameraPosition.x += m_CameraSpeed * ts;
 			}
 
 		    if (Hominem::Input::IsKeyPressed(HMN_KEY_UP))
 			{
-				m_CameraPosition.y -= m_CameraSpeed * ts;
+				m_CameraPosition.y += m_CameraSpeed * ts;
 			}
 
 			else if (Hominem::Input::IsKeyPressed(HMN_KEY_DOWN))
 			{
-				m_CameraPosition.y += m_CameraSpeed * ts;
+				m_CameraPosition.y -= m_CameraSpeed * ts;
 			}
 
 			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
@@ -95,14 +103,30 @@ namespace Hominem {
 
 			Renderer::BeginScene(m_Camera);
 
-			Renderer::Submit(m_VertexArray, m_Shader);
+			glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
 
+
+			std::dynamic_pointer_cast<Hominem::OpenGLShader>(m_Shader)->Bind();
+			std::dynamic_pointer_cast<OpenGLShader>(m_Shader)->UploadUniformFloat3("u_Color", m_SquareColor);
+
+			for (int y = 0; y < 20; y++)
+			{
+				for (int x = 0; x < 20; x++)
+				{
+					glm::vec3 pos(x * 0.11f, y * 0.11f, 0.0f);
+					glm::mat4 transform = glm::translate(glm::mat4(1.0f), pos) * scale;	
+					Hominem::Renderer::Submit(m_VertexArray, m_Shader, transform);
+				}
+			}
+			
 			Renderer::EndScene();	
 		}
 
 		void OnImGuiRender() override
 		{
-
+			ImGui::Begin("Settings");
+			ImGui::ColorEdit3("Square Color", glm::value_ptr(m_SquareColor));
+			ImGui::End();
 		}
 
 		void OnEvent(Hominem::Event& event) override
@@ -120,6 +144,9 @@ namespace Hominem {
 
 		Hominem::OrthographicCamera m_Camera;
 		glm::vec3 m_CameraPosition;
+
+		glm::vec3 m_SquarePosition;
+		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
 
 	};
 }
