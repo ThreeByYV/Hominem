@@ -34,7 +34,7 @@ namespace Hominem {
 	//this function leverages the EventDispatcher to pass an event to the correct method
 	void Application::OnEvent(Event& e)
 	{
-		HMN_CORE_TRACE("Event received: {}", e.ToString());
+		//HMN_CORE_TRACE("Event received: {}", e.ToString());
 		
 		EventDispatcher dispatcher(e);
 		dispatcher.Dispatch<WindowCloseEvent>(HMN_BIND_EVENT_FN(Application::OnWindowClose));
