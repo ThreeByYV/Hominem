@@ -20,6 +20,15 @@ namespace Hominem {
 		void OnAttach()
 		{
 			m_DripTexture = Texture2D::Create("src/Hominem/Resources/Textures/drip.jpg");
+			
+			m_Mesh = new BasicMesh();
+		
+			if (m_Mesh->LoadMesh("src/Hominem/Resources/Textures/char.fbx"))
+			{
+				return;
+			}
+
+			m_Mesh->Render();
 		}
 
 		void OnUpdate(Timestep ts) override
@@ -53,6 +62,8 @@ namespace Hominem {
 
 	private:
 		OrthographicCameraController m_CameraController;
+
+		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
 		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
 	};
