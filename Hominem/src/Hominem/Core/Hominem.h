@@ -18,4 +18,6 @@
 #include "Hominem/Renderer/Camera.h"
 #include "Hominem/Renderer/Texture.h"
 
+#include "Hominem/Core/OrthographicCameraController.h"
+
 #include "Hominem/ImGui/ImGuiLayer.h"

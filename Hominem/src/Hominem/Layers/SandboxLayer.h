@@ -14,10 +14,7 @@ namespace Hominem {
 	{
 	public:
 		SandboxLayer()
-			: Layer("Sandbox"),
-			  m_Camera(-2.0f, 2.0f, -2.0f, 2.0f), //   -x     +x    -y    +y
-			  m_CameraPosition(0.0f),
-		      m_SquarePosition(0.0f)
+			: Layer("Sandbox"), m_CameraController(800.0f / 600.0f)
 		{
 			m_VertexArray.reset(Hominem::VertexArray::Create());
 
@@ -57,35 +54,14 @@ namespace Hominem {
 
 		void OnUpdate(Timestep ts) override
 		{	
-			{
-				if (Input::IsKeyPressed(HMN_KEY_LEFT))
-				{
-					m_CameraPosition.x -= m_CameraSpeed * ts;
-				}
+			// Update
+			m_CameraController.OnUpdate(ts);
 
-				else if (Input::IsKeyPressed(HMN_KEY_RIGHT))
-				{
-					m_CameraPosition.x += m_CameraSpeed * ts;
-				}
-
-				if (Input::IsKeyPressed(HMN_KEY_UP))
-				{
-					m_CameraPosition.y += m_CameraSpeed * ts;
-				}
-
-				else if (Input::IsKeyPressed(HMN_KEY_DOWN))
-				{
-					m_CameraPosition.y -= m_CameraSpeed * ts;
-				}
-			}
-
+			// Render
 			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
 			RenderCommand::Clear();
 
-			m_Camera.SetPosition(m_CameraPosition);
-			m_Camera.SetRotation(0.0f);
-
-			Renderer::BeginScene(m_Camera);
+			Renderer::BeginScene(m_CameraController.GetCamera());
 
 			glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
 
@@ -117,9 +93,9 @@ namespace Hominem {
 			ImGui::End();
 		}
 
-		void OnEvent(Hominem::Event& event) override
+		void OnEvent(Event& e) override
 		{
-		
+			m_CameraController.OnEvent(e);
 		}
 
 	private:
@@ -128,16 +104,10 @@ namespace Hominem {
 		Ref<VertexBuffer> m_VertexBuffer;
 		Ref<IndexBuffer> m_IndexBuffer;
 		Ref<Texture2D> m_Texture;
-		float m_CameraSpeed = 5.0f;
-		float m_CameraRotationSpeed = 180.0f;
+		OrthographicCameraController m_CameraController;
 
-		OrthographicCamera m_Camera;
-		glm::vec3 m_CameraPosition;
-
-		glm::vec3 m_SquarePosition;
 		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
-
-		glm::mat4 m_WorldPos = glm::mat4(1.0f);
-
 	};
+
+	//tell opengl the rendering area when the window has resized, using GLViewport
 }
