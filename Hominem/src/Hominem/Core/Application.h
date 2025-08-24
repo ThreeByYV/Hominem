@@ -35,10 +35,14 @@ namespace Hominem {
 
     private:
         bool OnWindowClose(WindowCloseEvent& e);
+        bool OnWindowResize(WindowResizeEvent& e);
     private:
         std::unique_ptr<Window> m_Window;
-        ImGuiLayer* m_ImGuiLayer; //by default Hominem always will have a ImGui layer existing
-        bool m_Running;
+        ImGuiLayer* m_ImGuiLayer; //by default always will have a ImGui layer existing
+       
+        bool m_Running = true;
+        bool m_Minimized = false;
+
         LayerStack m_LayerStack;
         Timestep m_Timestep;
         float m_LastFrameTime = 0.0f;
@@ -46,6 +50,7 @@ namespace Hominem {
        
     private:
         static Application* s_Instance; //Application is a singleton
+
     };
 
   

@@ -1,6 +1,6 @@
 workspace "Hominem"
     architecture "x64"
-
+    
     configurations
     {
         "Debug",
@@ -15,12 +15,14 @@ IncludeDir["GLFW"] = "Hominem/vendor/GLFW/include"
 IncludeDir["Glad"] = "Hominem/vendor/Glad/include"
 IncludeDir["ImGui"] = "Hominem/vendor/imgui" 
 IncludeDir["glm"] = "Hominem/vendor/glm" 
-IncludeDir["stb_image"] = "Hominem/vendor/stb_image" 
-
+IncludeDir["stb_image"] = "Hominem/vendor/stb_image"
+IncludeDir["assimp"] = "Hominem/vendor/assimp/include"
+IncludeDir["assimp_build"] = "Hominem/vendor/assimp/build/include"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
 include "Hominem/vendor/imgui"
+include "Hominem/vendor/assimp"
 
 project "Hominem"
     location "Hominem"
@@ -58,14 +60,26 @@ project "Hominem"
         "%{IncludeDir.Glad}",
         "%{IncludeDir.ImGui}",
         "%{IncludeDir.glm}",
-        "%{IncludeDir.stb_image}"
+        "%{IncludeDir.stb_image}",
+        "%{IncludeDir.assimp}",
+        "%{IncludeDir.assimp_build}"
     }
 
     links
     {
         "GLFW",
         "Glad",
-        "ImGui"
+        "ImGui",
+        "assimp-vc143-mtd"
+    }
+
+    -- Add Assimp library directories and link to actual CMake-built libraries
+  libdirs
+    {
+        "Hominem/vendor/assimp/build/lib/Debug",
+        "Hominem/vendor/assimp/build/lib/Release", 
+        "Hominem/vendor/assimp/build/lib",
+        "Hominem/vendor/assimp/build"
     }
 
     filter "files:**/imgui*.cpp"
@@ -86,7 +100,7 @@ project "Hominem"
             "HMN_ENABLE_ASSERTS" 
         }
         symbols "on"
-        runtime "Debug"    
+        runtime "Debug"
 
     filter "configurations:Release"
         defines "HMN_RELEASE"
