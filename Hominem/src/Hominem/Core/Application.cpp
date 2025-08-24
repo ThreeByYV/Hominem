@@ -38,6 +38,7 @@ namespace Hominem {
 		
 		EventDispatcher dispatcher(e);
 		dispatcher.Dispatch<WindowCloseEvent>(HMN_BIND_EVENT_FN(Application::OnWindowClose));
+		dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(Application::OnWindowResize));
 
 
 		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin(); )
@@ -57,9 +58,13 @@ namespace Hominem {
 			Timestep timestep = time - m_LastFrameTime; //impliclit cast via constructor
 			m_LastFrameTime = time;
 
-			for (Layer* layer : m_LayerStack)
+			//layers shouldn't be updated when the window is minimized away
+			if (!m_Minimized)
 			{
-				layer->OnUpdate(timestep);
+				for (Layer* layer : m_LayerStack)
+				{
+					layer->OnUpdate(timestep);
+				}
 			}
 
 			m_ImGuiLayer->Begin();
@@ -70,7 +75,7 @@ namespace Hominem {
 			}
 
 			m_ImGuiLayer->End();
-				
+	
 			m_Window->OnUpdate();
 		}
 	}
@@ -79,8 +84,23 @@ namespace Hominem {
 	{
 		m_Running = false;
 		return true;
-	};
+	}
 
+	bool Application::OnWindowResize(WindowResizeEvent& e)
+	{
+		if (e.GetWidth() == 0 || e.GetHeight() == 0)
+		{
+			m_Minimized = true;
+			return false;
+		}
+
+		m_Minimized = false;
+
+		Renderer::OnWindowResize(e.GetWidth(), e.GetHeight());
+			
+		return false; //all layers will know about this event
+	}
+	
 	void Application::PushLayer(Layer* layer)
 	{
 		m_LayerStack.PushLayer(layer);

@@ -24,6 +24,7 @@
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Framebuffer.h"
 
-#include "Hominem/Core/OrthographicCameraController.h"
+#include "Hominem/Renderer/OrthographicCameraController.h"
+#include "Hominem/Scene/BasicMesh.h"
 
 #include "Hominem/ImGui/ImGuiLayer.h"
