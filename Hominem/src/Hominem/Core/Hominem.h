@@ -11,6 +11,7 @@
 #include "Hominem/Events/KeyEvent.h"
 
 #include "Hominem/Renderer/Renderer.h"
+#include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/Buffer.h"
 #include "Hominem/Renderer/Shader.h"

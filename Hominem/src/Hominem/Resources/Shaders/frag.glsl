@@ -15,9 +15,6 @@ void main()
 		
 layout(location = 0) out vec4 color;
 uniform vec3 u_Color;
-uniform mat4 g_World;
-
-out vec3 WorldSpacePos;
     
 void main()
 {
