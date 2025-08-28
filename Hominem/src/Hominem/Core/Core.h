@@ -11,6 +11,7 @@
 #endif
 
 #define HMN_BIND_EVENT_FN(x) std::bind(&x, this, std::placeholders::_1)
+#define ARRAY_SIZE_IN_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
 
 namespace Hominem {
 

@@ -20,6 +20,6 @@ namespace Hominem {
 		virtual const std::shared_ptr<IndexBuffer>& GetIndexBuffer() const = 0;
 
 
-		static VertexArray* Create();
+		static Ref<VertexArray> Create();
 	};
 }
