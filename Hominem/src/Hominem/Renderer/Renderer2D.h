@@ -3,6 +3,7 @@
 #include "OrthographicCamera.h"
 #include "Texture.h"
 #include "Hominem/Renderer/Camera.h"
+#include "Shader.h"
 
 namespace Hominem {
 
@@ -16,6 +17,8 @@ namespace Hominem {
 		static void BeginScene(Camera& camera, const glm::mat4& transform);
 
 		static void EndScene();
+
+		static Ref<ShaderLibrary> GetShaderLibrary();
 
 		// Primitives
 		static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color);

@@ -5,9 +5,13 @@
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <future>
 
 
 namespace Hominem {
+
+	static std::mutex s_MeshMutex;
+
 
 	class SandboxLayer : public Layer
 	{
@@ -17,7 +21,8 @@ namespace Hominem {
 		{
 		}
 
-		void OnAttach()
+
+		static void RenderMesh(BasicMesh* mesh, OrthographicCameraController cameraController)
 		{
 			FramebufferSpecification fbSpec;
 			fbSpec.Width = 800;
@@ -69,38 +74,15 @@ namespace Hominem {
 			/*	if (m_SquareEntity)
 				{
 					auto& squareColor = m_SquareEntity.GetComponent<SpriteRendererComponent>().Color;
-					ImGui::ColorEdit3("Square Color", glm::value_ptr(squareColor));
 				}
 
 				ImGui::DragFloat3("Camera A Transform", 
 					glm::value_ptr(m_CameraEntity.GetComponent<TransformComponent>().Transform[3]));
 
 				if (ImGui::Checkbox("Camera A", &m_PrimaryCamera))
-				{
-					m_CameraEntity.GetComponent<CameraComponent>().Primary = m_PrimaryCamera;
-					m_SecondCamera.GetComponent<CameraComponent>().Primary = !m_PrimaryCamera;
-				}
-
-				{
-					auto& camera = m_SecondCamera.GetComponent<CameraComponent>().Camera;
-					float orthoSize = camera.GetOrthographicSize();
-			
-					if (ImGui::DragFloat("Second Camera Ortho Size", &orthoSize))
-					{
-						camera.SetOrthographicSize(orthoSize);
-					};
-
-				}*/
-
-			//getting the color buffer from frambuffer and use ImGui to render it
-			uint32_t textureID = m_Framebuffer->GetColorAttachmentRendererID();
-			ImGui::Image((void*)textureID, ImVec2{ 640.0f, 480.0f });
-			ImGui::End();
-		}
-
-		void OnEvent(Event& e) override
 		{
 			m_CameraController.OnEvent(e);
+			*/
 		}
 
 	private:
@@ -116,5 +98,6 @@ namespace Hominem {
 		glm::vec2 m_ViewportSize;
 		bool m_PrimaryCamera = true;
 	};
+	
 
 }
