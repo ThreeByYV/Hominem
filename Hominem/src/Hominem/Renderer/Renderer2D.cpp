@@ -81,6 +81,11 @@ namespace Hominem {
 
 	}
 
+	Ref<ShaderLibrary> Renderer2D::GetShaderLibrary()
+	{
+		return s_Data->ShaderLibrary;
+	}
+
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, color);
@@ -138,4 +143,6 @@ namespace Hominem {
 		s_Data->QuadVertexArray->Bind();
 		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
 	}
+
+
 }
