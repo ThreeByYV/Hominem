@@ -18,9 +18,11 @@ namespace Hominem {
 		
 		OrthographicCamera& GetCamera() { return m_Camera; }
 		const OrthographicCamera& GetCamera() const { return m_Camera; }
+
 	private:
 		bool OnMouseScrolled(MouseScrolledEvent& e);
 		bool OnWindowResized(WindowResizeEvent& e);
+
 	private:
 		//order matters here, for initialization
 		float m_AspectRatio;
