@@ -12,7 +12,7 @@ namespace Hominem {
 	class SandboxLayer : public Layer
 	{
 	public:
-		SandboxLayer()
+		SandboxLayer() 
 			: Layer("Sandbox"), m_CameraController(800.0f / 600.0f)
 		{
 		}
@@ -34,7 +34,6 @@ namespace Hominem {
 			Renderer2D::DrawQuad({ -1.0f, 0.0f }, { 0.7f, 1.0f }, { 0.8f, 0.2f, 0.3f, 1.0f });
 			Renderer2D::DrawQuad({ 0.5f, -0.5f }, { 0.4f, 0.96f }, glm::vec4(m_SquareColor, 1.0f));
 			Renderer2D::DrawQuad({ 0.0f, 0.0f -0.1f }, { 10.0f, 10.0f }, m_DripTexture);
-
 
 			Renderer2D::EndScene();	
 
