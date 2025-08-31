@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <Hominem/Core/Log.h>
+#include <filesystem>
+#include <cstdint>
 
 
 #ifdef HMN_PLATFORM_WINDOWS
