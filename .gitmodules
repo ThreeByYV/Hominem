@@ -13,3 +13,6 @@
 [submodule "Hominem/vendor/imgui"]
 	path = Hominem/vendor/imgui
 	url = https://github.com/ThreeByYV/imgui.git
+[submodule "Hominem/vendor/Box2D"]
+	path = Hominem/vendor/Box2D
+	url = https://github.com/ThreeByYV/box2d.git
