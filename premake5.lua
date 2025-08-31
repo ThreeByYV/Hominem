@@ -18,11 +18,14 @@ IncludeDir["glm"] = "Hominem/vendor/glm"
 IncludeDir["stb_image"] = "Hominem/vendor/stb_image"
 IncludeDir["assimp"] = "Hominem/vendor/assimp/include"
 IncludeDir["assimp_build"] = "Hominem/vendor/assimp/build/include"
+IncludeDir["msdfgen"] = "Hominem/vendor/msdf-atlas-gen/msdfgen"
+IncludeDir["msdf_atlas_gen"] = "Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
 include "Hominem/vendor/imgui"
 include "Hominem/vendor/assimp"
+include "Hominem/vendor/msdf-atlas-gen"
 
 project "Hominem"
     location "Hominem"
@@ -62,7 +65,9 @@ project "Hominem"
         "%{IncludeDir.glm}",
         "%{IncludeDir.stb_image}",
         "%{IncludeDir.assimp}",
-        "%{IncludeDir.assimp_build}"
+        "%{IncludeDir.assimp_build}",
+        "%{IncludeDir.msdfgen}",
+        "%{IncludeDir.msdf_atlas_gen}"
     }
 
     links
@@ -70,7 +75,8 @@ project "Hominem"
         "GLFW",
         "Glad",
         "ImGui",
-        "assimp-vc143-mtd"
+        "assimp-vc143-mtd",
+        "msdf-atlas-gen"
     }
 
     -- Add Assimp library directories and link to actual CMake-built libraries

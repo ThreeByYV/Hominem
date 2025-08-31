@@ -5,6 +5,7 @@
 
 namespace Hominem {
 
+	//makes a white texture based on the height and width you specify
 	OpenGLTexture2D::OpenGLTexture2D(uint32_t width, uint32_t height)
 		: m_Width(width), m_Height(height)
 	{
