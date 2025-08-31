@@ -19,30 +19,42 @@ namespace Hominem {
 
 		void OnAttach()
 		{
-			m_DripTexture = Texture2D::Create("src/Hominem/Resources/Textures/drip.jpg");
+			//m_DripTexture = Texture2D::Create("src/Hominem/Resources/Textures/drip.jpg");
+			m_ActiveScene = CreateRef<Scene>();
+
+			// Entity 
+			auto square = m_ActiveScene->CreateEntity("Green Square");
+			square.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
+
+			m_SquareEntity = square;
 		}
 
 		void OnUpdate(Timestep ts) override
 		{	
-			m_CameraController.OnUpdate(ts);
+			m_CameraController.OnUpdate(ts);	
 
+			// Render
 			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
 			RenderCommand::Clear();
 
 			Renderer2D::BeginScene(m_CameraController.GetCamera());
 			
-			Renderer2D::DrawQuad({ -1.0f, 0.0f }, { 0.7f, 1.0f }, { 0.8f, 0.2f, 0.3f, 1.0f });
-			Renderer2D::DrawQuad({ 0.5f, -0.5f }, { 0.4f, 0.96f }, glm::vec4(m_SquareColor, 1.0f));
-			Renderer2D::DrawQuad({ 0.0f, 0.0f -0.1f }, { 10.0f, 10.0f }, m_DripTexture);
+			// Update Scene
+			m_ActiveScene->OnUpdate(ts);
 
 			Renderer2D::EndScene();	
-
 		} 
 
 		void OnImGuiRender() override
-		{
+		{	
 			ImGui::Begin("Settings");
-			ImGui::ColorEdit3("Second Square Color", glm::value_ptr(m_SquareColor));
+
+			if (m_SquareEntity)
+			{
+				auto& squareColor = m_SquareEntity.GetComponent<SpriteRendererComponent>().Color;
+				ImGui::ColorEdit3("Square Color", glm::value_ptr(squareColor));
+			}
+
 			ImGui::End();
 		}
 
@@ -54,7 +66,8 @@ namespace Hominem {
 	private:
 		OrthographicCameraController m_CameraController;
 		Ref<Texture2D> m_DripTexture;
-		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
+		Ref<Scene> m_ActiveScene;
+		Entity m_SquareEntity;
 	};
 
 }

@@ -101,6 +101,32 @@ namespace Hominem {
 		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
 	}
 
+	void Renderer2D::DrawQuad(const glm::mat4& transform, const glm::vec4& color)
+	{
+		s_Data->TextureShader->SetFloat4("u_Color", color);
+
+		// Bind white texture i.e in the shader u_Color will be equal to 1 if not bound
+		s_Data->WhiteTexture->Bind();
+
+		s_Data->TextureShader->SetMat4("u_Transform", transform);
+
+		s_Data->QuadVertexArray->Bind();
+		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
+	//may need to update transform per each vertice here instead
+	void Renderer2D::DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture)
+	{
+		s_Data->TextureShader->SetFloat4("u_Color", glm::vec4(1.0f));
+
+		texture->Bind();
+
+		s_Data->TextureShader->SetMat4("u_Transform", transform);
+
+		s_Data->QuadVertexArray->Bind();
+		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, texture);

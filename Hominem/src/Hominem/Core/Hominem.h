@@ -10,6 +10,10 @@
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Events/KeyEvent.h"
 
+#include "Hominem/Scene/Scene.h"
+#include "Hominem/Scene/Components.h"
+#include "Hominem/Scene/Entity.h"
+
 #include "Hominem/Renderer/Renderer.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/RenderCommand.h"

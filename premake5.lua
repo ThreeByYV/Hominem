@@ -16,11 +16,13 @@ IncludeDir["Glad"] = "Hominem/vendor/Glad/include"
 IncludeDir["ImGui"] = "Hominem/vendor/imgui" 
 IncludeDir["glm"] = "Hominem/vendor/glm" 
 IncludeDir["stb_image"] = "Hominem/vendor/stb_image" 
-
+IncludeDir["entt"] = "Hominem/vendor/entt/include" 
+IncludeDir["Box2D"] = "Hominem/vendor/Box2D/include" 
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
 include "Hominem/vendor/imgui"
+include "Hominem/vendor/Box2D"
 
 project "Hominem"
     location "Hominem"
@@ -54,11 +56,13 @@ project "Hominem"
     {
         "%{prj.name}/vendor/spdlog/include",
         "%{prj.name}/src",
+        "%{IncludeDir.Box2D}",
         "%{IncludeDir.GLFW}",
         "%{IncludeDir.Glad}",
         "%{IncludeDir.ImGui}",
         "%{IncludeDir.glm}",
-        "%{IncludeDir.stb_image}"
+        "%{IncludeDir.stb_image}",
+        "%{IncludeDir.entt}"
     }
 
     links
