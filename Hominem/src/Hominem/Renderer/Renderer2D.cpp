@@ -67,7 +67,7 @@ namespace Hominem {
 
 	void Renderer2D::Shutdown()
 	{
-		delete s_Data; //need to destory any vertex arrays in the GPU while it's still in OpenGL context
+		delete s_Data; //need to destroy any vertex arrays in the GPU while it's still in OpenGL context
 	}
 
 	void Renderer2D::BeginScene(OrthographicCamera& camera)
@@ -75,6 +75,14 @@ namespace Hominem {
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
 	}
+
+	void Renderer2D::BeginScene(Camera& camera, const glm::mat4& transform)
+	{
+		glm::mat4 viewProj = camera.GetProjection() * glm::inverse(transform); //gives us the projection-view matrix
+		s_Data->TextureShader->Bind();
+		s_Data->TextureShader->SetMat4("u_ViewProjection", viewProj);
+	}
+
 
 	void Renderer2D::EndScene()
 	{

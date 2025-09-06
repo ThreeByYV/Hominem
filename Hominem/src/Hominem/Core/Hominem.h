@@ -20,7 +20,7 @@
 #include "Hominem/Renderer/Buffer.h"
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Renderer/VertexArray.h"
-#include "Hominem/Renderer/Camera.h"
+#include "Hominem/Renderer/OrthographicCamera.h"
 #include "Hominem/Renderer/Texture.h"
 
 #include "Hominem/Core/OrthographicCameraController.h"
