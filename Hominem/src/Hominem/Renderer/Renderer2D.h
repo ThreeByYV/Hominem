@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Camera.h"
+#include "OrthographicCamera.h"
 #include "Texture.h"
+#include "Hominem/Renderer/Camera.h"
 
 namespace Hominem {
 
@@ -11,7 +12,9 @@ namespace Hominem {
 		static void Init();
 		static void Shutdown();
 
-		static void BeginScene(OrthographicCamera& camera);
+		static void BeginScene(OrthographicCamera& camera); //todo remove
+		static void BeginScene(Camera& camera, const glm::mat4& transform);
+
 		static void EndScene();
 
 		// Primitives

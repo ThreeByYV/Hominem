@@ -1,5 +1,5 @@
 #include "hmnpch.h"
-#include "Camera.h"
+#include "OrthographicCamera.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
