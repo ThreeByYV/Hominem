@@ -40,6 +40,7 @@ namespace Hominem {
 		m_CameraTranslationSpeed = m_ZoomLevel; //todo could add some curving fn here instead for more smoothness
 	}
 
+
 	void OrthographicCameraController::OnEvent(Event& e)
 	{
 		EventDispatcher dispatcher(e);

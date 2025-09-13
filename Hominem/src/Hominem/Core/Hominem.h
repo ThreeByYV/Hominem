@@ -22,6 +22,7 @@
 #include "Hominem/Renderer/VertexArray.h"
 #include "Hominem/Renderer/OrthographicCamera.h"
 #include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/Framebuffer.h"
 
 #include "Hominem/Core/OrthographicCameraController.h"
 
