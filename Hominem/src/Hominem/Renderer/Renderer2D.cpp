@@ -10,17 +10,7 @@
 
 namespace Hominem {
 
-	struct Renderer2DStorage
-	{
-		Ref<VertexArray> QuadVertexArray;
-		Ref<Shader> TextureShader;
-		Ref<ShaderLibrary> ShaderLibrary;
-		Ref<IndexBuffer> IndexBuffer;
-		Ref<Texture2D> WhiteTexture;
-		Ref<VertexBuffer> VertexBuffer;
-	};
-
-	static Renderer2DStorage* s_Data; 	//hidden from other translation units when linked
+	Renderer2DStorage* Renderer2D::s_Data = nullptr; 
 
 	void Renderer2D::Init()
 	{
@@ -68,12 +58,6 @@ namespace Hominem {
 	void Renderer2D::Shutdown()
 	{
 		delete s_Data; //need to destory any vertex arrays in the GPU while it's still in OpenGL context
-	}
-
-	void Renderer2D::BeginScene(OrthographicCamera& camera)
-	{
-		s_Data->TextureShader->Bind();
-		s_Data->TextureShader->SetMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
 	}
 
 	void Renderer2D::EndScene()

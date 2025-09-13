@@ -66,7 +66,7 @@ namespace Hominem {
 		{	
 			m_CameraController.OnUpdate(ts);
 
-			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
+			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 			RenderCommand::Clear();
 
 			Renderer2D::BeginScene(m_CameraController.GetCamera());
@@ -82,7 +82,7 @@ namespace Hominem {
 			auto meshShader = Renderer2D::GetShaderLibrary()->Get("texture");
 			
 			meshShader->Bind();
-			meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
+			//meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
 			meshShader->SetMat4("u_Transform", glm::mat4(1.0f)); // Identity matrix
 			meshShader->SetFloat4("u_Color", glm::vec4(1.0f)); // White
 			meshShader->SetInt("u_Texture", 0);
@@ -104,8 +104,8 @@ namespace Hominem {
 		}
 
 	private:
-		OrthographicCameraController m_CameraController;
-
+		PerspectiveCameraController m_CameraController;
+		
 		BasicMesh* m_Mesh = nullptr;
 		//Ref<Texture2D> m_DripTexture;
 		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
