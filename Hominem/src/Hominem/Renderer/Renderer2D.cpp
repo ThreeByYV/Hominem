@@ -10,17 +10,7 @@
 
 namespace Hominem {
 
-	struct Renderer2DStorage
-	{
-		Ref<VertexArray> QuadVertexArray;
-		Ref<Shader> TextureShader;
-		Ref<ShaderLibrary> ShaderLibrary;
-		Ref<IndexBuffer> IndexBuffer;
-		Ref<Texture2D> WhiteTexture;
-		Ref<VertexBuffer> VertexBuffer;
-	};
-
-	static Renderer2DStorage* s_Data; 	//hidden from other translation units when linked
+	Renderer2DStorage* Renderer2D::s_Data = nullptr; 
 
 	void Renderer2D::Init()
 	{

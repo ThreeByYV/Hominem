@@ -86,8 +86,8 @@ namespace Hominem {
 		}
 
 	private:
-		OrthographicCameraController m_CameraController;
-
+		PerspectiveCameraController m_CameraController;
+		
 		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
 		Ref<Scene> m_ActiveScene;
