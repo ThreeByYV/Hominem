@@ -1,5 +1,9 @@
 #pragma once
 
+#include <future>
+#include <algorithm>
+#include <execution>
+
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
@@ -40,6 +44,10 @@ namespace Hominem {
 		bool InitMaterials(const aiScene* pScene, const std::string& filename);
 	
 		void PopulateBuffers();
+
+		bool LoadFromCache(const std::string& filename);
+
+		void SaveToCache(const std::string& filename);
 
 	private:
 		enum BUFFER_TYPE
