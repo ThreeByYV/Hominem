@@ -6,7 +6,7 @@
 #define NORMAL_LOCATION    2
 
 
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices)
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate)
 // modelers allow polygons, but we only can use triangles, tell assimp to split polygons into triangles
 // lighting
 // flips the texture coords on the V or Y axis, again modelers can control this
@@ -49,45 +49,75 @@ namespace Hominem {
 
 		Clear();
 
-		glGenVertexArrays(1, &m_VAO);
-		glBindVertexArray(m_VAO);
-		HMN_CORE_INFO("Generated VAO: {}", m_VAO);
+		bool success = false;
 
-		//Creating the buffers for each of the vertex attributes
-		glGenBuffers(ARRAY_SIZE_IN_ELEMENTS(m_Buffers), m_Buffers);
-		HMN_CORE_INFO("Generated {} buffers", ARRAY_SIZE_IN_ELEMENTS(m_Buffers));
-
-		bool Ret = false;
-		Assimp::Importer Importer; //class allows access the features in assimp
-
-		HMN_CORE_INFO("Reading file with Assimp...");
-
-		//aiScene is the top level data structure from assimp's representation of a model
-		const aiScene* pScene = Importer.ReadFile(filename.c_str(), ASSIMP_LOAD_FLAGS);
-
-		if (pScene)
+		if (LoadFromCache(filename))
 		{
-			HMN_CORE_INFO("File loaded successfully. Meshes: {}, Materials: {}",
-				pScene->mNumMeshes, pScene->mNumMaterials);
-			Ret = InitFromScene(pScene, filename);
-		}
+			success = true;
+			HMN_CORE_INFO("Mesh was loaded from cache");
+		} 
 		else
 		{
-			HMN_CORE_ERROR("Error parsing {}: {}", filename, Importer.GetErrorString());
+			bool Ret = false;
+			const aiScene* pScene = nullptr;
+			Assimp::Importer Importer; //class allows access the features in assimp
+
+
+			auto fileLoadingTask = std::async(std::launch::async, [&]() {
+
+				HMN_CORE_INFO("Reading file with Assimp on background thread...");
+
+				//aiScene is the top level data structure from assimp's representation of a model
+				pScene = Importer.ReadFile(filename.c_str(), ASSIMP_LOAD_FLAGS);
+
+				return pScene != nullptr;
+			});
+
+			bool isFileLoaded = fileLoadingTask.get();
+
+			if (isFileLoaded && pScene)
+			{
+				HMN_CORE_INFO("File loaded successfully. Meshes: {}, Materials: {}",
+					pScene->mNumMeshes, pScene->mNumMaterials);
+				Ret = InitFromScene(pScene, filename);
+			}
+			else
+			{
+				HMN_CORE_ERROR("Error parsing {}: {}", filename, Importer.GetErrorString());
+			}
+
+			glBindVertexArray(0);
+
+			if (Ret)
+			{
+				success = true;
+				HMN_CORE_INFO("Mesh loading completed successfully");
+				SaveToCache(filename);
+			}
+			else
+			{
+				HMN_CORE_ERROR("Mesh loading failed");
+			}
 		}
 
-		glBindVertexArray(0);
-
-		if (Ret)
+		// ONLY create OpenGL objects if we have valid data
+		if (success)
 		{
-			HMN_CORE_INFO("Mesh loading completed successfully");
-		}
-		else
-		{
-			HMN_CORE_ERROR("Mesh loading failed");
+			glGenVertexArrays(1, &m_VAO);
+			glBindVertexArray(m_VAO);
+			HMN_CORE_INFO("Generated VAO: {}", m_VAO);
+
+			//Creating the buffers for each of the vertex attributes
+			glGenBuffers(ARRAY_SIZE_IN_ELEMENTS(m_Buffers), m_Buffers);
+			HMN_CORE_INFO("Generated {} buffers", ARRAY_SIZE_IN_ELEMENTS(m_Buffers));
+
+			PopulateBuffers();
+			glBindVertexArray(0);
+
+			HMN_CORE_INFO("Mesh setup completed, VAO: {}", m_VAO);
 		}
 
-		return Ret;
+		return success;
 	}
 
 	bool BasicMesh::InitFromScene(const aiScene* pScene, const std::string& filename)
@@ -115,9 +145,6 @@ namespace Hominem {
 			HMN_CORE_ERROR("Failed to initialize materials");
 			return false;
 		}
-
-		PopulateBuffers();
-		HMN_CORE_INFO("Buffers populated successfully");
 
 		return true;
 	}
@@ -343,6 +370,101 @@ namespace Hominem {
 		}
 	}
 
+	bool BasicMesh::LoadFromCache(const std::string& filename)
+	{
+		std::string cacheFile = filename + ".cache";
+		std::ifstream file(cacheFile, std::ios::binary);
+
+		if (!file.is_open()) return false;
+
+		HMN_CORE_INFO("Loading from cache: {}", cacheFile);
+
+		try {
+			// Read vector sizes
+			size_t posSize, normalSize, texSize, indexSize, meshSize;
+
+			file.read((char*)&posSize, sizeof(posSize));
+			file.read((char*)&normalSize, sizeof(normalSize));
+			file.read((char*)&texSize, sizeof(texSize));
+			file.read((char*)&indexSize, sizeof(indexSize));
+			file.read((char*)&meshSize, sizeof(meshSize));
+
+			// Resize vectors
+			m_Positions.resize(posSize);
+			m_Normals.resize(normalSize);
+			m_TexCoords.resize(texSize);
+			m_Indices.resize(indexSize);
+			m_Meshes.resize(meshSize);
+
+			// Read vertex/index data
+			file.read((char*)m_Positions.data(), posSize * sizeof(glm::vec3));
+			file.read((char*)m_Normals.data(), normalSize * sizeof(glm::vec3));
+			file.read((char*)m_TexCoords.data(), texSize * sizeof(glm::vec2));
+			file.read((char*)m_Indices.data(), indexSize * sizeof(uint32_t));
+
+			// Read mesh metadata 
+			file.read((char*)m_Meshes.data(), meshSize * sizeof(BasicMeshEntry));
+
+			if (file.good()) {
+				uint32_t maxMaterialIndex = 0;
+
+				m_Textures.clear();
+
+				// Find the highest material index to size the texture array
+				for (const auto& mesh : m_Meshes)
+				{
+					if (mesh.m_MaterialIndex != INVALID_MATERIAL)
+					{
+						maxMaterialIndex = std::max(maxMaterialIndex, mesh.m_MaterialIndex);
+					}
+				}
+
+				m_Textures.resize(maxMaterialIndex + 1, nullptr);
+
+				HMN_CORE_INFO("Cache loaded: {} vertices, {} meshes, {} texture slots",
+					posSize, meshSize, m_Textures.size());
+				return true;
+			}
+		}
+		catch (...) {
+			HMN_CORE_WARN("Cache file corrupted: {}", cacheFile);
+		}
+
+		return false;
+	}
+
+	void BasicMesh::SaveToCache(const std::string& filename)
+	{
+		std::string cacheFile = filename + ".cache";
+		std::ofstream file(cacheFile, std::ios::binary);
+
+		if (!file.is_open()) return;
+
+		HMN_CORE_INFO("Saving to cache: {}", cacheFile);
+
+		// Write vector sizes
+		size_t posSize = m_Positions.size();
+		size_t normalSize = m_Normals.size();
+		size_t texSize = m_TexCoords.size();
+		size_t indexSize = m_Indices.size();
+		size_t meshSize = m_Meshes.size();
+
+		file.write((char*)&posSize, sizeof(posSize));
+		file.write((char*)&normalSize, sizeof(normalSize));
+		file.write((char*)&texSize, sizeof(texSize));
+		file.write((char*)&indexSize, sizeof(indexSize));
+		file.write((char*)&meshSize, sizeof(meshSize));
+
+		// Must write data in SAME ORDER as LoadFromCache reads
+		file.write((char*)m_Positions.data(), posSize * sizeof(glm::vec3));
+		file.write((char*)m_Normals.data(), normalSize * sizeof(glm::vec3));
+		file.write((char*)m_TexCoords.data(), texSize * sizeof(glm::vec2));
+		file.write((char*)m_Indices.data(), indexSize * sizeof(uint32_t));
+		file.write((char*)m_Meshes.data(), meshSize * sizeof(BasicMeshEntry));
+
+		HMN_CORE_INFO("Cache saved: {} vertices", posSize);
+	}
+
 	void BasicMesh::Render()
 	{
 		if (m_VAO == 0) 
@@ -366,6 +488,7 @@ namespace Hominem {
 			if (materialIndex >= m_Textures.size())
 			{
 				HMN_CORE_ERROR("Material index {} out of range (max: {})", materialIndex, m_Textures.size() - 1);
+				materialIndex = 0;  // Use first texture or no texture
 				continue;
 			}
 
