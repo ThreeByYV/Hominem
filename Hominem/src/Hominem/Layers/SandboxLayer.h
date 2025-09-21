@@ -82,7 +82,7 @@ namespace Hominem {
 			auto meshShader = Renderer2D::GetShaderLibrary()->Get("texture");
 			
 			meshShader->Bind();
-			//meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
+			meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
 			meshShader->SetMat4("u_Transform", glm::mat4(1.0f)); // Identity matrix
 			meshShader->SetFloat4("u_Color", glm::vec4(1.0f)); // White
 			meshShader->SetInt("u_Texture", 0);
