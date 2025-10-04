@@ -1,28 +1,24 @@
 #pragma once
 
 #include "Hominem/Core/Hominem.h"
-
+#include "Hominem/Layers/MenuLayer.h"
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <future>
 
 
 namespace Hominem {
 
-	static std::mutex s_MeshMutex;
-
-
 	class SandboxLayer : public Layer
 	{
 	public:
-		SandboxLayer() 
+		SandboxLayer()
 			: Layer("Sandbox"), m_CameraController(800.0f / 600.0f)
 		{
+			HMN_CORE_INFO("Created new SandboxLayer!");
 		}
 
-
-		static void RenderMesh(BasicMesh* mesh, OrthographicCameraController cameraController)
+		void OnAttach() override
 		{
 			FramebufferSpecification fbSpec;
 			fbSpec.Width = 800;
@@ -87,7 +83,6 @@ namespace Hominem {
 
 	private:
 		PerspectiveCameraController m_CameraController;
-		
 		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
 		Ref<Scene> m_ActiveScene;
