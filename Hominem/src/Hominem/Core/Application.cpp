@@ -27,8 +27,10 @@ namespace Hominem {
 		
 		Renderer::Init();
 
-		m_ImGuiLayer = new ImGuiLayer();
-		PushOverlay(m_ImGuiLayer);
+		auto imGuiLayer = std::make_unique<ImGuiLayer>();
+		m_ImGuiLayer = imGuiLayer.get();
+
+		PushOverlay(std::move(imGuiLayer));
 	}
 
 	//this function leverages the EventDispatcher to pass an event to the correct method
@@ -53,6 +55,9 @@ namespace Hominem {
 		
 		while (m_Running)
 		{
+			if (Input::IsKeyPressed(HMN_KEY_ESCAPE))
+				m_Running = false;
+
 			float time = (float)glfwGetTime();
 
 			Timestep timestep = time - m_LastFrameTime; //impliclit cast via constructor
@@ -61,7 +66,7 @@ namespace Hominem {
 			//layers shouldn't be updated when the window is minimized away
 			if (!m_Minimized)
 			{
-				for (Layer* layer : m_LayerStack)
+				for (auto& layer : m_LayerStack)
 				{
 					layer->OnUpdate(timestep);
 				}
@@ -69,7 +74,7 @@ namespace Hominem {
 
 			m_ImGuiLayer->Begin();
 
-			for (Layer* layer : m_LayerStack)
+			for (auto& layer : m_LayerStack)
 			{
 				layer->OnImGuiRender();
 			}
@@ -77,6 +82,9 @@ namespace Hominem {
 			m_ImGuiLayer->End();
 	
 			m_Window->OnUpdate();
+
+			// Process pending transitions AFTER all updates complete
+			ProcessPendingTransitions(); //now it's safe to delete it all and replace 
 		}
 	}
 
@@ -100,19 +108,42 @@ namespace Hominem {
 			
 		return false; //all layers will know about this event
 	}
+
 	
-	void Application::PushLayer(Layer* layer)
+	void Application::PushLayer(std::unique_ptr<Layer> layer)
 	{
-		m_LayerStack.PushLayer(layer);
-		layer->OnAttach();
+		layer->OnAttach();  
+		m_LayerStack.PushLayer(std::move(layer));
 	}
 
-	void Application::PushOverlay(Layer* layer)
+	void Application::PushOverlay(std::unique_ptr<Layer> layer)
 	{
-		m_LayerStack.PushOverlay(layer);
-		layer->OnAttach();
+		layer->OnAttach(); 
+		m_LayerStack.PushOverlay(std::move(layer));
 	}
 
+	void Application::QueueLayerTransition(const std::string& oldLayerName, std::unique_ptr<Layer> newLayer)
+	{
+		m_PendingTransitions.push_back({ oldLayerName, std::move(newLayer) });
+	}
+
+	void Application::ProcessPendingTransitions()
+	{
+		for (auto& transition : m_PendingTransitions)
+		{
+			for (auto& layer : m_LayerStack)
+			{
+				if (layer->GetName() == transition.oldLayerName) //Each layer will have to have a unique name
+				{
+					layer->OnDetach();  // Clean up old layer
+					layer = std::move(transition.newLayer);  // Replace with new layer
+					layer->OnAttach();  // Initialize new layer
+					break;
+				}
+			}
+		}
+		m_PendingTransitions.clear();
+	}
 
 	Application::~Application()
 	{

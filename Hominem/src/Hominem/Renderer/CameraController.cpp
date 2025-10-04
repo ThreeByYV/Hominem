@@ -15,10 +15,13 @@ namespace Hominem {
     {
         if (Input::IsKeyPressed(HMN_KEY_A))
             m_CameraPosition.x -= m_CameraTranslationSpeed * ts;
+
         else if (Input::IsKeyPressed(HMN_KEY_D))
             m_CameraPosition.x += m_CameraTranslationSpeed * ts;
+
         if (Input::IsKeyPressed(HMN_KEY_W))
             m_CameraPosition.y += m_CameraTranslationSpeed * ts;
+
         else if (Input::IsKeyPressed(HMN_KEY_S))
             m_CameraPosition.y -= m_CameraTranslationSpeed * ts;
 
