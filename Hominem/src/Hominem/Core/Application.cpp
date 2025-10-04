@@ -142,6 +142,7 @@ namespace Hominem {
 				}
 			}
 		}
+
 		m_PendingTransitions.clear();
 	}
 

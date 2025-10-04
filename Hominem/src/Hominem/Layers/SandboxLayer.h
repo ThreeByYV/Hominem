@@ -55,10 +55,10 @@ namespace Hominem {
 
 			Renderer2D::EndScene();
 
-			// Render mesh
 			if (m_Mesh != nullptr)
 			{
 				auto meshShader = Renderer2D::GetShaderLibrary()->Get("texture");
+				
 				meshShader->Bind();
 				meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
 				meshShader->SetMat4("u_Transform", glm::mat4(1.0f));
