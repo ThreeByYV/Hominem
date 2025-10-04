@@ -8,6 +8,8 @@
 
 #include "glm/gtc/matrix_transform.hpp"
 
+#include "MSDFData.h"
+
 namespace Hominem {
 
 	Renderer2DStorage* Renderer2D::s_Data = nullptr; 
@@ -28,7 +30,7 @@ namespace Hominem {
 
 		s_Data->VertexBuffer = VertexBuffer::Create(vertices, sizeof(vertices));
 
-		BufferLayout layout = {
+		BufferLayout layout =  {
 			{ ShaderDataType::Float3, "a_Pos" },
 			{ ShaderDataType::Float2, "a_TexCoord" }
 		};
@@ -50,9 +52,22 @@ namespace Hominem {
 		s_Data->WhiteTexture->SetData(&whiteTextureData, sizeof(uint32_t));
 
 		s_Data->TextureShader = s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/texture.glsl");
-		
+
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetInt("u_Texture", 0);
+
+		//Text
+		s_Data->TextShader = Shader::Create("src/Hominem/Resources/Shaders/text.glsl");
+
+		s_Data->TextVertexArray = VertexArray::Create();
+		s_Data->TextVertexBuffer = VertexBuffer::Create(s_Data->MaxVertices * sizeof(TextVertex));
+		s_Data->TextVertexBuffer->SetLayout({
+			{ ShaderDataType::Float3, "a_Position" },
+			{ ShaderDataType::Float4, "a_Color" },
+		    { ShaderDataType::Float2, "a_TexCoord" },
+		});
+		s_Data->TextVertexArray->AddVertexBuffer(s_Data->TextVertexBuffer);
+
 	}
 
 	void Renderer2D::Shutdown()
@@ -126,6 +141,64 @@ namespace Hominem {
 
 		s_Data->QuadVertexArray->Bind();
 		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
+	void Renderer2D::DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color)
+	{
+		const auto& fontGeometry = font->GetMSDFData()->FontGeometry;
+		const auto& metrics = fontGeometry.getMetrics();
+		auto fontAtlas = font->GetAtlasTexture();
+
+		double x = 0.0f;
+		double fsScale = 1.0 / (metrics.ascenderY - metrics.descenderY);
+		double y = 0.0f;
+
+		char character = 'H';
+
+		auto glyph = fontGeometry.getGlyph(character);
+
+		if (!glyph)
+		{
+			glyph = fontGeometry.getGlyph('?');
+		}
+
+		if (!glyph)
+		{
+			HMN_CORE_ERROR("Font does not have glyph for '{0}' or fallback '?'", character);
+			return; 
+		}
+
+		//calc the geometry below
+		double al, ab, ar, at;
+		glyph->getQuadAtlasBounds(al, ab, ar, at);
+
+		//texture coords needed to send to the frag shader
+		glm::vec2 texCoordMin((float)al, (float)ab);
+		glm::vec2 textCoordMax((float)ar, (float)at);
+
+		double pl, pb, pr, pt;
+		glyph->getQuadPlaneBounds(pl, pb, pr, pt);
+		glm::vec2 quadMin((float)pl, (float)pb);
+		glm::vec2 quadMax((float)pr, (float)pt);
+
+		quadMin *= fsScale, quadMax *= fsScale;
+		quadMin += glm::vec2(x, y);
+		quadMax += glm::vec2(x, y);
+
+		//needed to calc the size of each pixel in the atlas
+		float texelWidth = 1.0f / fontAtlas->GetWidth(); 
+		float texelHeight = 1.0f / fontAtlas->GetHeight();
+		texCoordMin *= glm::vec2(texelWidth, texelHeight);
+		textCoordMax *= glm::vec2(texelWidth, texelHeight);
+
+		//rendering below
+		double advance = glyph->getAdvance();
+		char nextCharacter = 'O';
+		fontGeometry.getAdvance(advance, character, nextCharacter);
+
+		float kerningOffset = 1.0f; //this allows space between each character of the string
+	
+		x += fsScale * advance + kerningOffset;
 	}
 
 

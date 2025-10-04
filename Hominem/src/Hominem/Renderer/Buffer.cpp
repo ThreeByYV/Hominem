@@ -18,6 +18,17 @@ namespace Hominem {
 		return nullptr;
 	}
 
+	Ref<VertexBuffer> VertexBuffer::Create(uint32_t size)
+	{
+		switch (Renderer::GetAPI())
+		{
+			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported");
+			case RendererAPI::API::OpenGL: return std::make_shared<OpenGLVertexBuffer>(size);
+		}
+		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+		return nullptr;
+	}
+
 
 	Ref<IndexBuffer> IndexBuffer::Create(uint32_t* indices, uint32_t size)
 	{

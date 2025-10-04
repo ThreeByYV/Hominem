@@ -8,6 +8,7 @@ namespace Hominem {
 	{
 	public:
 		OpenGLVertexBuffer(float* vertices, uint32_t size);
+		OpenGLVertexBuffer(uint32_t size);
 		~OpenGLVertexBuffer() override;
 
 		 void Bind() const override;
