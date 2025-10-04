@@ -9,6 +9,8 @@ namespace Hominem {
 	public:
 		MenuLayer();
 
+	    void OnAttach() override;
+
 		void OnUpdate(Timestep ts) override;
 		void OnImGuiRender() override;
 	};
