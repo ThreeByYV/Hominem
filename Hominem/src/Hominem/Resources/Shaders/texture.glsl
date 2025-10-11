@@ -36,7 +36,8 @@ uniform sampler2D u_Texture;
     
 void main()
 {
-	vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-    float diff = max(dot(normalize(v_Normal), lightDir), 0.3); // 0.3 = ambient
-    color = u_Color * diff;
+    vec4 texColor = texture(u_Texture, v_TexCoord); 
+    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
+    float diff = max(dot(normalize(v_Normal), lightDir), 0.9);
+    color = texColor * u_Color * diff;
 }

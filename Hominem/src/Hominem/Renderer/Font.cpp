@@ -48,7 +48,7 @@ namespace Hominem {
         msdf_atlas::TightAtlasPacker packer;
         packer.setDimensionsConstraint(msdf_atlas::TightAtlasPacker::DimensionsConstraint::POWER_OF_TWO_SQUARE);
         packer.setMinimumScale(32.0);
-        packer.setPixelRange(2.0);
+        packer.setPixelRange(2.0); //frag shader is same value
         packer.setMiterLimit(1.0);
         packer.pack(m_Data->Glyphs.data(), (int)m_Data->Glyphs.size());
 

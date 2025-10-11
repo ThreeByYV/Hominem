@@ -15,6 +15,7 @@ namespace Hominem {
 		void OnImGuiRender() override;
 	private: 
 		OrthographicCameraController m_CameraController;
+		Ref<Texture2D> m_BackgroundTexture;
 	};
 
 }
