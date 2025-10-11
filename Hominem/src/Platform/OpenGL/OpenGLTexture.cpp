@@ -6,11 +6,27 @@
 namespace Hominem {
 
 	//makes a white texture based on the height and width you specify
-	OpenGLTexture2D::OpenGLTexture2D(uint32_t width, uint32_t height)
+	OpenGLTexture2D::OpenGLTexture2D(uint32_t width, uint32_t height, TextureFormat format)
 		: m_Width(width), m_Height(height)
 	{
-		m_InternalFormat = GL_RGB8;
-		m_DataFormat = GL_RGBA;
+		switch (format)
+		{
+		case TextureFormat::RGB8:
+			m_InternalFormat = GL_RGB8;
+			m_DataFormat = GL_RGB;
+			break;
+		case TextureFormat::RGBA8:
+			m_InternalFormat = GL_RGBA8;
+			m_DataFormat = GL_RGBA;
+			break;
+		case TextureFormat::RED8:
+			m_InternalFormat = GL_R8;
+			m_DataFormat = GL_RED;
+			break;
+		default:
+			HMN_CORE_ASSERT(false, "Unsupported texture format!");
+			break;
+		}
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
 		glTextureStorage2D(m_RendererID, 1, m_InternalFormat, m_Width, m_Height);
@@ -76,10 +92,30 @@ namespace Hominem {
 
 	void OpenGLTexture2D::SetData(void* data, uint32_t size)
 	{
-		uint32_t bytesPerPixel = m_DataFormat == GL_RGBA ? 4 : 3;
-		HMN_CORE_ASSERT(size == m_Width * m_Height * bytesPerPixel, "Data must be enough to fill the entire texture!");
-		 
-										 //xyz offset
+		uint32_t bytesPerPixel;
+
+		if (m_DataFormat == GL_RGBA)
+			bytesPerPixel = 4;
+		else if (m_DataFormat == GL_RGB)
+			bytesPerPixel = 3;
+		else if (m_DataFormat == GL_RED)
+			bytesPerPixel = 1;
+		else
+		{
+			HMN_CORE_ASSERT(false, "Unsupported texture format!");
+			return;
+		}
+
+		uint32_t expectedSize = m_Width * m_Height * bytesPerPixel;
+
+		if (size != expectedSize)
+		{
+			HMN_CORE_ERROR("Data size mismatch! Expected: {} bytes, Got: {} bytes. Width: {}, Height: {}, BPP: {}, Format: {}",
+				expectedSize, size, m_Width, m_Height, bytesPerPixel, m_DataFormat);
+		}
+
+		HMN_CORE_ASSERT(size == expectedSize, "Data must be enough to fill the entire texture!");
+
 		glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, m_DataFormat, GL_UNSIGNED_BYTE, data);
 	}
 

@@ -7,23 +7,6 @@
 
 namespace Hominem {
 
-	enum class ImageFormat
-	{
-		None = 0,
-		R8,
-		RGB8,
-		RGBA8,
-		RGBA32F
-	};
-
-	struct TextureSpecification
-	{
-		uint32_t Width = 1;
-		uint32_t Height = 1;
-		ImageFormat Format = ImageFormat::RGBA8;
-		bool GenerateMips = true;
-	};
-
 	Ref<Texture2D> Texture2D::Create(uint32_t width, uint32_t height)
 	{
 		switch (Renderer::GetAPI())
@@ -32,6 +15,18 @@ namespace Hominem {
 			case RendererAPI::API::OpenGL: return std::make_shared<OpenGLTexture2D>(width, height);
 		}
 
+		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+		return nullptr;
+	}
+
+	Ref<Texture2D> Texture2D::Create(uint32_t width, uint32_t height, TextureFormat format)
+	{
+		switch (Renderer::GetAPI())
+		{
+			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
+			case RendererAPI::API::OpenGL: return std::make_shared<OpenGLTexture2D>(width, height, format);
+		}
+		
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
 	}

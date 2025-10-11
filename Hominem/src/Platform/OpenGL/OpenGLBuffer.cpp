@@ -32,6 +32,12 @@ namespace Hominem {
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
+	void OpenGLVertexBuffer::SetData(void* data, uint32_t size)
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, m_RendererID);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+	}
+
 	OpenGLVertexBuffer::~OpenGLVertexBuffer()
 	{
 		glDeleteBuffers(1, &m_RendererID);
