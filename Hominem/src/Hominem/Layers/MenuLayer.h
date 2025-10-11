@@ -13,6 +13,8 @@ namespace Hominem {
 
 		void OnUpdate(Timestep ts) override;
 		void OnImGuiRender() override;
+	private: 
+		OrthographicCameraController m_CameraController;
 	};
 
 }
