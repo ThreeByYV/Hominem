@@ -5,7 +5,6 @@
 
 #ifdef HMN_PLATFORM_WINDOWS
 
-
 int main(int argc, char** argv)
 {
     Hominem::Log::Init();

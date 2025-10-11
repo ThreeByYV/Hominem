@@ -153,7 +153,7 @@ namespace Hominem {
 		const auto& metrics = fontGeometry.getMetrics();
 		auto fontAtlas = font->GetAtlasTexture();
 
-		//bind texture and text shader
+		//bind atlas texture and text shader
 		fontAtlas->Bind(0);
 		s_Data->TextShader->Bind();
 
@@ -174,10 +174,12 @@ namespace Hominem {
 			char character = string[i];
 
 			auto glyph = fontGeometry.getGlyph(character);
+
 			if (!glyph)
 			{
 				glyph = fontGeometry.getGlyph('?');
 			}
+
 			if (!glyph)
 			{
 				HMN_CORE_ERROR("Font does not have glyph for '{0}' or fallback '?'", character);
@@ -204,7 +206,7 @@ namespace Hominem {
 
 			//text rendering below
 		
-		   // Create and render this character based on values MSDF calcs
+		   // Create and render this letter vertice based on values from MSDF calcs
 			TextVertex vertices[4] = {
 				{ glm::vec3(quadMin.x, quadMin.y, 0.0f), color, texCoordMin },
 				{ glm::vec3(quadMax.x, quadMin.y, 0.0f), color, {texCoordMax.x, texCoordMin.y} },
@@ -223,7 +225,7 @@ namespace Hominem {
 				fontGeometry.getAdvance(advance, character, nextCharacter);
 			}
 
-			float kerningOffset = 0.0f; //this allows space between each character of the string
+			float kerningOffset = 1.0f; //this allows space between each character of the string
 			x += fsScale * advance + kerningOffset;
 		}
 	}
