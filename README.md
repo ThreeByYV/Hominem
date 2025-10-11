@@ -2,7 +2,7 @@
 
 This codebase began as an exploration into modern 2.5D rendering techniques, inspired by the incredible work done in stylized games that blend 3D technology with hand-drawn aesthetics. The goal is to create a game capable of producing high-quality 2.5D visuals. Big thanks to [The Cherno](https://www.youtube.com/@TheCherno) and [OGLDEV](https://www.youtube.com/@OGLDEV) for the foundational engine architecture that got this project off the ground.
 
-![Image](https://github.com/user-attachments/assets/90d1a63e-7975-4c3c-8df2-7d791c421538)
+![Image](https://github.com/user-attachments/assets/874258f1-304c-4821-afdf-13155816bf12)
 
 ### Controls
 WSAD: movement<br>
@@ -39,6 +39,7 @@ This is where it gets interesting - time to start implementing the 2.5D magic. C
 #### Planned: November 2025
 
 Advanced 2.5D features and polish. Want to get the lighting looking really stylized and art-directable. Maybe some post-processing effects to really sell the hand-drawn aesthetic. Even possibly using AMD FSR SDK for AI image upscaling
+
 
 
 
