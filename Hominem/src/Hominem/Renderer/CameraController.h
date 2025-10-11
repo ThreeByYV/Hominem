@@ -77,7 +77,7 @@ namespace Hominem {
         const glm::vec3& GetTarget() const { return m_Target; }
         const glm::vec3& GetUp() const { return m_Up; }
 
-        float getMouseSensitivity() const { return m_MouseSensitivity; }
+        float GetMouseSensitivity() const { return m_MouseSensitivity; }
         void SetMouseSensitivity(float sensitivity) { m_MouseSensitivity = sensitivity; }
 
     private:

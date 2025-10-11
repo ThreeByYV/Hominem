@@ -20,22 +20,24 @@ namespace Hominem {
 
 	struct Renderer2DStorage
 	{
-		static const uint32_t MaxVertices = 20000 * 4;
+		glm::mat4 ViewProjectionMatrix;
 		Ref<VertexArray> QuadVertexArray;
+		static const uint32_t MaxVertices = 20000 * 4;
 		Ref<Shader> TextureShader;
 
 		Ref<VertexArray> TextVertexArray;
 		Ref<VertexBuffer> TextVertexBuffer;
 		Ref<Shader> TextShader;
 		Ref<Texture2D>FontAtlasTexture;
+		uint32_t TextVertexCount = 0;
+		TextVertex* TextVertexBufferBase = nullptr;
+		TextVertex* TextVertexBufferPtr = nullptr;
 		
 		Ref<ShaderLibrary> ShaderLibrary;
 		Ref<IndexBuffer> IndexBuffer;
 		Ref<Texture2D> WhiteTexture;
 		Ref<VertexBuffer> VertexBuffer;
-		uint32_t TextVertexCount = 0;
-		TextVertex* TextVertexBufferBase = nullptr;
-		TextVertex* TextureVertexBufferPtr = nullptr;
+
 	};
 
 	class Renderer2D
@@ -47,6 +49,7 @@ namespace Hominem {
 		template<typename CameraType>
 		static void BeginScene(const CameraType& camera)
 		{
+			s_Data->ViewProjectionMatrix = camera.GetViewProjectionMatrix();
 			s_Data->TextureShader->Bind();
 			s_Data->TextureShader->SetMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
 		}

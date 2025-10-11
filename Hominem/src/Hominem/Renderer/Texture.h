@@ -1,6 +1,14 @@
 #pragma once
 
 namespace Hominem {
+
+	enum class TextureFormat
+	{
+		None = 0,
+		RGB8,
+		RGBA8,
+		RED8
+	};
 	
 	class Texture
 	{
@@ -18,6 +26,7 @@ namespace Hominem {
 	{
 	public:
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height);
+		static Ref<Texture2D> Create(uint32_t width, uint32_t height, TextureFormat format);
 		static Ref<Texture2D> Create(const std::string& path);
 	};
 

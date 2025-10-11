@@ -21,6 +21,7 @@ namespace Hominem {
 
 		s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
 
+		// Quads
 		float vertices[5 * 4] = {
 			-0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  // 0: Bottom-left
 			 0.5f, -0.5f, 0.0f, 1.0f, 0.0f,  // 1: Bottom-right  
@@ -57,17 +58,20 @@ namespace Hominem {
 		s_Data->TextureShader->SetInt("u_Texture", 0);
 
 		//Text
-		s_Data->TextShader = Shader::Create("src/Hominem/Resources/Shaders/text.glsl");
-
 		s_Data->TextVertexArray = VertexArray::Create();
 		s_Data->TextVertexBuffer = VertexBuffer::Create(s_Data->MaxVertices * sizeof(TextVertex));
+		s_Data->TextVertexArray->SetIndexBuffer(s_Data->IndexBuffer); //layout of the indicies is the same as a normal quad i.e. can reuse index buffer
+
+
 		s_Data->TextVertexBuffer->SetLayout({
 			{ ShaderDataType::Float3, "a_Position" },
 			{ ShaderDataType::Float4, "a_Color" },
 		    { ShaderDataType::Float2, "a_TexCoord" },
 		});
+
 		s_Data->TextVertexArray->AddVertexBuffer(s_Data->TextVertexBuffer);
 
+		s_Data->TextShader = Shader::Create("src/Hominem/Resources/Shaders/text.glsl");
 	}
 
 	void Renderer2D::Shutdown()
@@ -149,57 +153,78 @@ namespace Hominem {
 		const auto& metrics = fontGeometry.getMetrics();
 		auto fontAtlas = font->GetAtlasTexture();
 
-		double x = 0.0f;
+		//bind texture and text shader
+		fontAtlas->Bind(0);
+		s_Data->TextShader->Bind();
+
+		s_Data->TextShader->SetMat4("u_ViewProjection", s_Data->ViewProjectionMatrix);
+		s_Data->TextShader->SetMat4("u_Transform", transform);
+		s_Data->TextShader->SetInt("u_FontAtlas", 0); // texture slot is 0 
+
 		double fsScale = 1.0 / (metrics.ascenderY - metrics.descenderY);
-		double y = 0.0f;
-
-		char character = 'H';
-
-		auto glyph = fontGeometry.getGlyph(character);
-
-		if (!glyph)
-		{
-			glyph = fontGeometry.getGlyph('?');
-		}
-
-		if (!glyph)
-		{
-			HMN_CORE_ERROR("Font does not have glyph for '{0}' or fallback '?'", character);
-			return; 
-		}
-
-		//calc the geometry below
-		double al, ab, ar, at;
-		glyph->getQuadAtlasBounds(al, ab, ar, at);
-
-		//texture coords needed to send to the frag shader
-		glm::vec2 texCoordMin((float)al, (float)ab);
-		glm::vec2 textCoordMax((float)ar, (float)at);
-
-		double pl, pb, pr, pt;
-		glyph->getQuadPlaneBounds(pl, pb, pr, pt);
-		glm::vec2 quadMin((float)pl, (float)pb);
-		glm::vec2 quadMax((float)pr, (float)pt);
-
-		quadMin *= fsScale, quadMax *= fsScale;
-		quadMin += glm::vec2(x, y);
-		quadMax += glm::vec2(x, y);
+		double x = 0.0;
+		double y = 0.0;
 
 		//needed to calc the size of each pixel in the atlas
-		float texelWidth = 1.0f / fontAtlas->GetWidth(); 
+		float texelWidth = 1.0f / fontAtlas->GetWidth();
 		float texelHeight = 1.0f / fontAtlas->GetHeight();
-		texCoordMin *= glm::vec2(texelWidth, texelHeight);
-		textCoordMax *= glm::vec2(texelWidth, texelHeight);
 
-		//rendering below
-		double advance = glyph->getAdvance();
-		char nextCharacter = 'O';
-		fontGeometry.getAdvance(advance, character, nextCharacter);
+		for (size_t i = 0; i < string.size(); i++)
+		{
+			char character = string[i];
 
-		float kerningOffset = 1.0f; //this allows space between each character of the string
-	
-		x += fsScale * advance + kerningOffset;
+			auto glyph = fontGeometry.getGlyph(character);
+			if (!glyph)
+			{
+				glyph = fontGeometry.getGlyph('?');
+			}
+			if (!glyph)
+			{
+				HMN_CORE_ERROR("Font does not have glyph for '{0}' or fallback '?'", character);
+				continue;
+			}
+
+			//calc the geometry below
+			double al, ab, ar, at;
+			glyph->getQuadAtlasBounds(al, ab, ar, at);
+			//texture coords needed to send to the frag shader
+			glm::vec2 texCoordMin((float)al, (float)ab);
+			glm::vec2 texCoordMax((float)ar, (float)at);
+
+			double pl, pb, pr, pt;
+			glyph->getQuadPlaneBounds(pl, pb, pr, pt);
+			glm::vec2 quadMin((float)pl, (float)pb);
+			glm::vec2 quadMax((float)pr, (float)pt);
+			quadMin *= fsScale, quadMax *= fsScale;
+			quadMin += glm::vec2(x, y);
+			quadMax += glm::vec2(x, y);
+
+			texCoordMin *= glm::vec2(texelWidth, texelHeight);
+			texCoordMax *= glm::vec2(texelWidth, texelHeight);
+
+			//text rendering below
+		
+		   // Create and render this character based on values MSDF calcs
+			TextVertex vertices[4] = {
+				{ glm::vec3(quadMin.x, quadMin.y, 0.0f), color, texCoordMin },
+				{ glm::vec3(quadMax.x, quadMin.y, 0.0f), color, {texCoordMax.x, texCoordMin.y} },
+				{ glm::vec3(quadMax.x, quadMax.y, 0.0f), color, texCoordMax },
+				{ glm::vec3(quadMin.x, quadMax.y, 0.0f), color, {texCoordMin.x, texCoordMax.y} }
+			};
+
+			s_Data->TextVertexBuffer->SetData(vertices, sizeof(vertices));
+			s_Data->TextVertexArray->Bind();
+			RenderCommand::DrawIndexed(s_Data->TextVertexArray);
+
+			double advance = glyph->getAdvance();
+			if (i < string.size() - 1)
+			{
+				char nextCharacter = string[i + 1];
+				fontGeometry.getAdvance(advance, character, nextCharacter);
+			}
+
+			float kerningOffset = 0.0f; //this allows space between each character of the string
+			x += fsScale * advance + kerningOffset;
+		}
 	}
-
-
 }
