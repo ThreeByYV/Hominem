@@ -2,10 +2,13 @@
 
 #include "Hominem/Core/Hominem.h"
 #include "Hominem/Layers/MenuLayer.h"
+#include "Hominem/Utils/AssimpBoneUtils.h"
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <assimp/Importer.hpp>
 
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices)
 
 namespace Hominem {
 
@@ -20,18 +23,33 @@ namespace Hominem {
 
 		void OnAttach() override
 		{
-			m_Mesh = new BasicMesh();
+			/*m_Mesh = new BasicMesh();
 
 			if (!m_Mesh->LoadMesh("src/Hominem/Resources/Textures/char.fbx"))
 			{
 				HMN_CORE_ERROR("Failed to load mesh!");
+			}*/
+
+			const std::string filename = "src/Hominem/Resources/Textures/boblampclean.md5mesh";
+			
+			Assimp::Importer Importer;
+			const aiScene* pScene = Importer.ReadFile(filename, ASSIMP_LOAD_FLAGS);
+
+			if (!pScene)
+			{
+				HMN_CORE_ERROR("Error parsing {}: {}\n", filename, Importer.GetErrorString());
+				return;
 			}
+
+			ParseScene(pScene);
 		}
 
 		void OnDetach() override
 		{
-			delete m_Mesh;
-			m_Mesh = nullptr;
+			/*
+				delete m_Mesh;
+				m_Mesh = nullptr;
+			*/
 		}
 
 		void OnUpdate(Timestep ts) override
@@ -81,7 +99,7 @@ namespace Hominem {
 		}
 
 	private:
-		PerspectiveCameraController m_CameraController;
+		OrthographicCameraController m_CameraController;
 		BasicMesh* m_Mesh = nullptr;
 		//Ref<Texture2D> m_DripTexture;
 		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
