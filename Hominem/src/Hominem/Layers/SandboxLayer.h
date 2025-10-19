@@ -2,10 +2,13 @@
 
 #include "Hominem/Core/Hominem.h"
 #include "Hominem/Layers/MenuLayer.h"
+#include "Hominem/Utils/AssimpBoneUtils.h"
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <assimp/Importer.hpp>
 
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices)
 
 namespace Hominem {
 
@@ -82,7 +85,7 @@ namespace Hominem {
 		}
 
 	private:
-		PerspectiveCameraController m_CameraController;
+		OrthographicCameraController m_CameraController;
 		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
 		Ref<Scene> m_ActiveScene;

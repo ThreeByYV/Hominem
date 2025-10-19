@@ -19,7 +19,6 @@ namespace Hominem {
 	{
 		s_Font = Font::GetDefaultFont();
 		m_BackgroundTexture = Texture2D::Create("src/Hominem/Resources/Textures/menu2.png");
-
 	}
 
 	void MenuLayer::OnUpdate(Timestep ts)
@@ -43,7 +42,6 @@ namespace Hominem {
 			* glm::scale(glm::mat4(1.0f), glm::vec3(0.25f));
 
 		Renderer2D::DrawString("Hominem", Font::GetDefaultFont(), transform, glm::vec4(1.0f));
-	
 
 	}
 
