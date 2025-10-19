@@ -15,6 +15,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <Hominem/Core/Log.h>
 #include <filesystem>
 #include <cstdint>
