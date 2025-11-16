@@ -110,9 +110,12 @@ namespace Hominem {
 =======
 		PerspectiveCameraController m_CameraController;
 		Ref<BasicMesh> m_Mesh = nullptr;
+<<<<<<< HEAD
 		bool m_SpaceKeyPressed = false;
 		int m_DisplayBoneIndex = -1;
 >>>>>>> 3612fc1 (feat(renderer): unify shader selection and add fog support)
+=======
+>>>>>>> 879124c (refactor(Renderer2D): unify textured quad drawing via internal helper)
 	};
 	
 
