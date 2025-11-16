@@ -5,7 +5,7 @@
 #include "Hominem/Renderer/Camera.h"
 #include "Shader.h"
 #include "Font.h"
-
+#include "Quad.h"
 #include "VertexArray.h"
 #include "Shader.h"
 #include "Texture.h"
@@ -24,12 +24,16 @@ namespace Hominem {
 		glm::mat4 ViewProjectionMatrix;
 		Ref<VertexArray> QuadVertexArray;
 		static const uint32_t MaxVertices = 20000 * 4;
+		Ref<Shader> DefaultShader;
+		Ref<Shader> OverrideShader;
 		Ref<Shader> TextureShader;
+		Ref<Shader> SkinningShader;
+		Ref<Shader> FogShader;
 
 		Ref<VertexArray> TextVertexArray;
 		Ref<VertexBuffer> TextVertexBuffer;
 		Ref<Shader> TextShader;
-		Ref<Texture2D>FontAtlasTexture;
+		Ref<Texture2D> FontAtlasTexture;
 		uint32_t TextVertexCount = 0;
 		TextVertex* TextVertexBufferBase = nullptr;
 		TextVertex* TextVertexBufferPtr = nullptr;
@@ -68,6 +72,7 @@ namespace Hominem {
 		
 		static void DrawQuad(const glm::mat4& transform, const glm::vec4& color);
 		static void DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture);
+		static void DrawQuad(const Quad& q); 
 
 		static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture);
 		static void DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<Texture2D>& texture);

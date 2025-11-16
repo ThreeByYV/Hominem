@@ -1,18 +1,23 @@
 #include "hmnpch.h"
 #include "BasicMesh.h"
 
-#define POSITION_LOCATION  0
-#define TEX_COORD_LOCATION 1
-#define NORMAL_LOCATION    2
+
+#define INVALID_UNIFORM_LOCATION -1
+#define POSITION_LOCATION         0
+#define TEX_COORD_LOCATION        1
+#define NORMAL_LOCATION           2
+#define BONE_ID_LOCATION          3
+#define BONE_WEIGHT_LOCATION      4
 
 
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate)
+#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices)
 // modelers allow polygons, but we only can use triangles, tell assimp to split polygons into triangles
 // lighting
 // flips the texture coords on the V or Y axis, again modelers can control this
 // adjust the index buffer accordingly and saves memory
 
 namespace Hominem {
+
 
 	BasicMesh::~BasicMesh()
 	{
@@ -27,7 +32,7 @@ namespace Hominem {
 			m_VAO = 0;
 		}
 
-		if (m_Buffers[0] != 0) 
+		if (m_Buffers[0] != 0)
 		{
 			glDeleteBuffers(ARRAY_SIZE_IN_ELEMENTS(m_Buffers), m_Buffers);
 			memset(m_Buffers, 0, sizeof(m_Buffers));
@@ -39,8 +44,44 @@ namespace Hominem {
 		m_Indices.clear();
 		m_Meshes.clear();
 		m_Textures.clear();
+		m_Bones.clear();
+		m_BoneNameToIndexMap.clear();
+		m_MeshBaseVertex.clear();
 
 		HMN_CORE_INFO("BasicMesh resources cleared");
+	}
+
+	void BasicMesh::DrawSubmeshes()
+	{
+		if (m_VAO == 0) {
+			HMN_CORE_ERROR("Cannot render: VAO is 0");
+			return;
+		}
+		if (m_Meshes.empty()) {
+			HMN_CORE_ERROR("Cannot render: No meshes loaded");
+			return;
+		}
+
+		for (uint32_t i = 0; i < m_Meshes.size(); i++) {
+			uint32_t materialIndex = m_Meshes[i].m_MaterialIndex;
+
+			if (materialIndex >= m_Textures.size()) {
+				HMN_CORE_ERROR("Material index {} out of range (max: {})",
+					materialIndex, m_Textures.size() ? m_Textures.size() - 1 : 0);
+				continue;
+			}
+
+			if (m_Textures[materialIndex])
+				m_Textures[materialIndex]->Bind(GL_TEXTURE0);
+
+			glDrawElementsBaseVertex(
+				GL_TRIANGLES,
+				m_Meshes[i].m_NumIndices,
+				GL_UNSIGNED_INT,
+				(void*)(sizeof(uint32_t) * m_Meshes[i].m_BaseIndex),
+				m_Meshes[i].m_BaseVertex
+			);
+		}
 	}
 
 	bool BasicMesh::LoadMesh(const std::string& filename)
@@ -55,23 +96,18 @@ namespace Hominem {
 		{
 			success = true;
 			HMN_CORE_INFO("Mesh was loaded from cache");
-		} 
+		}
 		else
 		{
 			bool Ret = false;
 			const aiScene* pScene = nullptr;
-			Assimp::Importer Importer; //class allows access the features in assimp
-
+			Assimp::Importer Importer;
 
 			auto fileLoadingTask = std::async(std::launch::async, [&]() {
-
 				HMN_CORE_INFO("Reading file with Assimp on background thread...");
-
-				//aiScene is the top level data structure from assimp's representation of a model
 				pScene = Importer.ReadFile(filename.c_str(), ASSIMP_LOAD_FLAGS);
-
 				return pScene != nullptr;
-			});
+				});
 
 			bool isFileLoaded = fileLoadingTask.get();
 
@@ -125,8 +161,8 @@ namespace Hominem {
 		HMN_CORE_INFO("Initializing scene with {} meshes and {} materials",
 			pScene->mNumMeshes, pScene->mNumMaterials);
 
-		m_Meshes.resize(pScene->mNumMeshes);  //assimp makes aiMesh seperate struct for each component, like in modelers
-		m_Textures.resize(pScene->mNumMaterials); //multiple textures are inside a "material" in assimp
+		m_Meshes.resize(pScene->mNumMeshes);
+		m_Textures.resize(pScene->mNumMaterials);
 
 		uint32_t numVertices = 0;
 		uint32_t numIndices = 0;
@@ -135,12 +171,15 @@ namespace Hominem {
 		HMN_CORE_INFO("Total vertices: {}, Total indices: {}", numVertices, numIndices);
 
 		ReserveSpace(numVertices, numIndices);
+
 		InitAllMeshes(pScene);
+
+		ParseScene(pScene);
 
 		HMN_CORE_INFO("Vertices populated: {}, Normals: {}, TexCoords: {}, Indices: {}",
 			m_Positions.size(), m_Normals.size(), m_TexCoords.size(), m_Indices.size());
 
-		if (!InitMaterials(pScene, filename)) 
+		if (!InitMaterials(pScene, filename))
 		{
 			HMN_CORE_ERROR("Failed to initialize materials");
 			return false;
@@ -156,12 +195,11 @@ namespace Hominem {
 			const aiMesh* pMesh = pScene->mMeshes[i];
 
 			m_Meshes[i].m_MaterialIndex = pMesh->mMaterialIndex;
-			m_Meshes[i].m_NumIndices = pMesh->mNumFaces * 3; //after triangulation all polygons in the mesh are now triangles
+			m_Meshes[i].m_NumIndices = pMesh->mNumFaces * 3;
 
-			m_Meshes[i].m_BaseVertex = numVertices; //this is the first vertex of the current mesh in the global buffers object
+			m_Meshes[i].m_BaseVertex = numVertices;
 			m_Meshes[i].m_BaseIndex = numIndices;
 
-			//addition needed to add the offset when there is aiMesh with 100, and another with 200 vertices 
 			numVertices += pMesh->mNumVertices;
 			numIndices += m_Meshes[i].m_NumIndices;
 
@@ -171,13 +209,13 @@ namespace Hominem {
 		}
 	}
 
-	//allocates space in the four vectors before sending to the GPU
 	void BasicMesh::ReserveSpace(unsigned int numVertices, unsigned int numIndices)
 	{
 		m_Positions.reserve(numVertices);
 		m_Normals.reserve(numVertices);
 		m_TexCoords.reserve(numVertices);
 		m_Indices.reserve(numIndices);
+		m_Bones.reserve(numVertices);
 
 		HMN_CORE_INFO("Reserved space for {} vertices and {} indices", numVertices, numIndices);
 	}
@@ -191,22 +229,21 @@ namespace Hominem {
 			const aiMesh* paiMesh = pScene->mMeshes[i];
 			HMN_CORE_INFO("Processing mesh {} with {} vertices and {} faces",
 				i, paiMesh->mNumVertices, paiMesh->mNumFaces);
-			InitSingleMesh(paiMesh);
+			InitSingleMesh(i, paiMesh);
 		}
 	}
 
-	//this is what populates the all vectors that will be sent to the GPU
-	void BasicMesh::InitSingleMesh(const aiMesh* paiMesh)
+	void BasicMesh::InitSingleMesh(uint32_t meshIndex, const aiMesh* paiMesh)
 	{
 		const aiVector3D Zero3D(0.0f);
 
-		if (!paiMesh->mVertices) 
+		if (!paiMesh->mVertices)
 		{
 			HMN_CORE_ERROR("Mesh has no vertices!");
 			return;
 		}
 
-		if (!paiMesh->mNormals) 
+		if (!paiMesh->mNormals)
 		{
 			HMN_CORE_WARN("Mesh has no normals - using zero normals");
 		}
@@ -221,17 +258,16 @@ namespace Hominem {
 			m_Positions.push_back(glm::vec3(pPos.x, pPos.y, pPos.z));
 			m_Normals.push_back(glm::vec3(pNormal.x, pNormal.y, pNormal.z));
 			m_TexCoords.push_back(glm::vec2(pTexCoord.x, pTexCoord.y));
-
+			m_Bones.push_back(VertexBoneData());
 		}
-
 
 		// Populate the index buffer
 		for (uint32_t i = 0; i < paiMesh->mNumFaces; i++)
 		{
 			const aiFace& face = paiMesh->mFaces[i];
-			if (face.mNumIndices != 3) 
+			if (face.mNumIndices != 3)
 			{
-				HMN_CORE_ERROR("Face {} has {} indices instead of 3! Triangulation may have failed.",i, face.mNumIndices);
+				HMN_CORE_ERROR("Face {} has {} indices instead of 3! Triangulation may have failed.", i, face.mNumIndices);
 				continue;
 			}
 
@@ -244,7 +280,6 @@ namespace Hominem {
 			paiMesh->mNumVertices, paiMesh->mNumFaces, m_Indices.size());
 	}
 
-	// this allocates GLTextures for the images inside of the model
 	bool BasicMesh::InitMaterials(const aiScene* pScene, const std::string& filename)
 	{
 		// Extract directory from filename
@@ -259,50 +294,38 @@ namespace Hominem {
 		{
 			dir = "/";
 		}
-		else 
+		else
 		{
 			dir = filename.substr(0, slashIndex);
 		}
 
-		HMN_CORE_INFO("Model directory: {}", dir);
-
 		bool Ret = true;
 
-		//Initialize the materials
+		// Initialize the materials
 		for (uint32_t i = 0; i < pScene->mNumMaterials; i++)
 		{
 			const aiMaterial* pMaterial = pScene->mMaterials[i];
-			m_Textures[i] = nullptr;
 
-			HMN_CORE_INFO("Processing material {}: {} diffuse textures",
-				i, pMaterial->GetTextureCount(aiTextureType_DIFFUSE));
+			m_Textures[i] = nullptr;
 
 			if (pMaterial->GetTextureCount(aiTextureType_DIFFUSE) > 0)
 			{
-				aiString path;
+				aiString Path;
 
-				if (pMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
+				if (pMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &Path, NULL, NULL, NULL, NULL, NULL) == AI_SUCCESS)
 				{
-					std::string texPath(path.data);
-					HMN_CORE_INFO("Found texture path: {}", texPath);
+					std::string fullPath = dir + "/" + Path.data;
+					HMN_CORE_INFO("Loading texture: {}", fullPath);
 
-					// the path of the texture must be relative to location of the model file
-					if (texPath.substr(0, 2) == ".\\")
+					try
 					{
-						texPath = texPath.substr(2);
-					}
-
-					std::string fullPath = dir + "/" + texPath;
-					HMN_CORE_INFO("Attempting to load texture: {}", fullPath);
-
-					try {
 						m_Textures[i] = Texture2D::Create(fullPath);
-						
+
 						if (m_Textures[i])
 						{
-							HMN_CORE_INFO("Successfully loaded texture: {}", fullPath);
+							HMN_CORE_INFO("Loaded texture successfully: {}", fullPath);
 						}
-						else 
+						else
 						{
 							HMN_CORE_WARN("Failed to load texture: {}", fullPath);
 						}
@@ -312,12 +335,12 @@ namespace Hominem {
 						HMN_CORE_ERROR("Exception loading texture {}: {}", fullPath, e.what());
 					}
 				}
-				else 
+				else
 				{
 					HMN_CORE_WARN("Failed to get texture path for material {}", i);
 				}
 			}
-			else 
+			else
 			{
 				HMN_CORE_INFO("Material {} has no diffuse texture", i);
 			}
@@ -330,7 +353,7 @@ namespace Hominem {
 	{
 		HMN_CORE_INFO("Populating buffers...");
 
-		if (m_Positions.empty()) 
+		if (m_Positions.empty())
 		{
 			HMN_CORE_ERROR("No positions to populate!");
 			return;
@@ -357,6 +380,19 @@ namespace Hominem {
 		glVertexAttribPointer(NORMAL_LOCATION, 3, GL_FLOAT, GL_FALSE, 0, 0);
 		HMN_CORE_INFO("Normal buffer populated: {} normals", m_Normals.size());
 
+		//Bones buffer
+		glBindBuffer(GL_ARRAY_BUFFER, m_Buffers[BONE_VB]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(m_Bones[0]) * m_Bones.size(), &m_Bones[0], GL_STATIC_DRAW);
+		
+		glEnableVertexAttribArray(BONE_ID_LOCATION);
+		glVertexAttribIPointer(BONE_ID_LOCATION, MAX_NUM_BONES_PER_VERTEX, GL_INT,
+			sizeof(VertexBoneData), (const GLvoid*)0);
+
+		glEnableVertexAttribArray(BONE_WEIGHT_LOCATION);
+		glVertexAttribPointer(BONE_WEIGHT_LOCATION, MAX_NUM_BONES_PER_VERTEX, GL_FLOAT, GL_FALSE,
+			sizeof(VertexBoneData),
+			(const GLvoid*)(MAX_NUM_BONES_PER_VERTEX * sizeof(int)));
+
 		// Index buffer
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_Buffers[INDEX_BUFFER]);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(m_Indices[0]) * m_Indices.size(), &m_Indices[0], GL_STATIC_DRAW);
@@ -364,10 +400,110 @@ namespace Hominem {
 
 		GLenum error = glGetError();
 
-		if (error != GL_NO_ERROR) 
+		if (error != GL_NO_ERROR)
 		{
 			HMN_CORE_ERROR("OpenGL error during buffer population: {}", error);
 		}
+	}
+
+	void BasicMesh::ParseSingleBone(uint32_t meshIdx, const aiBone* pBone)
+	{
+		if (!pBone)
+		{
+			HMN_CORE_WARN("Bone is null for mesh {}", meshIdx);
+			return;
+		}
+
+		HMN_CORE_INFO("Bone '{}': {} vertices affected by this bone", pBone->mName.C_Str(), pBone->mNumWeights);
+
+		int boneID = GetBoneId(pBone);
+		HMN_CORE_INFO("Bone ID: {}", boneID);
+
+		for (uint32_t i = 0; i < pBone->mNumWeights; ++i)
+		{
+			const aiVertexWeight& vw = pBone->mWeights[i];
+
+			uint32_t globalVertexId = m_MeshBaseVertex[meshIdx] + vw.mVertexId;
+
+			HMN_CORE_INFO("{}: vertex id {}  weight {}", i, vw.mVertexId, vw.mWeight);
+
+			HMN_CORE_ASSERT(
+				globalVertexId < m_Bones.size(),
+				"Out-of-range vertex-to-bone access in ParseSingleBone(): "
+				"globalVertexId={}  m_Bones.size={}  meshIdx={}  localVertex={}  bone={}",
+				globalVertexId, m_Bones.size(), meshIdx, vw.mVertexId, pBone->mName.C_Str()
+			);
+
+			m_Bones[globalVertexId].AddBoneData(boneID, vw.mWeight);
+		}
+	}
+
+	void BasicMesh::ParseMeshBones(uint32_t meshIndex, const aiMesh* pMesh)
+	{
+		for (uint32_t i = 0; i < pMesh->mNumBones; ++i)
+		{
+			ParseSingleBone(meshIndex, pMesh->mBones[i]);
+		}
+	}
+
+	void BasicMesh::ParseMeshes(const aiScene* pScene)
+	{
+		HMN_CORE_INFO("Parsing {} meshes for bone data", pScene->mNumMeshes);
+
+		uint32_t totalBones = 0;
+		m_MeshBaseVertex.resize(pScene->mNumMeshes);
+
+		// Calculate base vertices for each mesh (needed for global vertex indexing)
+		uint32_t vertexOffset = 0;
+		for (uint32_t i = 0; i < pScene->mNumMeshes; i++) 
+		{
+			const aiMesh* pMesh = pScene->mMeshes[i];
+			m_MeshBaseVertex[i] = vertexOffset;
+			vertexOffset += pMesh->mNumVertices;
+
+			HMN_CORE_INFO("Mesh {} '{}': {} bones, base vertex: {}",
+				i, pMesh->mName.C_Str(), pMesh->mNumBones, m_MeshBaseVertex[i]);
+			totalBones += pMesh->mNumBones;
+		}
+
+		// Now process bone weights for each mesh
+		for (uint32_t i = 0; i < pScene->mNumMeshes; i++)
+		{
+			const aiMesh* pMesh = pScene->mMeshes[i];
+
+			if (pMesh->HasBones()) 
+			{
+				ParseMeshBones(i, pMesh);
+			}
+		}
+
+		HMN_CORE_INFO("Total bones processed: {}", totalBones);
+		HMN_CORE_INFO("Final bone map size: {}", m_BoneNameToIndexMap.size());
+	}
+
+	void BasicMesh::ParseScene(const aiScene* pScene)
+	{
+		ParseMeshes(pScene);
+	}
+
+	int  BasicMesh::GetBoneId(const aiBone* pBone)
+	{
+		int boneID = 0;
+		std::string boneName{ pBone->mName.C_Str() };
+
+		if (m_BoneNameToIndexMap.find(boneName) == m_BoneNameToIndexMap.end())
+		{
+			//allocate an index for a new bone here
+			boneID = m_BoneNameToIndexMap.size();
+			m_BoneNameToIndexMap[boneName] = boneID;
+			HMN_CORE_INFO("Added new bone '{}' with ID {}", boneName, boneID);
+		}
+		else
+		{
+			boneID = m_BoneNameToIndexMap[boneName];
+		}
+
+		return boneID;
 	}
 
 	bool BasicMesh::LoadFromCache(const std::string& filename)
@@ -395,6 +531,7 @@ namespace Hominem {
 			m_TexCoords.resize(texSize);
 			m_Indices.resize(indexSize);
 			m_Meshes.resize(meshSize);
+			m_Bones.resize(posSize);
 
 			// Read vertex/index data
 			file.read((char*)m_Positions.data(), posSize * sizeof(glm::vec3));
@@ -404,6 +541,23 @@ namespace Hominem {
 
 			// Read mesh metadata 
 			file.read((char*)m_Meshes.data(), meshSize * sizeof(BasicMeshEntry));
+
+			// Read bone name mapping
+			size_t boneMapSize;
+			file.read((char*)&boneMapSize, sizeof(boneMapSize));
+
+			for (size_t i = 0; i < boneMapSize; i++) {
+				size_t nameLength;
+				file.read((char*)&nameLength, sizeof(nameLength));
+
+				std::string boneName(nameLength, '\0');
+				file.read(&boneName[0], nameLength);
+
+				uint32_t boneIndex;
+				file.read((char*)&boneIndex, sizeof(boneIndex));
+
+				m_BoneNameToIndexMap[boneName] = boneIndex;
+			}
 
 			if (file.good()) {
 				uint32_t maxMaterialIndex = 0;
@@ -421,8 +575,8 @@ namespace Hominem {
 
 				m_Textures.resize(maxMaterialIndex + 1, nullptr);
 
-				HMN_CORE_INFO("Cache loaded: {} vertices, {} meshes, {} texture slots",
-					posSize, meshSize, m_Textures.size());
+				HMN_CORE_INFO("Cache loaded: {} vertices, {} meshes, {} texture slots, {} bone mappings",
+					posSize, meshSize, m_Textures.size(), m_BoneNameToIndexMap.size());
 				return true;
 			}
 		}
@@ -462,69 +616,43 @@ namespace Hominem {
 		file.write((char*)m_Indices.data(), indexSize * sizeof(uint32_t));
 		file.write((char*)m_Meshes.data(), meshSize * sizeof(BasicMeshEntry));
 
-		HMN_CORE_INFO("Cache saved: {} vertices", posSize);
+		// Save bone name mapping
+		size_t boneMapSize = m_BoneNameToIndexMap.size();
+		file.write((char*)&boneMapSize, sizeof(boneMapSize));
+
+		for (const auto& [boneName, boneIndex] : m_BoneNameToIndexMap) {
+			size_t nameLength = boneName.length();
+			file.write((char*)&nameLength, sizeof(nameLength));
+			file.write(boneName.c_str(), nameLength);
+			file.write((char*)&boneIndex, sizeof(boneIndex));
+		}
+
+		HMN_CORE_INFO("Cache saved: {} vertices, {} bone mappings", posSize, boneMapSize);
+	}
+
+	void BasicMesh::Render(const Ref<Shader>& overrideShader)
+	{
+		Ref<Shader> shader = overrideShader ? overrideShader : m_Shader;
+		HMN_CORE_ASSERT(shader, "BasicMesh::Render called without any shader");
+
+		// Bind the shader here to guarantee it’s active
+		shader->Bind();
+
+		// Bind VAO once
+		glBindVertexArray(m_VAO);
+
+		// If you need a sampler uniform:
+		// shader->SetInt("u_Texture", 0);
+
+		DrawSubmeshes();
+
+		glBindVertexArray(0);
 	}
 
 	void BasicMesh::Render()
 	{
-		if (m_VAO == 0) 
-		{
-			HMN_CORE_ERROR("Cannot render: VAO is 0");
-			return;
-		}
-
-		if (m_Meshes.empty()) 
-		{
-			HMN_CORE_ERROR("Cannot render: No meshes loaded");
-			return;
-		}
-
-		glBindVertexArray(m_VAO);
-
-		for (uint32_t i = 0; i < m_Meshes.size(); i++)
-		{
-			uint32_t materialIndex = m_Meshes[i].m_MaterialIndex;
-
-			if (materialIndex >= m_Textures.size())
-			{
-				HMN_CORE_ERROR("Material index {} out of range (max: {})", materialIndex, m_Textures.size() - 1);
-				materialIndex = 0;  // Use first texture or no texture
-				continue;
-			}
-
-			//in your meshes check if you have a correspsonding element in the texture array, maybe material w/o diffuse texture
-			if (m_Textures[materialIndex])
-			{
-				m_Textures[materialIndex]->Bind(GL_TEXTURE0);
-			}
-
-			// Validate mesh data
-			if (m_Meshes[i].m_NumIndices == 0)
-			{
-				HMN_CORE_WARN("Mesh {} has 0 indices, skipping", i);
-				continue;
-			}
-
-			HMN_CORE_TRACE("Rendering mesh {}: {} indices, base vertex {}, base index {}",
-				i, m_Meshes[i].m_NumIndices, m_Meshes[i].m_BaseVertex, m_Meshes[i].m_BaseIndex);
-
-			//this allows us to draw from sub-regions of the vertex and index buffers
-			//i.e. needed for different offsets in the vertex buffer since we are using SoA instead of AoS
-			glDrawElementsBaseVertex(GL_TRIANGLES,
-				m_Meshes[i].m_NumIndices,
-				GL_UNSIGNED_INT,
-				(void*)(sizeof(uint32_t) * m_Meshes[i].m_BaseIndex), //offset to the first index of the current mesh in the IBO
-				m_Meshes[i].m_BaseVertex); //this will be added to each index of the vertice, so it will match any offset in our buffer
-
-			// Check for OpenGL errors after each draw call
-			GLenum error = glGetError();
-
-			if (error != GL_NO_ERROR) 
-			{
-				HMN_CORE_ERROR("OpenGL error during render of mesh {}: {}", i, error);
-			}
-		}
-
-		glBindVertexArray(0);
+		// Delegate to the main overload using the stored per-object shader
+		Render(m_Shader);
 	}
+
 }

@@ -19,6 +19,8 @@ namespace Hominem {
 		void SetData(void* data, uint32_t size) override;
 		void Bind(uint32_t slot) const override;
 
+		static void UnbindAll();
+
 	private:
 		std::string m_Path;
 		uint32_t m_Width, m_Height;
