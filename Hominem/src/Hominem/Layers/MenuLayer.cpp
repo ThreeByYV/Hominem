@@ -32,6 +32,7 @@ namespace Hominem {
 
 		if (Input::IsKeyPressed(HMN_KEY_2))
 		{
+			Renderer2D::EndScene();
 			TransitionTo<SandboxLayer>();
 			return;
 		}
@@ -42,7 +43,8 @@ namespace Hominem {
 			* glm::scale(glm::mat4(1.0f), glm::vec3(0.25f));
 
 		Renderer2D::DrawString("Hominem", Font::GetDefaultFont(), transform, glm::vec4(1.0f));
-
+		
+		Renderer2D::EndScene();
 	}
 
 	void MenuLayer::OnImGuiRender()

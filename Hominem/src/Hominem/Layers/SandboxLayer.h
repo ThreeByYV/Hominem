@@ -2,13 +2,10 @@
 
 #include "Hominem/Core/Hominem.h"
 #include "Hominem/Layers/MenuLayer.h"
-#include "Hominem/Utils/AssimpBoneUtils.h"
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <assimp/Importer.hpp>
-
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices)
 
 namespace Hominem {
 
@@ -20,6 +17,7 @@ namespace Hominem {
 		{
 			HMN_CORE_INFO("Created new SandboxLayer!");
 		}
+
 
 		void OnAttach() override
 		{
@@ -85,6 +83,7 @@ namespace Hominem {
 		}
 
 	private:
+<<<<<<< HEAD
 		OrthographicCameraController m_CameraController;
 		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
@@ -95,6 +94,12 @@ namespace Hominem {
 		Ref<Framebuffer> m_Framebuffer;
 		glm::vec2 m_ViewportSize;
 		bool m_PrimaryCamera = true;
+=======
+		PerspectiveCameraController m_CameraController;
+		Ref<BasicMesh> m_Mesh = nullptr;
+		bool m_SpaceKeyPressed = false;
+		int m_DisplayBoneIndex = -1;
+>>>>>>> 3612fc1 (feat(renderer): unify shader selection and add fog support)
 	};
 	
 
