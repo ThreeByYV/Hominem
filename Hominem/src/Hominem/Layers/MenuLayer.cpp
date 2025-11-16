@@ -17,6 +17,7 @@ namespace Hominem {
 
 	void MenuLayer::OnAttach()
 	{
+		Renderer2D::Init();
 		s_Font = Font::GetDefaultFont();
 		m_BackgroundTexture = Texture2D::Create("src/Hominem/Resources/Textures/menu2.png");
 	}
@@ -49,6 +50,5 @@ namespace Hominem {
 
 	void MenuLayer::OnImGuiRender()
 	{
-		
 	}
 }
