@@ -18,6 +18,22 @@ namespace Hominem {
 		return nullptr;
 	}
 
+	void Shader::UnbindAll()
+	{
+		switch (Renderer::GetAPI())
+		{
+		case RendererAPI::API::None:
+			HMN_CORE_ASSERT(false, "RendererAPI::None is not supported");
+			return;
+
+		case RendererAPI::API::OpenGL:
+			OpenGLShader::UnbindAll();
+			return;
+		}
+
+		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+	}
+
 	Ref<Shader> Shader::Create(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 	{
 		switch (Renderer::GetAPI())
