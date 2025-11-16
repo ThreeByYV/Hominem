@@ -2,13 +2,10 @@
 
 #include "Hominem/Core/Hominem.h"
 #include "Hominem/Layers/MenuLayer.h"
-#include "Hominem/Utils/AssimpBoneUtils.h"
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <assimp/Importer.hpp>
-
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices)
 
 namespace Hominem {
 
@@ -21,76 +18,65 @@ namespace Hominem {
 			HMN_CORE_INFO("Created new SandboxLayer!");
 		}
 
+
 		void OnAttach() override
 		{
-			/*m_Mesh = new BasicMesh();
+			Renderer3D::Init();
 
-			if (!m_Mesh->LoadMesh("src/Hominem/Resources/Textures/char.fbx"))
+			m_Mesh = CreateRef<BasicMesh>();
+
+			if (!m_Mesh->LoadMesh("src/Hominem/Resources/Textures/boblampclean.md5mesh"))
 			{
-				HMN_CORE_ERROR("Failed to load mesh!");
-			}*/
-
-			const std::string filename = "src/Hominem/Resources/Textures/boblampclean.md5mesh";
-			
-			Assimp::Importer Importer;
-			const aiScene* pScene = Importer.ReadFile(filename, ASSIMP_LOAD_FLAGS);
-
-			if (!pScene)
-			{
-				HMN_CORE_ERROR("Error parsing {}: {}\n", filename, Importer.GetErrorString());
-				return;
+				HMN_CORE_ERROR("Failed to load mesh");
 			}
-
-			ParseScene(pScene);
 		}
 
 		void OnDetach() override
 		{
-			/*
-				delete m_Mesh;
-				m_Mesh = nullptr;
-			*/
 		}
 
 		void OnUpdate(Timestep ts) override
 		{
 			if (Input::IsKeyPressed(HMN_KEY_1))
 			{
+				Renderer3D::EndScene();
 				TransitionTo<MenuLayer>();
 				return;
 			}
 
 			m_CameraController.OnUpdate(ts);
 
-			RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 			RenderCommand::Clear();
 
-			Renderer2D::BeginScene(m_CameraController.GetCamera());
-			Renderer2D::DrawQuad({ -1.0f, 0.0f }, { 0.7f, 1.0f }, { 0.8f, 0.2f, 0.3f, 1.0f });
-			Renderer2D::DrawQuad({ 0.5f, -0.5f }, { 0.4f, 0.96f }, glm::vec4(m_SquareColor, 1.0f));
+			// 3D Pass
+			Renderer3D::BeginScene(
+				m_CameraController.GetCamera().GetViewProjectionMatrix(), 
+				m_CameraController.GetPosition()
+			);
 
-			//Renderer2D::DrawQuad({ 0.0f, 0.0f - 0.1f }, { 10.0f, 10.0f }, m_DripTexture);
+			MeshRendererComponent rc{};
 
-			Renderer2D::EndScene();
+			rc.Mesh = m_Mesh;
+			rc.Shader = Renderer3D::GetShaderLibrary()->Get("fog");
 
-			if (m_Mesh != nullptr)
-			{
-				auto meshShader = Renderer2D::GetShaderLibrary()->Get("texture");
-				
-				meshShader->Bind();
-				meshShader->SetMat4("u_ViewProjection", m_CameraController.GetCamera().GetViewProjectionMatrix());
-				meshShader->SetMat4("u_Transform", glm::mat4(1.0f));
-				meshShader->SetFloat4("u_Color", glm::vec4(1.0f));
-				meshShader->SetInt("u_Texture", 0);
-				m_Mesh->Render();
-			}
+			rc.Shader->Bind();
+
+			rc.Shader->SetInt("u_Texture", 0);
+			rc.Shader->SetFloat("gFogStart", 10.0f);
+			
+			//todo merge ecs branch and use a real model transform
+			glm::mat4 modelMatrix = glm::mat4(1.0f);
+
+			rc.Shader->SetFloat("gFogEnd", 50.0f);
+		    rc.Shader->SetFloat3("gFogColor", { 0.7f, 0.75f, 0.8f });
+
+			Renderer3D::Draw(rc, modelMatrix);
+			Renderer3D::EndScene();
+
 		}
 
 		void OnImGuiRender() override
 		{
-			ImGui::Begin("Settings");
-			ImGui::ColorEdit3("Second Square Color", glm::value_ptr(m_SquareColor));
-			ImGui::End();
 		}
 
 		void OnEvent(Event& e) override
@@ -99,9 +85,9 @@ namespace Hominem {
 		}
 
 	private:
-		OrthographicCameraController m_CameraController;
-		BasicMesh* m_Mesh = nullptr;
-		//Ref<Texture2D> m_DripTexture;
-		glm::vec3 m_SquareColor = { 0.2f, 0.3f, 0.8f };
+		PerspectiveCameraController m_CameraController;
+		Ref<BasicMesh> m_Mesh = nullptr;
+		bool m_SpaceKeyPressed = false;
+		int m_DisplayBoneIndex = -1;
 	};
 }

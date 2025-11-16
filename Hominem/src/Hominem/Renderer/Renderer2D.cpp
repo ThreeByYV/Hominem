@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Renderer2D.h"
+#include "glad/glad.h"
 
 #include "VertexArray.h"
 #include "Shader.h"
@@ -7,6 +8,7 @@
 #include "RenderCommand.h"
 
 #include "glm/gtc/matrix_transform.hpp"
+#include "Hominem/Utils/Renderer.h"
 
 #include "MSDFData.h"
 
@@ -53,6 +55,8 @@ namespace Hominem {
 		s_Data->WhiteTexture->SetData(&whiteTextureData, sizeof(uint32_t));
 
 		s_Data->TextureShader = s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/texture.glsl");
+		s_Data->DefaultShader = s_Data->ShaderLibrary->Get("texture");
+		s_Data->OverrideShader = nullptr;
 
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetInt("u_Texture", 0);
@@ -76,13 +80,20 @@ namespace Hominem {
 
 	void Renderer2D::Shutdown()
 	{
-		delete s_Data; //need to destory any vertex arrays in the GPU while it's still in OpenGL context
+		delete s_Data; //need to destroy any vertex arrays in the GPU while it's still in OpenGL context
 	}
 
 	void Renderer2D::EndScene()
 	{
+		if (!s_Data) return;
 
+		if (s_Data->QuadVertexArray)
+			s_Data->QuadVertexArray->Unbind();
+
+		Shader::UnbindAll();
+		Texture::UnbindAll();
 	}
+
 
 	Ref<ShaderLibrary> Renderer2D::GetShaderLibrary()
 	{
@@ -107,6 +118,34 @@ namespace Hominem {
 
 		s_Data->QuadVertexArray->Bind();
 		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
+	void Renderer2D::DrawQuad(const Quad& q)
+	{
+
+		Ref<Shader> shader = SelectShader(
+			q.Shader,               // meshShader / per-object shader
+			s_Data->OverrideShader, // global override if set
+			s_Data->DefaultShader   // fallback (e.g. TextureShader)
+		);
+
+		shader->Bind();
+		//shader->SetMat4("u_ViewProjection", s_SceneData->ViewProjectionMatrix);
+
+		const glm::mat4 T =
+			q.Transform != glm::mat4(1.0f)
+			? q.Transform
+			: glm::translate(glm::mat4(1.0f), q.Position) *
+			glm::scale(glm::mat4(1.0f), { q.Size.x, q.Size.y, 1.0f });
+
+		shader->SetMat4("u_Transform", T);
+		shader->SetFloat4("u_Color", q.Color);
+
+		(q.Texture ? q.Texture : s_Data->WhiteTexture)->Bind();
+
+		s_Data->QuadVertexArray->Bind();
+		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+
 	}
 
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture)

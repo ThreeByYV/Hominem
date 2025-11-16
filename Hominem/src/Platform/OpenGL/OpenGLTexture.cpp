@@ -124,6 +124,12 @@ namespace Hominem {
 		glBindTextureUnit(slot, m_RendererID);
 	}
 
+	void OpenGLTexture2D::UnbindAll()
+	{
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+	}
+
 	OpenGLTexture2D::~OpenGLTexture2D()
 	{
 		glDeleteTextures(1, &m_RendererID);

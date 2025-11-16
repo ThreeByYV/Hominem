@@ -42,4 +42,20 @@ namespace Hominem {
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
 	}
+
+	void Texture::UnbindAll()
+	{
+		switch (Renderer::GetAPI())
+		{
+		case RendererAPI::API::None:
+			HMN_CORE_ASSERT(false, "RendererAPI::None not supported");
+			return;
+
+		case RendererAPI::API::OpenGL:
+			OpenGLTexture2D::UnbindAll();
+			return;
+		}
+
+		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+	}
 }

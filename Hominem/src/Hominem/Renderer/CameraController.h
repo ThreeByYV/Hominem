@@ -28,7 +28,7 @@ namespace Hominem {
 
     protected:
         CameraType m_Camera;
-        float m_Speed = 2.5f;
+        float m_Speed = 100.0f;
     };
 
     class OrthographicCameraController : public CameraController<OrthographicCamera> 
@@ -87,8 +87,8 @@ namespace Hominem {
         bool OnMouseScrolled(MouseScrolledEvent& e);
         bool OnWindowResized(WindowResizeEvent& e);
 
-        uint32_t m_WindowWidth = 1280;
-        uint32_t m_WindowHeight = 720;
+        uint32_t m_WindowWidth = 800;
+        uint32_t m_WindowHeight = 600;
         float m_AspectRatio;
         bool m_EnableMouseControl;
 
