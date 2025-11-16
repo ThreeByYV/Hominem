@@ -78,7 +78,6 @@ namespace Hominem {
 
 			Renderer3D::Draw(rc, modelMatrix);
 			Renderer3D::EndScene();
-
 		}
 
 		void OnImGuiRender() override
@@ -93,7 +92,5 @@ namespace Hominem {
 	private:
 		PerspectiveCameraController m_CameraController;
 		Ref<BasicMesh> m_Mesh = nullptr;
-		bool m_SpaceKeyPressed = false;
-		int m_DisplayBoneIndex = -1;
 	};
 }

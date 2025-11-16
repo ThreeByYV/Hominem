@@ -20,6 +20,7 @@
 #include "Hominem/Renderer/Camera.h"
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Quad.h"
+#include "Hominem/Renderer/SubTexture2D.h"
 
 #include "Hominem/Renderer/CameraController.h"
 #include "Hominem/Scene/BasicMesh.h"

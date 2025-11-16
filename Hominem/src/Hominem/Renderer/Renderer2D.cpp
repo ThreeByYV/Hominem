@@ -14,7 +14,16 @@
 
 namespace Hominem {
 
-	Renderer2DStorage* Renderer2D::s_Data = nullptr; 
+	Renderer2DStorage* Renderer2D::s_Data = nullptr;
+
+	namespace {
+		const glm::vec2 s_FullTextureCoords[4] = {
+			{ 0.0f, 0.0f }, // BL
+			{ 1.0f, 0.0f }, // BR
+			{ 1.0f, 1.0f }, // TR
+			{ 0.0f, 1.0f }  // TL
+		};
+	}
 
 	void Renderer2D::Init()
 	{
@@ -31,9 +40,13 @@ namespace Hominem {
 			-0.5f,  0.5f, 0.0f, 0.0f, 1.0f   // 3: Top-left
 		};
 
+		// Store the default version once
+		memcpy(s_Data->DefaultQuadVertices, vertices, sizeof(vertices));
+		memcpy(s_Data->TempQuadVertices, vertices, sizeof(vertices));
+
 		s_Data->VertexBuffer = VertexBuffer::Create(vertices, sizeof(vertices));
 
-		BufferLayout layout =  {
+		BufferLayout layout = {
 			{ ShaderDataType::Float3, "a_Pos" },
 			{ ShaderDataType::Float2, "a_TexCoord" }
 		};
@@ -70,8 +83,8 @@ namespace Hominem {
 		s_Data->TextVertexBuffer->SetLayout({
 			{ ShaderDataType::Float3, "a_Position" },
 			{ ShaderDataType::Float4, "a_Color" },
-		    { ShaderDataType::Float2, "a_TexCoord" },
-		});
+			{ ShaderDataType::Float2, "a_TexCoord" },
+			});
 
 		s_Data->TextVertexArray->AddVertexBuffer(s_Data->TextVertexBuffer);
 
@@ -100,6 +113,57 @@ namespace Hominem {
 		return s_Data->ShaderLibrary;
 	}
 
+	void Renderer2D::UploadQuadUVs(const glm::vec2 texCoords[4])
+	{
+		// Copy position data
+		memcpy(s_Data->TempQuadVertices,
+			s_Data->DefaultQuadVertices,
+			sizeof(s_Data->DefaultQuadVertices));
+
+		// Overwrite UVs only  
+		// BL = 0, BR = 1, TR = 2, TL = 3
+		s_Data->TempQuadVertices[3] = texCoords[0].x;
+		s_Data->TempQuadVertices[4] = texCoords[0].y;
+
+		s_Data->TempQuadVertices[8] = texCoords[1].x;
+		s_Data->TempQuadVertices[9] = texCoords[1].y;
+
+		s_Data->TempQuadVertices[13] = texCoords[2].x;
+		s_Data->TempQuadVertices[14] = texCoords[2].y;
+
+		s_Data->TempQuadVertices[18] = texCoords[3].x;
+		s_Data->TempQuadVertices[19] = texCoords[3].y;
+
+		// Upload to VBO
+		s_Data->VertexBuffer->SetData(s_Data->TempQuadVertices,
+			sizeof(s_Data->TempQuadVertices));
+	}
+
+	void Renderer2D::DrawTexturedQuadInternal(
+		const glm::vec3& position,
+		const glm::vec2& size,
+		const glm::vec4& color,
+		const Ref<Texture2D>& texture,
+		const glm::vec2 texCoords[4])
+	{
+		UploadQuadUVs(texCoords);
+
+		s_Data->TextureShader->Bind();
+		s_Data->TextureShader->SetFloat4("u_Color", color);
+
+		texture->Bind();
+
+		glm::mat4 transform =
+			glm::translate(glm::mat4(1.0f), position) *
+			glm::scale(glm::mat4(1.0f), { size.x, size.y, 1.0f });
+
+		s_Data->TextureShader->SetMat4("u_Transform", transform);
+
+		s_Data->QuadVertexArray->Bind();
+		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
+
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, color);
@@ -107,17 +171,14 @@ namespace Hominem {
 
 	void Renderer2D::DrawQuad(const glm::vec3& position, const glm::vec2& size, const glm::vec4& color)
 	{
-		s_Data->TextureShader->SetFloat4("u_Color", color);
-		
 		// Bind white texture i.e in the shader u_Color will be equal to 1 if not bound
-		s_Data->WhiteTexture->Bind();
-
-		glm::mat4 transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { size.x, size.y, 1.0f });
-
-		s_Data->TextureShader->SetMat4("u_Transform", transform);
-
-		s_Data->QuadVertexArray->Bind();
-		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+		DrawTexturedQuadInternal(
+			position,
+			size,
+			color,
+			s_Data->WhiteTexture,
+			s_FullTextureCoords
+		);
 	}
 
 	void Renderer2D::DrawQuad(const Quad& q)
@@ -155,35 +216,52 @@ namespace Hominem {
 
 	void Renderer2D::DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<Texture2D>& texture)
 	{
-		s_Data->TextureShader->SetFloat4("u_Color", glm::vec4(1.0f));
-
-		texture->Bind();
-
-		glm::mat4 transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { size.x, size.y, 1.0f });
-
-		s_Data->TextureShader->SetMat4("u_Transform", transform);
-
-		s_Data->QuadVertexArray->Bind();
-		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+		DrawTexturedQuadInternal(
+			position,
+			size,
+			glm::vec4(1.0f),     // no tint
+			texture,
+			s_FullTextureCoords  // full texture UVs
+		);
 	}
 
-	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture, const glm::vec4& tint)
+	void Renderer2D::DrawQuad(const glm::vec3& position, const glm::vec2& size,
+		const Ref<SubTexture2D>& subtexture, const glm::vec4& tint)
+	{
+		const glm::vec2* texCoords = subtexture->GetTexCoords();
+		const auto texture = subtexture->GetTexture();
+
+		DrawTexturedQuadInternal(
+			position,
+			size,
+			tint,
+			texture,
+			texCoords // atlas UVs
+		);
+	}
+
+	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size,
+		const Ref<SubTexture2D>& subtexture, const glm::vec4& tint)
+	{
+		DrawQuad({ position.x, position.y, 0.0f }, size, subtexture, tint);
+	}
+
+	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size,
+		const Ref<Texture2D>& texture, const glm::vec4& tint)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, texture, tint);
 	}
 
-	void Renderer2D::DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<Texture2D>& texture, const glm::vec4& tint)
+	void Renderer2D::DrawQuad(const glm::vec3& position, const glm::vec2& size,
+		const Ref<Texture2D>& texture, const glm::vec4& tint)
 	{
-		s_Data->TextureShader->SetFloat4("u_Color", tint);
-
-		texture->Bind();
-
-		glm::mat4 transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { size.x, size.y, 1.0f });
-
-		s_Data->TextureShader->SetMat4("u_Transform", transform);
-
-		s_Data->QuadVertexArray->Bind();
-		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+		DrawTexturedQuadInternal(
+			position,
+			size,
+			tint,
+			texture,
+			s_FullTextureCoords
+		);
 	}
 
 	void Renderer2D::DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color)
@@ -244,7 +322,7 @@ namespace Hominem {
 			texCoordMax *= glm::vec2(texelWidth, texelHeight);
 
 			//text rendering below
-		
+
 		   // Create and render this letter vertice based on values from MSDF calcs
 			TextVertex vertices[4] = {
 				{ glm::vec3(quadMin.x, quadMin.y, 0.0f), color, texCoordMin },
