@@ -37,6 +37,12 @@ namespace Hominem {
 
 		void OnUpdate(Timestep ts) override
 		{
+			if (Input::IsKeyPressed(HMN_KEY_R))
+			{
+				Renderer2D::GetShaderLibrary()->ReloadAll();
+				Renderer3D::GetShaderLibrary()->ReloadAll();
+			}
+
 			if (Input::IsKeyPressed(HMN_KEY_1))
 			{
 				Renderer3D::EndScene();
