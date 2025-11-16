@@ -23,6 +23,7 @@ namespace Hominem {
 
 		virtual const std::string& GetName() const = 0;
 
+		virtual void Reload() = 0;
 
 		static Ref<Shader> Create(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc);
 		static Ref<Shader> Create(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
@@ -36,6 +37,8 @@ namespace Hominem {
 	public:
 		void Add(const Ref<Shader>& shader);
 		void Add(const std::string& name, const Ref<Shader>& shader);
+		void Reload(const std::string& name);
+		void ReloadAll();
 
 		Ref<Shader> Get(const std::string& name);
 
