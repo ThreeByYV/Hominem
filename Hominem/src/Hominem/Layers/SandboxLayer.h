@@ -49,6 +49,19 @@ namespace Hominem {
 		{	
 			m_ActiveScene->OnViewportResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
 			m_CameraController.OnUpdate(ts);	
+		{
+			if (Input::IsKeyPressed(HMN_KEY_R))
+			{
+				Renderer2D::GetShaderLibrary()->ReloadAll();
+				Renderer3D::GetShaderLibrary()->ReloadAll();
+			}
+
+			if (Input::IsKeyPressed(HMN_KEY_1))
+			{
+				Renderer3D::EndScene();
+				TransitionTo<MenuLayer>();
+				return;
+			}
 
 			m_Framebuffer->Bind(); //render the scene to the framebuffer
 

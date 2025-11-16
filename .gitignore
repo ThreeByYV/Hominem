@@ -6,7 +6,7 @@ Intermediates/
 *.log
 *.ini
 imgui.ini
-.cache
+*.cache
 
 # Visual Studio files and folder
 .vs/
