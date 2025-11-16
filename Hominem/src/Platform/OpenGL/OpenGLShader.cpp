@@ -39,6 +39,10 @@ namespace Hominem {
 		auto shaderSources = PreProcess(source);
 		Compile(shaderSources);
 
+		// Store filepath so we can reload later
+		m_Filepath = filepath;
+		m_IsSingleFile = true;
+
 		//Get the name from a filepath
 		
 		//Resources/Shaders/frag.glsl
@@ -206,7 +210,41 @@ namespace Hominem {
 
 	void OpenGLShader::Reload()
 	{
+		if (!m_IsSingleFile || m_Filepath.empty())
+		{
+			HMN_CORE_WARN("Shader '{0}' does not support hot reload (not created from a single file).", m_Name);
+			return;
+		}
+
+		HMN_CORE_INFO("Reloading shader from file: {0}", m_Filepath);
+
+		// Read file again
+		std::string source = ReadTextFile(m_Filepath);
+		
+		if (source.empty())
+		{
+			HMN_CORE_ERROR("Failed to read shader file during reload: {0}", m_Filepath);
+			return;
+		}
+
+		auto shaderSources = PreProcess(source);
+
+		uint32_t oldProgram = m_RendererID;
+
+		// Reset uniform cache, we’ll re-query locations for the new program
+		m_UniformLocationCache.clear();
+
+		Compile(shaderSources);
+
+		// Clean up the old program
+		if (oldProgram)
+		{
+			glDeleteProgram(oldProgram);
+		}
+
+		HMN_CORE_INFO("Shader '{0}' reloaded successfully.", m_Name);
 	}
+
 
 	void OpenGLShader::UnbindAll()
 	{

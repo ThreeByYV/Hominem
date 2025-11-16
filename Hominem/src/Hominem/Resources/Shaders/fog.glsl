@@ -36,7 +36,7 @@ uniform sampler2D u_Texture;
 //Fog 
 uniform float gFogStart; //min distance for fog boundary
 uniform float gFogEnd;   //max distance for fog boundary
-uniform vec3 gFogColor;  //zero is when the fog is disabled and vice-versa
+uniform vec3 gFogColor; //zero is when the fog is disabled and vice-versa
 
 out vec4 FragColor;
 

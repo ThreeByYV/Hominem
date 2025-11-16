@@ -60,9 +60,24 @@ namespace Hominem {
 
 	void ShaderLibrary::Add(const std::string& name, const Ref<Shader>& shader)
 	{
-		//suppports adding a custom shader name instead of default filename
+		//supports adding a custom shader name instead of default filename
 		HMN_CORE_ASSERT(!Exists(name), "Shader already exists in Shader Library!");
 		m_Shaders[name] = shader;
+	}
+
+	void ShaderLibrary::Reload(const std::string& name)
+	{
+		HMN_CORE_ASSERT(Exists(name), "Shader not found in Shader Library: {0}", name);
+		m_Shaders[name]->Reload();
+	}
+
+	void ShaderLibrary::ReloadAll()
+	{
+		for (auto& [name, shader] : m_Shaders)
+		{
+			HMN_CORE_INFO("Hot reloading shader '{0}'", name);
+			shader->Reload();
+		}
 	}
 
 
