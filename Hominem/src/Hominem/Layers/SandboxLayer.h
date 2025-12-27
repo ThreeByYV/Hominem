@@ -2,6 +2,7 @@
 
 #include "Hominem/Core/Layer.h"
 #include "Hominem/Scene/CameraController.h"
+#include "Hominem/Renderer/CinematicCameraController.h"
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Scene/Entity.h"
@@ -24,7 +25,12 @@ namespace Hominem {
 		static long long GetCurrentTimeMillis();
 
 	private:
+		// ECS-based camera controller
 		EntityCameraController m_CameraController;
+
+		// Cinematic camera controller (for scripted sequences)
+		Ref<CinematicCameraController> m_CinematicCameraController;
+
 		Ref<Scene> m_ActiveScene;
 		Entity m_MeshEntity;
 		Entity m_CameraEntity;
@@ -42,7 +48,7 @@ namespace Hominem {
 
 		// Camera settings
 		float m_OrthoSize = 10.0f;
-		bool m_UseCinematicCamera = false; // Toggle for future cinematic mode
+		bool m_UseCinematicCamera = false; // Toggle between ECS camera and cinematic camera
 
 		// Animation state
 		enum class CharacterState

@@ -40,9 +40,29 @@ namespace Hominem {
 		auto& cameraTransform = m_CameraEntity.GetComponent<TransformComponent>();
 		cameraTransform.Translation = glm::vec3(0.0f, 0.0f, 0.0f);
 
-		// Setup camera controller to control this entity
+		// Setup ECS camera controller to control this entity
 		m_CameraController.SetEntity(m_CameraEntity);
 		m_CameraController.SetSpeed(5.0f);
+
+		// Initialize cinematic camera controller
+		float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
+		m_CinematicCameraController = CreateRef<CinematicCameraController>(aspectRatio);
+
+		// Setup cinematic camera points for dramatic sequences
+		m_CinematicCameraController->AddCameraPoint(-50.0f, { -3.0f, 1.5f, 0.0f }, 6.0f);
+		m_CinematicCameraController->AddCameraPoint(-20.0f, { -1.0f, 3.0f, 0.0f }, 8.0f);
+		m_CinematicCameraController->AddCameraPoint(-10.0f, { 2.0f, 8.0f, 0.0f }, 14.0f);
+		m_CinematicCameraController->AddCameraPoint(0.0f, { 0.0f, 15.0f, 0.0f }, 25.0f);
+		m_CinematicCameraController->AddCameraPoint(10.0f, { 4.0f, 7.0f, 0.0f }, 16.0f);
+		m_CinematicCameraController->AddCameraPoint(20.0f, { 0.0f, 2.5f, 0.0f }, 9.0f);
+		m_CinematicCameraController->AddCameraPoint(35.0f, { 6.0f, 4.0f, 0.0f }, 11.0f);
+		m_CinematicCameraController->AddCameraPoint(45.0f, { 10.0f, 12.0f, 0.0f }, 22.0f);
+		m_CinematicCameraController->AddCameraPoint(60.0f, { 0.0f, 2.0f, 0.0f }, 8.0f);
+
+		// Add cinematic sequences
+		m_CinematicCameraController->AddCinematicSequence("vista_reveal", -22.0f, 12.0f, 8.0f, true, 1.5f);
+		m_CinematicCameraController->AddCinematicSequence("dramatic_moment", 38.0f, 55.0f, 7.0f, true, 2.2f);
+		m_CinematicCameraController->SetSmoothingFactor(0.1f);
 
 		// Initialize scene viewport
 		m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
@@ -158,7 +178,19 @@ namespace Hominem {
 
 	void SandboxLayer::OnUpdate(Timestep ts)
 	{
-		m_CameraController.OnUpdate(ts);
+		// Update appropriate camera controller based on mode
+		if (m_UseCinematicCamera)
+		{
+			// Cinematic camera mode - update based on player position
+			glm::vec2 playerPos2D = { m_MeshPosition.x, m_MeshPosition.y };
+			m_CinematicCameraController->UpdateCameraForPlayer(playerPos2D);
+			m_CinematicCameraController->OnUpdate(ts);
+		}
+		else
+		{
+			// Normal ECS camera mode
+			m_CameraController.OnUpdate(ts);
+		}
 
 		if (Input::IsKeyPressed(HMN_KEY_R))
 		{
@@ -189,6 +221,9 @@ namespace Hominem {
 		{
 			auto& animComp = m_MeshEntity.GetComponent<AnimationComponent>();
 
+			// Check if player can move (not in cinematic auto-move)
+			bool canMove = !m_UseCinematicCamera || !m_CinematicCameraController->IsInCinematic();
+
 			// Check individual movement keys
 			bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
 			bool pressingD = Input::IsKeyPressed(HMN_KEY_D);
@@ -196,19 +231,26 @@ namespace Hominem {
 
 			// Handle character rotation and movement (face left or right)
 			float moveSpeed = 5.0f; // Units per second
-			if (pressingA)
+			if (canMove && pressingA)
 			{
 				// Face left (-90 degrees around Y axis)
 				m_MeshRotation.y = glm::radians(-90.0f);
 				// Move left
 				m_MeshPosition.x -= moveSpeed * ts;
 			}
-			else if (pressingD)
+			else if (canMove && pressingD)
 			{
 				// Face right (90 degrees around Y axis - flipped)
 				m_MeshRotation.y = glm::radians(90.0f);
 				// Move right
 				m_MeshPosition.x += moveSpeed * ts;
+			}
+			else if (m_UseCinematicCamera && m_CinematicCameraController->IsInCinematic())
+			{
+				// During cinematic - get auto-moved player position
+				glm::vec2 autoPos = m_CinematicCameraController->GetPlayerPosition();
+				m_MeshPosition.x = autoPos.x;
+				m_MeshPosition.y = autoPos.y;
 			}
 
 			// Handle animation state transitions
@@ -351,9 +393,34 @@ namespace Hominem {
 				cameraComp.Camera.SetOrthographicSize(m_OrthoSize);
 			}
 		}
-		ImGui::Checkbox("Cinematic Mode (Future)", &m_UseCinematicCamera);
-		if (m_UseCinematicCamera)
-			ImGui::TextColored(ImVec4(1, 1, 0, 1), "Cinematic camera not implemented yet");
+		ImGui::Checkbox("Cinematic Mode", &m_UseCinematicCamera);
+
+		// Show cinematic camera controls if enabled
+		if (m_UseCinematicCamera && m_CinematicCameraController)
+		{
+			ImGui::Indent();
+			ImGui::TextColored(ImVec4(0, 1, 0, 1), "Cinematic Camera Active");
+
+			ImGui::Text("In Cinematic: %s", m_CinematicCameraController->IsInCinematic() ? "YES" : "NO");
+
+			float smoothing = m_CinematicCameraController->GetSmoothingFactor();
+			if (ImGui::SliderFloat("Smoothing", &smoothing, 0.01f, 1.0f))
+				m_CinematicCameraController->SetSmoothingFactor(smoothing);
+
+			float zoom = m_CinematicCameraController->GetZoomLevel();
+			if (ImGui::SliderFloat("Zoom", &zoom, 1.0f, 30.0f))
+				m_CinematicCameraController->SetZoomLevel(zoom);
+
+			if (ImGui::Button("Trigger Vista"))
+				m_CinematicCameraController->TriggerCinematic("vista_reveal");
+			ImGui::SameLine();
+			if (ImGui::Button("Trigger Dramatic"))
+				m_CinematicCameraController->TriggerCinematic("dramatic_moment");
+			if (ImGui::Button("End Cinematic"))
+				m_CinematicCameraController->EndCinematic();
+
+			ImGui::Unindent();
+		}
 
 		// Camera info
 		ImGui::Separator();
@@ -365,7 +432,15 @@ namespace Hominem {
 
 	void SandboxLayer::OnEvent(Event& e)
 	{
-		m_CameraController.OnEvent(e);
+		// Route events to active camera controller
+		if (m_UseCinematicCamera && m_CinematicCameraController)
+		{
+			m_CinematicCameraController->OnEvent(e);
+		}
+		else
+		{
+			m_CameraController.OnEvent(e);
+		}
 	}
 
 	long long SandboxLayer::GetCurrentTimeMillis()
