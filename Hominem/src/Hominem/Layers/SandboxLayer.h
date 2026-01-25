@@ -5,7 +5,6 @@
 #include "imgui.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <assimp/Importer.hpp>
 
 namespace Hominem {
 
@@ -17,7 +16,6 @@ namespace Hominem {
 		{
 			HMN_CORE_INFO("Created new SandboxLayer!");
 		}
-
 
 		void OnAttach() override
 		{
@@ -32,6 +30,29 @@ namespace Hominem {
 			// Entity 
 			auto square = m_ActiveScene->CreateEntity("Green Square");
 			square.AddComponent<SpriteRendererComponent>(glm::vec4{ 0.0f, 1.0f, 0.0f, 1.0f });
+			Renderer3D::Init();
+			m_Mesh = CreateRef<SkinnedMesh>();
+
+			if (!m_Mesh->LoadFromFile("src/Hominem/Resources/Textures/test.fbx"))
+			{
+				HMN_CORE_ERROR("Failed to load mesh");
+				return;
+			}
+
+			HMN_CORE_INFO("=== MESH DEBUG ===");
+			HMN_CORE_INFO("VAO: {}", m_Mesh->GetVAO());
+			HMN_CORE_INFO("Bone Count: {}", m_Mesh->GetBoneCount());
+
+			auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
+			if (!skinningShader)
+			{
+				HMN_CORE_ERROR("Skinning shader not found!");
+				return;
+			}
+
+			m_Mesh->InitBoneUniforms(skinningShader);
+			m_StartTimeMillis = GetCurrentTimeMillis();
+		}
 
 			m_SquareEntity = square;
 
@@ -50,10 +71,15 @@ namespace Hominem {
 			m_ActiveScene->OnViewportResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
 			m_CameraController.OnUpdate(ts);	
 		{
+			// Handle input
 			if (Input::IsKeyPressed(HMN_KEY_R))
 			{
 				Renderer2D::GetShaderLibrary()->ReloadAll();
 				Renderer3D::GetShaderLibrary()->ReloadAll();
+
+				// Re-initialize bone uniforms after shader reload
+				auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
+				m_Mesh->InitBoneUniforms(skinningShader);
 			}
 
 			if (Input::IsKeyPressed(HMN_KEY_1))
@@ -96,7 +122,6 @@ namespace Hominem {
 		}
 
 	private:
-<<<<<<< HEAD
 		OrthographicCameraController m_CameraController;
 		BasicMesh* m_Mesh = nullptr;
 		Ref<Texture2D> m_DripTexture;
@@ -107,16 +132,18 @@ namespace Hominem {
 		Ref<Framebuffer> m_Framebuffer;
 		glm::vec2 m_ViewportSize;
 		bool m_PrimaryCamera = true;
-=======
+
 		PerspectiveCameraController m_CameraController;
 		Ref<BasicMesh> m_Mesh = nullptr;
-<<<<<<< HEAD
 		bool m_SpaceKeyPressed = false;
 		int m_DisplayBoneIndex = -1;
->>>>>>> 3612fc1 (feat(renderer): unify shader selection and add fog support)
-=======
->>>>>>> 879124c (refactor(Renderer2D): unify textured quad drawing via internal helper)
-	};
-	
+		long long m_StartTimeMillis = 0;
 
+	};
+
+	static long long GetCurrentTimeMillis()
+	{
+		const auto now = std::chrono::system_clock::now();
+		return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+	}
 }
