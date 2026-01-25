@@ -43,7 +43,7 @@ namespace Hominem {
 		void UploadUniformMat3(const std::string& name, const glm::mat3& matrix);
 		void UploadUniformMat4(const std::string& name, const glm::mat4& matrix);
 
-		GLint GetUniformLocation(const std::string& name) const;
+		GLint GetUniformLocation(const std::string& name) const override;
 
 	private:
 		std::string m_Name;

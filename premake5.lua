@@ -52,7 +52,8 @@ project "Hominem"
 
     defines
     {
-        "_CRT_SECURE_NO_WARNINGS"
+        "_CRT_SECURE_NO_WARNINGS",
+        "GLM_ENABLE_EXPERIMENTAL"
     }
 
     includedirs

@@ -35,25 +35,23 @@ namespace Hominem {
         s_Scene->CameraWorldPos = cameraWorldPos;
     }
 
-    void Renderer3D::EndScene() 
-    {  
+    void Renderer3D::EndScene()
+    {
         Shader::UnbindAll();
         Texture::UnbindAll();
     }
 
-    void Renderer3D::DrawBasicMesh(BasicMesh& mesh, const glm::mat4& transform)
+    void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     {
         Ref<Shader> shader = SelectShader(mesh.GetShader(), s_Data->OverrideShader, s_Data->DefaultShader);
         HMN_CORE_ASSERT(shader, "Renderer3D has no shader to use");
 
         shader->Bind();
 
-        // all 3D shaders will have these layout attributes
+        // All 3D shaders require these uniforms
         shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
         shader->SetMat4("u_Model", transform);
         shader->SetFloat3("gCameraWorldPos", s_Scene->CameraWorldPos);
-
-        // Set other shared uniforms/textures here as needed
 
         mesh.Render(shader);
     }
@@ -61,10 +59,10 @@ namespace Hominem {
     void Renderer3D::Draw(const MeshRendererComponent& rc, const glm::mat4& transform)
     {
         HMN_CORE_ASSERT(rc.Mesh, "Renderer3D::Draw called with null Mesh");
-       
-        // Prefer the component’s per-object shader if provided
+
+        // Prefer the component's per-object shader if provided
         if (rc.Shader) rc.Mesh->SetShader(rc.Shader);
-        DrawBasicMesh(*rc.Mesh, transform);
+        DrawSkinnedMesh(*rc.Mesh, transform);
     }
 
 }
