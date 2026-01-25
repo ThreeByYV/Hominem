@@ -25,6 +25,9 @@
 #include "Hominem/Renderer/CameraController.h"
 #include "Hominem/Mesh/SkinnedMesh.h"
 
+#include "Hominem/Threading/JobSystem.h"
+#include "Hominem/Audio/AudioSystem.h"
+
 #include "Hominem/ImGui/ImGuiLayer.h"
 
 #include "Hominem/Utils/Renderer.h"
