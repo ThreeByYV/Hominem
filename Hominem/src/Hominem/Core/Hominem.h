@@ -23,7 +23,7 @@
 #include "Hominem/Renderer/SubTexture2D.h"
 
 #include "Hominem/Renderer/CameraController.h"
-#include "Hominem/Scene/BasicMesh.h"
+#include "Hominem/Mesh/SkinnedMesh.h"
 
 #include "Hominem/ImGui/ImGuiLayer.h"
 
