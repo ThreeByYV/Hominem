@@ -22,3 +22,4 @@ cmake-build-*/
 
 # Directories
 Hominem/vendor/VulkanSDK
+nul 
