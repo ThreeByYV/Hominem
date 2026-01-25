@@ -1,14 +1,14 @@
 #pragma once
 
 #include "Shader.h"
-#include "Hominem/Scene/BasicMesh.h" 
+#include "Hominem/Mesh/SkinnedMesh.h"
 
 namespace Hominem {
 
 	struct MeshRendererComponent
 	{
-		Ref<BasicMesh> Mesh;   // required
-		Ref<Shader>    Shader; // optional per-object
+		Ref<SkinnedMesh> Mesh;   // required
+		Ref<Shader>      Shader; // optional per-object
 	};
 
 	struct Renderer3DStorage
@@ -31,7 +31,7 @@ namespace Hominem {
 		static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
 		static void ClearOverrideShader() { s_Data->OverrideShader.reset(); }
 
-		static void DrawBasicMesh(BasicMesh& mesh, const glm::mat4& transform); // todo stop using a pure OpenGL only class here
+		static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
 
 		static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
 
