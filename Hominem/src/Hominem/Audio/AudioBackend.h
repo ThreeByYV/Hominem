@@ -3,7 +3,6 @@
 #include "Hominem/Core/Core.h"
 #include "SoundBuffer.h"
 #include "SoundInstance.h"
-#include <glm/glm.hpp>
 
 namespace Hominem {
 
@@ -102,25 +101,10 @@ namespace Hominem {
 		virtual void SetPan(SoundInstance& instance, float pan) = 0;
 
 		/// <summary>
-		/// Set the 3D position of a sound (for spatial audio)
-		/// </summary>
-		/// <param name="instance">Sound instance</param>
-		/// <param name="position">3D world position</param>
-		virtual void SetPosition(SoundInstance& instance, const glm::vec3& position) = 0;
-
-		/// <summary>
 		/// Set the master volume for all sounds
 		/// </summary>
 		/// <param name="volume">Master volume (0.0 - 1.0)</param>
 		virtual void SetMasterVolume(float volume) = 0;
-
-		/// <summary>
-		/// Set the 3D listener position and orientation
-		/// </summary>
-		/// <param name="position">Listener position</param>
-		/// <param name="forward">Forward direction vector</param>
-		/// <param name="up">Up direction vector</param>
-		virtual void SetListenerPosition(const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up) = 0;
 
 		/// <summary>
 		/// Check if a sound instance has finished playing
