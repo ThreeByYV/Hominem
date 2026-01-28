@@ -1,7 +1,6 @@
 #pragma once
 
 #include <variant>
-#include <glm/glm.hpp>
 
 #include "SoundInstance.h"
 
@@ -25,8 +24,6 @@ namespace Hominem {
 	struct SetVolumeCmd { SoundHandle Handle; float Volume; };
 	struct SetPitchCmd { SoundHandle Handle; float Pitch; };
 	struct SetPanCmd { SoundHandle Handle; float Pan; };
-	struct SetPositionCmd { SoundHandle Handle; glm::vec3 Position; };
-	struct SetListenerCmd { glm::vec3 Position; glm::vec3 Forward; glm::vec3 Up; };
 	struct SetMasterVolumeCmd { float Volume; };
 	struct StopAllCmd {};
 	struct ShutdownCmd {};
@@ -39,8 +36,6 @@ namespace Hominem {
 		SetVolumeCmd,
 		SetPitchCmd,
 		SetPanCmd,
-		SetPositionCmd,
-		SetListenerCmd,
 		SetMasterVolumeCmd,
 		StopAllCmd,
 		ShutdownCmd

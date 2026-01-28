@@ -25,11 +25,6 @@ namespace Hominem {
 		bool IsLooping = false;
 		bool IsPaused = false;
 
-		float PositionX = 0.0f;
-		float PositionY = 0.0f;
-		float PositionZ = 0.0f;
-		bool Is3D = false;
-
 		// Backend-specific handle (e.g., ma_sound* for miniaudio)
 		void* BackendHandle = nullptr;
 

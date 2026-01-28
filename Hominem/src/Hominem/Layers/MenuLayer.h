@@ -20,13 +20,6 @@ namespace Hominem {
 
 		// Audio system
 		AudioSystem m_AudioSystem;
-		JobSystem m_JobSystem;
-		std::future<SoundBufferHandle> m_MusicLoadFuture;
-		SoundBufferHandle m_MusicBuffer = InvalidSoundBuffer;
-		SoundHandle m_MusicHandle = InvalidSound;
-		bool m_MusicPlaying = false;
-		bool m_MusicLoadStarted = false;
-		bool m_MusicLoadComplete = false;
 	};
 
 }

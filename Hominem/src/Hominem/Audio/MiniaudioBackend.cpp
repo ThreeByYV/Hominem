@@ -183,12 +183,6 @@ namespace Hominem {
 		ma_sound_set_pan(sound, instance.Pan);
 		ma_sound_set_looping(sound, instance.IsLooping ? MA_TRUE : MA_FALSE);
 
-		// Set 3D position if enabled
-		if (instance.Is3D)
-		{
-			ma_sound_set_position(sound, instance.PositionX, instance.PositionY, instance.PositionZ);
-		}
-
 		// Start playback
 		result = ma_sound_start(sound);
 		if (result != MA_SUCCESS)
@@ -275,36 +269,12 @@ namespace Hominem {
 		ma_sound_set_pan(sound, pan);
 	}
 
-	void MiniaudioBackend::SetPosition(SoundInstance& instance, const glm::vec3& position)
-	{
-		instance.PositionX = position.x;
-		instance.PositionY = position.y;
-		instance.PositionZ = position.z;
-		instance.Is3D = true;
-
-		if (!instance.BackendHandle)
-			return;
-
-		ma_sound* sound = static_cast<ma_sound*>(instance.BackendHandle);
-		ma_sound_set_position(sound, position.x, position.y, position.z);
-	}
-
 	void MiniaudioBackend::SetMasterVolume(float volume)
 	{
 		if (!m_Initialized)
 			return;
 
 		ma_engine_set_volume(&m_Engine, volume);
-	}
-
-	void MiniaudioBackend::SetListenerPosition(const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up)
-	{
-		if (!m_Initialized)
-			return;
-
-		ma_engine_listener_set_position(&m_Engine, 0, position.x, position.y, position.z);
-		ma_engine_listener_set_direction(&m_Engine, 0, forward.x, forward.y, forward.z);
-		ma_engine_listener_set_world_up(&m_Engine, 0, up.x, up.y, up.z);
 	}
 
 	bool MiniaudioBackend::IsSoundFinished(const SoundInstance& instance) const
