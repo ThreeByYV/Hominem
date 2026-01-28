@@ -7,10 +7,12 @@
 
 #include "Hominem/Core/Core.h"
 #include "Hominem/Threading/Queue.h"
+#include "Hominem/Threading/JobSystem.h"
 #include "AudioCommand.h"
 #include "SoundBuffer.h"
 #include "SoundInstance.h"
 #include "AudioBackend.h"
+#include <future>
 
 namespace Hominem {
 
@@ -20,6 +22,15 @@ namespace Hominem {
 		uint32_t BufferSize = 1024;
 		uint32_t MaxSounds = 64;
 		float MasterVolume = 1.0f;
+	};
+
+	enum class MusicState
+	{
+		Idle,      
+		Loading,    
+		Ready,    
+		Playing,  
+		Paused 
 	};
 
 	/// @brief Audio playback system with dedicated audio thread.
@@ -54,10 +65,6 @@ namespace Hominem {
 		void SetPitch(SoundHandle handle, float pitch);
 		void SetPan(SoundHandle handle, float pan);
 
-		// 3D audio
-		void SetPosition(SoundHandle handle, const glm::vec3& position);
-		void SetListenerPosition(const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up);
-
 		// Global
 		void SetMasterVolume(float volume);
 		float GetMasterVolume() const { return m_MasterVolume; }
@@ -66,6 +73,19 @@ namespace Hominem {
 		void SetOnSoundFinished(SoundFinishedCallback callback) { m_OnSoundFinished = callback; }
 
 		uint32_t GetActiveSoundCount() const { return m_ActiveSoundCount.load(); }
+
+		// High-level music management
+		void LoadMusicAsync(const std::string& filepath, bool autoPlay = true, float volume = 1.0f, bool loop = true);
+		void PlayMusic();
+		void PauseMusic();
+		void ResumeMusic();
+		void StopMusic();
+		void ToggleMusic();
+		void UpdateMusic(); // Call each frame to process async loading
+
+		MusicState GetMusicState() const { return m_MusicState; }
+		bool IsMusicLoaded() const { return m_MusicState != MusicState::Idle && m_MusicState != MusicState::Loading; }
+		bool IsMusicPlaying() const { return m_MusicState == MusicState::Playing; }
 
 	private:
 		void AudioThreadFunc();
@@ -94,9 +114,15 @@ namespace Hominem {
 		std::atomic<float> m_MasterVolume{ 1.0f };
 		SoundFinishedCallback m_OnSoundFinished;
 
-		glm::vec3 m_ListenerPosition{ 0.0f };
-		glm::vec3 m_ListenerForward{ 0.0f, 0.0f, -1.0f };
-		glm::vec3 m_ListenerUp{ 0.0f, 1.0f, 0.0f };
+		// High-level music playback state
+		MusicState m_MusicState = MusicState::Idle;
+		JobSystem m_MusicJobSystem;
+		std::future<SoundBufferHandle> m_MusicLoadFuture;
+		SoundBufferHandle m_MusicBuffer = InvalidSoundBuffer;
+		SoundHandle m_MusicHandle = InvalidSound;
+		bool m_AutoPlayOnLoad = false;
+		float m_MusicVolume = 1.0f;
+		bool m_MusicLoop = true;
 	};
 
 }
