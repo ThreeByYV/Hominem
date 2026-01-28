@@ -60,6 +60,19 @@ namespace Hominem {
 
 		HMN_CORE_INFO("AudioSystem: Shutting down...");
 
+		// Wait for async music loading to complete (if still loading)
+		if (m_MusicState == MusicState::Loading)
+		{
+			HMN_CORE_INFO("AudioSystem: Waiting for music load to complete...");
+			m_MusicBuffer = m_MusicLoadFuture.get(); // Block until done
+		}
+
+		// Stop music if playing
+		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
+		{
+			StopMusic();
+		}
+
 		// Send shutdown command and wait for thread
 		m_CommandQueue.Push(ShutdownCmd{});
 
@@ -184,16 +197,6 @@ namespace Hominem {
 	void AudioSystem::SetPan(SoundHandle handle, float pan)
 	{
 		m_CommandQueue.Push(SetPanCmd{ handle, pan });
-	}
-
-	void AudioSystem::SetPosition(SoundHandle handle, const glm::vec3& position)
-	{
-		m_CommandQueue.Push(SetPositionCmd{ handle, position });
-	}
-
-	void AudioSystem::SetListenerPosition(const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up)
-	{
-		m_CommandQueue.Push(SetListenerCmd{ position, forward, up });
 	}
 
 	void AudioSystem::SetMasterVolume(float volume)
@@ -365,30 +368,6 @@ namespace Hominem {
 					}
 				}
 			}
-			else if constexpr (std::is_same_v<T, SetPositionCmd>)
-			{
-				for (auto& instance : m_Instances)
-				{
-					if (instance.Handle == command.Handle)
-					{
-						instance.PositionX = command.Position.x;
-						instance.PositionY = command.Position.y;
-						instance.PositionZ = command.Position.z;
-						instance.Is3D = true;
-						if (m_Backend)
-							m_Backend->SetPosition(instance, command.Position);
-						return;
-					}
-				}
-			}
-			else if constexpr (std::is_same_v<T, SetListenerCmd>)
-			{
-				m_ListenerPosition = command.Position;
-				m_ListenerForward = command.Forward;
-				m_ListenerUp = command.Up;
-				if (m_Backend)
-					m_Backend->SetListenerPosition(command.Position, command.Forward, command.Up);
-			}
 			else if constexpr (std::is_same_v<T, SetMasterVolumeCmd>)
 			{
 				if (m_Backend)
@@ -451,6 +430,141 @@ namespace Hominem {
 					m_OnSoundFinished(finishedHandle);
 				}
 			}
+		}
+	}
+
+	void AudioSystem::LoadMusicAsync(const std::string& filepath, bool autoPlay, float volume, bool loop)
+	{
+		if (m_MusicState == MusicState::Loading)
+		{
+			HMN_CORE_WARN("AudioSystem: Music is already loading, ignoring new request");
+			return;
+		}
+
+		// Stop current music if any
+		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
+		{
+			StopMusic();
+		}
+
+		// Store playback parameters
+		m_AutoPlayOnLoad = autoPlay;
+		m_MusicVolume = volume;
+		m_MusicLoop = loop;
+		m_MusicState = MusicState::Loading;
+
+		HMN_CORE_INFO("AudioSystem: Starting async music load for '{}'", filepath);
+
+		// Submit async loading job
+		m_MusicLoadFuture = m_MusicJobSystem.SubmitWithResult([this, filepath]() -> SoundBufferHandle {
+			HMN_CORE_INFO("AudioSystem: Loading music on worker thread...");
+			return LoadSound(filepath);
+		});
+	}
+
+	void AudioSystem::UpdateMusic()
+	{
+		// Check if async loading completed
+		if (m_MusicState == MusicState::Loading)
+		{
+			// Non-blocking check if future is ready
+			if (m_MusicLoadFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+			{
+				m_MusicBuffer = m_MusicLoadFuture.get();
+
+				if (m_MusicBuffer != InvalidSoundBuffer)
+				{
+					m_MusicState = MusicState::Ready;
+					HMN_CORE_INFO("AudioSystem: Music loaded successfully");
+
+					// Auto-play if requested
+					if (m_AutoPlayOnLoad)
+					{
+						PlayMusic();
+					}
+				}
+				else
+				{
+					HMN_CORE_ERROR("AudioSystem: Music loading failed");
+					m_MusicState = MusicState::Idle;
+				}
+			}
+		}
+	}
+
+	void AudioSystem::PlayMusic()
+	{
+		if (m_MusicState == MusicState::Ready || m_MusicState == MusicState::Paused)
+		{
+			if (m_MusicState == MusicState::Ready)
+			{
+				// Start playing from beginning
+				m_MusicHandle = Play(m_MusicBuffer, m_MusicVolume, m_MusicLoop);
+				if (m_MusicHandle != InvalidSound)
+				{
+					m_MusicState = MusicState::Playing;
+					HMN_CORE_INFO("AudioSystem: Music playing");
+				}
+			}
+			else // Paused
+			{
+				// Resume from pause
+				Resume(m_MusicHandle);
+				m_MusicState = MusicState::Playing;
+				HMN_CORE_INFO("AudioSystem: Music resumed");
+			}
+		}
+		else if (m_MusicState == MusicState::Loading)
+		{
+			HMN_CORE_WARN("AudioSystem: Music is still loading, cannot play yet");
+		}
+		else if (m_MusicState == MusicState::Playing)
+		{
+			HMN_CORE_WARN("AudioSystem: Music is already playing");
+		}
+	}
+
+	void AudioSystem::PauseMusic()
+	{
+		if (m_MusicState == MusicState::Playing)
+		{
+			Pause(m_MusicHandle);
+			m_MusicState = MusicState::Paused;
+			HMN_CORE_INFO("AudioSystem: Music paused");
+		}
+	}
+
+	void AudioSystem::ResumeMusic()
+	{
+		if (m_MusicState == MusicState::Paused)
+		{
+			Resume(m_MusicHandle);
+			m_MusicState = MusicState::Playing;
+			HMN_CORE_INFO("AudioSystem: Music resumed");
+		}
+	}
+
+	void AudioSystem::StopMusic()
+	{
+		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
+		{
+			Stop(m_MusicHandle);
+			m_MusicHandle = InvalidSound;
+			m_MusicState = MusicState::Ready; // Keep buffer loaded
+			HMN_CORE_INFO("AudioSystem: Music stopped");
+		}
+	}
+
+	//todo fix pausing
+	void AudioSystem::ToggleMusic()
+	{
+		if (m_MusicState == MusicState::Playing)
+		{
+			PauseMusic();
+		}
+		else if (m_MusicState == MusicState::Paused || m_MusicState == MusicState::Ready)
+		{
+			PlayMusic();
 		}
 	}
 

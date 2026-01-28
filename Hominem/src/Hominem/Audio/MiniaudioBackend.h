@@ -11,7 +11,6 @@ namespace Hominem {
 	/// Uses ma_engine for high-level audio playback with support for:
 	/// - MP3, WAV, FLAC, OGG formats
 	/// - Volume, pitch, pan control
-	/// - 3D spatial audio
 	/// - Looping and playback control
 	/// </summary>
 	class MiniaudioBackend : public AudioBackend
@@ -34,10 +33,8 @@ namespace Hominem {
 		void SetVolume(SoundInstance& instance, float volume) override;
 		void SetPitch(SoundInstance& instance, float pitch) override;
 		void SetPan(SoundInstance& instance, float pan) override;
-		void SetPosition(SoundInstance& instance, const glm::vec3& position) override;
 
 		void SetMasterVolume(float volume) override;
-		void SetListenerPosition(const glm::vec3& position, const glm::vec3& forward, const glm::vec3& up) override;
 
 		bool IsSoundFinished(const SoundInstance& instance) const override;
 

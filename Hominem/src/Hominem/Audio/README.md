@@ -16,7 +16,7 @@ The Hominem audio system uses a **Strategy/Bridge pattern** to abstract audio ba
 2. **MiniaudioBackend (Implementation)** - `MiniaudioBackend.h/.cpp`
    - Concrete implementation using miniaudio library
    - Supports MP3, WAV, OGG, FLAC formats out of the box
-   - Handles 3D spatial audio, pitch, pan, volume control
+   - Handles pitch, pan, volume control
 
 3. **AudioSystem (High-level API)** - `AudioSystem.h/.cpp`
    - Thread-safe command queue pattern
@@ -81,19 +81,6 @@ audioSystem.Shutdown();
 ```
 
 ### Advanced Features
-
-#### 3D Spatial Audio
-
-```cpp
-// Set sound position in 3D space
-audioSystem.SetPosition(soundHandle, glm::vec3(10.0f, 0.0f, 5.0f));
-
-// Set listener position and orientation
-glm::vec3 position(0.0f, 0.0f, 0.0f);
-glm::vec3 forward(0.0f, 0.0f, -1.0f);
-glm::vec3 up(0.0f, 1.0f, 0.0f);
-audioSystem.SetListenerPosition(position, forward, up);
-```
 
 #### Stereo Panning
 
@@ -197,7 +184,7 @@ audioSystem.Init(config);
 
 ## Thread Safety
 
-- ✅ **Thread-safe**: LoadSound, Play, Stop, Pause, Resume, SetVolume, SetPitch, SetPan, SetPosition, SetMasterVolume
+- ✅ **Thread-safe**: LoadSound, Play, Stop, Pause, Resume, SetVolume, SetPitch, SetPan, SetMasterVolume
 - ✅ **Lock-free**: Command submission (atomic operations)
 - ✅ **No stalls**: Main thread never blocks on audio thread
 
