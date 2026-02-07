@@ -50,13 +50,14 @@ namespace Hominem {
 		uint32_t width = window.GetWidth();
 		uint32_t height = window.GetHeight();
 		HMN_CORE_INFO("MenuLayer::OnAttach - Window size: {}x{}", width, height);
+
 		m_Scene->OnViewportResize(width, height);
 
 		// Create background sprite entity
 		auto backgroundEntity = m_Scene->CreateEntity("Background");
 		auto& bgTransform = backgroundEntity.GetComponent<TransformComponent>();
-		bgTransform.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -0.5f))
-			* glm::scale(glm::mat4(1.0f), glm::vec3(2.7f, 2.0f, 1.0f));
+		bgTransform.Translation = glm::vec3(0.0f, 0.0f, -0.5f);
+		bgTransform.Scale = glm::vec3(2.7f, 2.0f, 1.0f);
 
 		auto backgroundTexture = Texture2D::Create("src/Hominem/Resources/Textures/menu2.png");
 		backgroundEntity.AddComponent<SpriteRendererComponent>(backgroundTexture);
@@ -64,8 +65,9 @@ namespace Hominem {
 		// Create title text entity
 		auto titleEntity = m_Scene->CreateEntity("Title");
 		auto& titleTransform = titleEntity.GetComponent<TransformComponent>();
-		titleTransform.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(-1.2f, 0.0f, 0.0f))
-			* glm::scale(glm::mat4(1.0f), glm::vec3(0.25f));
+		
+		titleTransform.Translation = glm::vec3(-1.2f, 0.0f, 0.0f);
+		titleTransform.Scale = glm::vec3(0.25f);
 
 		titleEntity.AddComponent<TextRendererComponent>("Hominem", Font::GetDefaultFont(), glm::vec4(1.0f));
 	}
@@ -80,11 +82,13 @@ namespace Hominem {
 		m_CameraController.OnUpdate(ts);
 
 		// Sync camera controller to camera entity
+		// todo make this automatic not manual
 		if (m_CameraEntity.HasComponent<TransformComponent>())
 		{
 			auto& transform = m_CameraEntity.GetComponent<TransformComponent>();
 			glm::mat4 viewMatrix = m_CameraController.GetCamera().GetViewMatrix();
-			transform.Transform = glm::inverse(viewMatrix);
+			glm::mat4 cameraTransform = glm::inverse(viewMatrix);
+		transform.Translation = glm::vec3(cameraTransform[3]);
 
 		}
 		else
@@ -113,7 +117,6 @@ namespace Hominem {
 		RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.0f });
 		RenderCommand::Clear();
 
-		// Scene handles all rendering via RenderSystem2D and AudioECSSystem
 		m_Scene->OnUpdate(ts);
 	}
 

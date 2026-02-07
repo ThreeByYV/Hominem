@@ -1,11 +1,20 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include "SceneCamera.h"
 #include "Hominem/Mesh/SkinnedMesh.h"
 #include "Hominem/Audio/SoundInstance.h"
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Font.h"
+
+// Forward declare physics types
+namespace Hominem {
+	class Rigidbody;
+	class BoxCollider;
+}
 
 namespace Hominem {
 
@@ -24,17 +33,28 @@ namespace Hominem {
 
 	struct TransformComponent
 	{
-		glm::mat4 Transform{ 1.0f };
+		glm::vec3 Translation = { 0.0f, 0.0f, 0.0f };
+		glm::vec3 Rotation = { 0.0f, 0.0f, 0.0f };  // Euler angles (radians)
+		glm::vec3 Scale = { 1.0f, 1.0f, 1.0f };
 
 		TransformComponent() = default;
 		TransformComponent(const TransformComponent&) = default;
-		TransformComponent(const glm::mat4& transform)
-			: Transform(transform)
+		TransformComponent(const glm::vec3& translation)
+			: Translation(translation)
 		{
-		};
+		}
 
-		operator glm::mat4& () { return Transform; }
-		operator const glm::mat4& () const { return Transform;  }
+		// Build transform matrix from components
+		glm::mat4 GetTransform() const
+		{
+			glm::mat4 rotation = glm::toMat4(glm::quat(Rotation));
+			return glm::translate(glm::mat4(1.0f), Translation)
+				* rotation
+				* glm::scale(glm::mat4(1.0f), Scale);
+		}
+
+		operator glm::mat4() { return GetTransform(); }
+		operator const glm::mat4() const { return GetTransform(); }
 	};
 
 	struct SpriteRendererComponent
@@ -82,6 +102,7 @@ namespace Hominem {
 
 	};
 
+	// Models
 	struct SkinnedMeshComponent
 	{
 		Ref<SkinnedMesh> Mesh;
@@ -109,6 +130,7 @@ namespace Hominem {
 		};
 	};
 
+	// Audio
 	struct AudioSourceComponent
 	{
 		SoundBufferHandle Buffer = InvalidSoundBuffer;
@@ -140,4 +162,42 @@ namespace Hominem {
 		AudioListenerComponent() = default;
 		AudioListenerComponent(const AudioListenerComponent&) = default;
 	};
+
+	// Physics
+	struct Rigidbody3DComponent
+	{
+		enum class BodyType { Static = 0, Dynamic, Kinematic };
+		BodyType Type = BodyType::Dynamic;
+
+		// 2.5D constraints
+		bool LockRotationX = true;   // No pitch
+		bool LockRotationY = false;  // Allow turning
+		bool LockRotationZ = true;   // No roll
+		bool LockTranslationZ = true; // Stay on depth layer
+
+		float Mass = 1.0f;
+
+		Ref<Rigidbody> RuntimeBody = nullptr;
+
+		Rigidbody3DComponent() = default;
+		Rigidbody3DComponent(const Rigidbody3DComponent&) = default;
+	};
+
+	struct BoxCollider3DComponent
+	{
+		glm::vec3 Offset = { 0.0f, 0.0f, 0.0f };
+		glm::vec3 HalfExtents = { 0.5f, 0.5f, 0.5f };
+
+		float StaticFriction = 0.5f;
+		float DynamicFriction = 0.5f;
+		float Restitution = 0.0f;
+
+		bool IsTrigger = false;
+
+		Ref<BoxCollider> RuntimeCollider = nullptr;
+
+		BoxCollider3DComponent() = default;
+		BoxCollider3DComponent(const BoxCollider3DComponent&) = default;
+	};
+
 }

@@ -1,24 +1,26 @@
 #include "hmnpch.h"
 
+#include <glad/glad.h>
+
 #include "Scene.h"
 #include "Entity.h"
 #include "Components.h"
 #include "Hominem/Core/Application.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
-#include <glad/glad.h>
+#include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Physics/Rigidbody.h"
+#include "Hominem/Physics/Collider.h"
+#include "Hominem/Physics/PhysicsTypes.h"
 
 namespace Hominem {
 
 	Scene::Scene()
 	{
-		entt::entity entity = m_Registry.create();
-		m_Registry.emplace<TransformComponent>(entity, glm::mat4(1.0f));
 	}
 
 	Scene::~Scene()
 	{
-		// Stop all active audio sources before scene destruction
 		auto view = m_Registry.view<AudioSourceComponent>();
 		for (auto entity : view)
 		{
@@ -45,8 +47,7 @@ namespace Hominem {
 				if (camera.Primary)
 				{
 					mainCamera = &camera.Camera;
-					cameraTransform = transform.Transform;
-		
+					cameraTransform = transform.GetTransform();
 					break;
 				}
 			}
@@ -57,7 +58,7 @@ namespace Hominem {
 			HMN_CORE_WARN("Scene::OnUpdate - No primary camera found!");
 		}
 
-		// Update animation system
+		// Animation system
 		{
 			auto view = m_Registry.view<SkinnedMeshComponent, AnimationComponent>();
 			for (auto entity : view)
@@ -67,19 +68,16 @@ namespace Hominem {
 				if (!meshComp.Mesh)
 					continue;
 
-				// Update animation time
 				if (animComp.Playing)
 				{
 					animComp.AnimationTime += ts * animComp.AnimationSpeed;
 				}
 
-				// Compute and upload bone transforms
 				if (meshComp.Mesh->HasSkeleton())
 				{
 					std::vector<glm::mat4> boneTransforms;
 					meshComp.Mesh->GetBoneTransforms(animComp.AnimationTime, boneTransforms);
 
-					//Bind shader before uploading bone transforms
 					auto shader = meshComp.Mesh->GetShader();
 					if (shader)
 					{
@@ -100,13 +98,13 @@ namespace Hominem {
 						loggedNoSkeleton = true;
 					}
 
-					// Upload identity matrices for bones if no skeleton
+					// Upload identity matrices for meshes without skeletons
 					auto shader = meshComp.Mesh->GetShader();
 					if (shader)
 					{
 						shader->Bind();
 						glm::mat4 identity(1.0f);
-						for (uint32_t i = 0; i < 100; i++) // MAX_BONES
+						for (uint32_t i = 0; i < 100; i++)
 						{
 							meshComp.Mesh->UploadBoneTransform(i, identity);
 						}
@@ -115,7 +113,7 @@ namespace Hominem {
 			}
 		}
 
-		// Update audio system
+		// Audio system
 		{
 			auto& audioSystem = Application::Get().GetAudioSystem();
 			auto view = m_Registry.view<AudioSourceComponent>();
@@ -124,11 +122,9 @@ namespace Hominem {
 			{
 				auto& audioSource = view.get<AudioSourceComponent>(entity);
 
-				// Skip if no buffer loaded
 				if (audioSource.Buffer == InvalidSoundBuffer)
 					continue;
 
-				// Handle playback start
 				if (audioSource.ShouldPlay && !audioSource.IsPlaying)
 				{
 					audioSource.ActiveHandle = audioSystem.PlayEx(
@@ -141,14 +137,12 @@ namespace Hominem {
 					audioSource.IsPlaying = true;
 					audioSource.PropertiesDirty = false;
 				}
-				// Handle playback stop
 				else if (!audioSource.ShouldPlay && audioSource.IsPlaying)
 				{
 					audioSystem.Stop(audioSource.ActiveHandle);
 					audioSource.IsPlaying = false;
 					audioSource.ActiveHandle = InvalidSound;
 				}
-				// Handle property updates for active sounds
 				else if (audioSource.IsPlaying && audioSource.PropertiesDirty)
 				{
 					audioSystem.SetVolume(audioSource.ActiveHandle, audioSource.Volume);
@@ -159,12 +153,28 @@ namespace Hominem {
 			}
 		}
 
-		// Render scene
+		// Physics simulation and syncing any dynamic transform only
+		if (m_PhysicsWorld)
+		{
+			m_PhysicsWorld->Step(ts);
+
+			auto view = m_Registry.view<TransformComponent, Rigidbody3DComponent>();
+			for (auto e : view)
+			{
+				auto [transform, rb] = view.get<TransformComponent, Rigidbody3DComponent>(e);
+
+				if (rb.RuntimeBody && rb.Type == Rigidbody3DComponent::BodyType::Dynamic)
+				{
+					transform.Translation = rb.RuntimeBody->GetPosition();
+				}
+			}
+		}
+
+		// Rendering
 		if (mainCamera)
 		{
 			Renderer2D::BeginScene(*mainCamera, cameraTransform);
 
-			// Render sprites
 			{
 				auto group = m_Registry.group<TransformComponent>(entt::get<SpriteRendererComponent>);
 				for (auto entity : group)
@@ -173,16 +183,15 @@ namespace Hominem {
 
 					if (sprite.Texture)
 					{
-						Renderer2D::DrawQuad(transform.Transform, sprite.Texture, sprite.Color);
+						Renderer2D::DrawQuad(transform.GetTransform(), sprite.Texture, sprite.Color);
 					}
 					else
 					{
-						Renderer2D::DrawQuad(transform.Transform, sprite.Color);
+						Renderer2D::DrawQuad(transform.GetTransform(), sprite.Color);
 					}
 				}
 			}
 
-			// Render text
 			{
 				auto view = m_Registry.view<TransformComponent, TextRendererComponent>();
 				for (auto entity : view)
@@ -191,48 +200,41 @@ namespace Hominem {
 
 					if (text.Font)
 					{
-						Renderer2D::DrawString(text.Text, text.Font, transform.Transform, text.Color);
+						Renderer2D::DrawString(text.Text, text.Font, transform.GetTransform(), text.Color);
 					}
 				}
 			}
 
 			Renderer2D::EndScene();
 
-			// Render 3D meshes
+			// 3D rendering
 			{
-				// Begin 3D scene with camera
 				glm::mat4 viewProjection = mainCamera->GetProjectionMatrix() * glm::inverse(cameraTransform);
 				glm::vec3 cameraWorldPos = glm::vec3(cameraTransform[3]);
-				
+
 				Renderer3D::BeginScene(viewProjection, cameraWorldPos);
 
-
 				auto view = m_Registry.view<TransformComponent, SkinnedMeshComponent>();
-				int meshCount = 0;
-				static int frameLog = 0;
 				for (auto entity : view)
 				{
-					meshCount++;
 					auto&& [transform, meshComp] = view.get<TransformComponent, SkinnedMeshComponent>(entity);
 
 					if (!meshComp.Mesh)
 						continue;
 
-					// Set up shader uniforms
 					auto shader = meshComp.Mesh->GetShader();
 					if (shader)
 					{
 						shader->Bind();
 
 						shader->SetMat4("u_ViewProjection", viewProjection);
-						shader->SetMat4("u_Model", transform.Transform);
+						shader->SetMat4("u_Model", transform.GetTransform());
 					}
 					else
 					{
 						HMN_CORE_WARN("Mesh has no shader!");
 					}
 
-					// Render the mesh
 					meshComp.Mesh->Render();
 				}
 
@@ -247,7 +249,6 @@ namespace Hominem {
 		m_ViewportWidth = width;
 		m_ViewportHeight = height;
 
-		// Resize non FixedAspectRatio cameras
 		auto view = m_Registry.view<CameraComponent>();
 		int cameraCount = 0;
 		for (auto entity : view)
@@ -271,12 +272,79 @@ namespace Hominem {
 	{
 		Entity entity = { m_Registry.create(), this };
 
-		// All entities will have a name and a transform
 		entity.AddComponent<TransformComponent>();
 		auto& tag = entity.AddComponent<TagComponent>();
 
 		tag.Tag = name.empty() ? "Unknown Entity" : name;
 
 		return entity;
+	}
+
+	void Scene::OnRuntimeStart()
+	{
+		m_PhysicsWorld = CreateRef<PhysicsWorld>(glm::vec3(0.0f, -9.8f, 0.0f));
+
+		auto view = m_Registry.view<TransformComponent, Rigidbody3DComponent>();
+
+		for (auto e : view)
+		{
+			Entity entity = { e, this };
+			auto& transform = entity.GetComponent<TransformComponent>();
+			auto& rb = entity.GetComponent<Rigidbody3DComponent>();
+
+			RigidbodySpec spec;
+			spec.Type = (RigidbodyType)rb.Type;
+			spec.Position = transform.Translation;
+			spec.Rotation = glm::quat(transform.Rotation);
+			spec.LockRotationX = rb.LockRotationX;
+			spec.LockRotationY = rb.LockRotationY;
+			spec.LockRotationZ = rb.LockRotationZ;
+			spec.LockTranslationZ = rb.LockTranslationZ;
+			spec.Mass = rb.Mass;
+
+			rb.RuntimeBody = m_PhysicsWorld->CreateRigidbody(spec);
+
+			if (entity.HasComponent<BoxCollider3DComponent>())
+			{
+				auto& collider = entity.GetComponent<BoxCollider3DComponent>();
+
+				auto material = m_PhysicsWorld->CreateMaterial(
+					collider.StaticFriction,
+					collider.DynamicFriction,
+					collider.Restitution
+				);
+
+				BoxColliderSpec colliderSpec;
+				colliderSpec.HalfExtents = collider.HalfExtents * transform.Scale;
+				colliderSpec.Offset = collider.Offset;
+				colliderSpec.IsTrigger = collider.IsTrigger;
+
+				collider.RuntimeCollider = m_PhysicsWorld->CreateBoxCollider(colliderSpec, material);
+
+				rb.RuntimeBody->AttachCollider(collider.RuntimeCollider);
+			}
+		}
+
+		size_t rbCount = 0;
+		for (auto e : view) { rbCount++; }
+		HMN_CORE_INFO("Physics runtime started - {} rigidbodies created", rbCount);
+	}
+
+	void Scene::OnRuntimeStop()
+ 	{
+		auto view = m_Registry.view<Rigidbody3DComponent>();
+		for (auto e : view)
+		{
+			auto& rb = view.get<Rigidbody3DComponent>(e);
+			if (rb.RuntimeBody)
+			{
+				m_PhysicsWorld->DestroyRigidbody(rb.RuntimeBody);
+				rb.RuntimeBody = nullptr;
+			}
+		}
+
+		m_PhysicsWorld = nullptr;
+
+		HMN_CORE_INFO("Physics runtime stopped");
 	}
 }

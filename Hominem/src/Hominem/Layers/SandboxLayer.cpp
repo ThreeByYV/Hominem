@@ -32,15 +32,13 @@ namespace Hominem {
 		auto& cameraComp = m_CameraEntity.AddComponent<CameraComponent>();
 
 		// Set orthographic camera for 2D/2.5D gameplay
-		// Size = 10 means camera shows 10 world units vertically
-		// For 1920x1080, this shows ~17.78 units horizontally (10 * 16/9)
 		auto& window = Application::Get().GetWindow();
 		cameraComp.Camera.SetOrthographic(10.0f, -10.0f, 10.0f);
 		cameraComp.Primary = true;
 
 		// Set initial camera position
 		auto& cameraTransform = m_CameraEntity.GetComponent<TransformComponent>();
-		cameraTransform.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+		cameraTransform.Translation = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		// Setup camera controller to control this entity
 		m_CameraController.SetEntity(m_CameraEntity);
@@ -49,7 +47,25 @@ namespace Hominem {
 		// Initialize scene viewport
 		m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
 
+		Entity floor = m_ActiveScene->CreateEntity("Invisible Floor");
+
+		auto& floorTransform = floor.GetComponent<TransformComponent>();
+		floorTransform.Translation = { 0.0f, -5.0f, 0.0f };
+		floorTransform.Scale = { 20.0f, 0.5f, 20.0f };
+
+		auto& floorRb = floor.AddComponent<Rigidbody3DComponent>();
+		floorRb.Type = Rigidbody3DComponent::BodyType::Static;
+
+		auto& floorCollider = floor.AddComponent<BoxCollider3DComponent>();
+		floorCollider.HalfExtents = { 1.0f, 1.0f, 1.0f };
+		floorCollider.StaticFriction = 0.8f;
+		floorCollider.DynamicFriction = 0.6f;
+
+		auto& debugSprite = floor.AddComponent<SpriteRendererComponent>();
+		debugSprite.Color = { 0.0f, 1.0f, 0.0f, 0.3f }; // Semi-transparent green
+
 		// Load animated mesh
+		//component should auto load mesh no manually LoadFromFile needed todo
 		auto mesh = CreateRef<SkinnedMesh>();
 		std::string meshPath = "src/Hominem/Resources/Textures/test.fbx";
 
@@ -59,7 +75,6 @@ namespace Hominem {
 			return;
 		}
 
-		// Use skinning shader for proper skeletal animation
 		auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
 		if (!skinningShader)
 		{
@@ -73,31 +88,46 @@ namespace Hominem {
 		// Create entity with mesh component
 		m_MeshEntity = m_ActiveScene->CreateEntity("Animated Character");
 
-		// Position the mesh in front of the camera
-		m_MeshPosition = glm::vec3(0.0f, 0.0f, 3.0f);
+		m_MeshPosition = glm::vec3(0.0f, 1.0f, 3.0f); // Start high so it falls
 		m_MeshScale = glm::vec3(0.01f, 0.01f, 0.01f);
 		m_MeshRotation = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		auto& meshTransform = m_MeshEntity.GetComponent<TransformComponent>();
-		meshTransform.Transform = glm::translate(glm::mat4(1.0f), m_MeshPosition)
-			* glm::scale(glm::mat4(1.0f), m_MeshScale);
+		meshTransform.Translation = m_MeshPosition;
+		meshTransform.Scale = m_MeshScale;
+		meshTransform.Rotation = m_MeshRotation;
 
 		m_MeshEntity.AddComponent<SkinnedMeshComponent>(mesh, meshPath);
-		m_MeshEntity.AddComponent<AnimationComponent>(1.0f, true); // Play animation at 1x speed
+		m_MeshEntity.AddComponent<AnimationComponent>(1.0f, true);
 
-		HMN_CORE_INFO("SandboxLayer initialized - Controls: WASD + Mouse, R to reload shaders, 1 for menu");
+		// Add physics to the 3D model
+		auto& meshRb = m_MeshEntity.AddComponent<Rigidbody3DComponent>();
+		meshRb.Type = Rigidbody3DComponent::BodyType::Dynamic;
+		meshRb.Mass = 10.0f; // Character mass
+	
+
+		auto& meshCollider = m_MeshEntity.AddComponent<BoxCollider3DComponent>();
+		meshCollider.HalfExtents = { 0.5f, 0.5f, 0.3f }; // Character-shaped box (width, height, depth)
+		meshCollider.StaticFriction = 0.5f;
+		meshCollider.DynamicFriction = 0.5f;
+		meshCollider.Offset = { 0.0f, 0.25f, 0.00 };
+
+		// Start physics runtime AFTER creating all entities
+		m_ActiveScene->OnRuntimeStart();
+
+		HMN_CORE_INFO("SandboxLayer initialized - Red box will fall onto green floor!");
+		HMN_CORE_INFO("Controls: WASD + Mouse, R to reload shaders, 1 for menu");
 	}
 
 	void SandboxLayer::OnDetach()
 	{
+		m_ActiveScene->OnRuntimeStop();
 	}
 
 	void SandboxLayer::OnUpdate(Timestep ts)
 	{
-		// Update camera controller (modifies camera entity's transform directly)
 		m_CameraController.OnUpdate(ts);
 
-		// Handle input
 		if (Input::IsKeyPressed(HMN_KEY_R))
 		{
 			Renderer2D::GetShaderLibrary()->ReloadAll();
@@ -126,19 +156,15 @@ namespace Hominem {
 		if (m_MeshEntity && m_MeshEntity.HasComponent<TransformComponent>())
 		{
 			auto& meshTransform = m_MeshEntity.GetComponent<TransformComponent>();
-			glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), m_MeshRotation.y, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::rotate(glm::mat4(1.0f), m_MeshRotation.x, glm::vec3(1.0f, 0.0f, 0.0f))
-				* glm::rotate(glm::mat4(1.0f), m_MeshRotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
-			meshTransform.Transform = glm::translate(glm::mat4(1.0f), m_MeshPosition)
-				* rotation
-				* glm::scale(glm::mat4(1.0f), m_MeshScale);
+			meshTransform.Translation = m_MeshPosition;
+			meshTransform.Rotation = m_MeshRotation;
+			meshTransform.Scale = m_MeshScale;
 		}
 
 		// Render
 		RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
 		RenderCommand::Clear();
 
-		// Update Scene (handles all rendering via systems)
 		m_ActiveScene->OnUpdate(ts);
 	}
 
