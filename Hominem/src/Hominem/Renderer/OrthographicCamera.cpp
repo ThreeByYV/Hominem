@@ -1,6 +1,4 @@
 #include "hmnpch.h"
-#include "OrthographicCamera.h"
-
 #include "Camera.h"
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -48,6 +46,7 @@ namespace Hominem {
     PerspectiveCamera::PerspectiveCamera(float fov, float aspectRatio, float nearPlane, float farPlane)
         : m_FOV(fov), m_AspectRatio(aspectRatio), m_NearPlane(nearPlane), m_FarPlane(farPlane)
     {
+
         SetProjection(fov, aspectRatio, nearPlane, farPlane);
     }
 

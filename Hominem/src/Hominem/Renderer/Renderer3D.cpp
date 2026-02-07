@@ -15,10 +15,11 @@ namespace Hominem {
 
         s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
 
+        s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/basic.glsl");
         s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/fog.glsl");
         s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/skinning.glsl");
 
-        s_Data->DefaultShader = s_Data->ShaderLibrary->Get("skinning");
+        s_Data->DefaultShader = s_Data->ShaderLibrary->Get("basic");
     }
 
     void Renderer3D::Shutdown()
@@ -32,6 +33,7 @@ namespace Hominem {
         HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
 
         s_Scene->ViewProjection = viewProj;
+
         s_Scene->CameraWorldPos = cameraWorldPos;
     }
 

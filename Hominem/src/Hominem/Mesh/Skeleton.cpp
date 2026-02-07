@@ -47,10 +47,6 @@ namespace Hominem {
 		// Store the global inverse transform for animation math
 		m_GlobalInverseTransform = glm::inverse(AiToGlm(pScene->mRootNode->mTransformation));
 
-		HMN_CORE_INFO("Skeleton: Global Inverse Transform:");
-		HMN_CORE_INFO("[{}, {}, {}, {}]",
-			m_GlobalInverseTransform[0][0], m_GlobalInverseTransform[0][1],
-			m_GlobalInverseTransform[0][2], m_GlobalInverseTransform[0][3]);
 
 		// Parse bones from each mesh
 		for (uint32_t i = 0; i < pScene->mNumMeshes; i++)
@@ -88,10 +84,10 @@ namespace Hominem {
 		// First time seeing this bone - store its offset matrix
 		if (boneID == static_cast<int>(m_BoneInfo.size()))
 		{
-			// IMPORTANT: Assimp with GLM interop returns glm::mat4 but doesn't transpose.
-			// Assimp uses row-major, GLM uses column-major. Must transpose manually.
+			// IMPORTANT: Assimp uses row-major matrices, GLM uses column-major.
+			// AiToGlm handles the transpose during conversion.
 			// See Renderer.h for detailed explanation.
-			glm::mat4 offsetMatrix = glm::transpose(pBone->mOffsetMatrix);
+			glm::mat4 offsetMatrix = AiToGlm(pBone->mOffsetMatrix);
 			m_BoneInfo.push_back(BoneInfo(offsetMatrix));
 		}
 
@@ -167,14 +163,6 @@ namespace Hominem {
 
 		// Loop the animation
 		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(m_pScene->mAnimations[0]->mDuration));
-
-		static bool firstFrame = true;
-		if (firstFrame)
-		{
-			HMN_CORE_INFO("Skeleton: Animation info - TPS: {}, Duration: {}, Channels: {}",
-				ticksPerSecond, m_pScene->mAnimations[0]->mDuration, m_pScene->mAnimations[0]->mNumChannels);
-			firstFrame = false;
-		}
 
 		// This is where the magic happens - recursively compute all bone transforms
 		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, identity);

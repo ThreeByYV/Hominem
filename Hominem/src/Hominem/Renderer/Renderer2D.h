@@ -1,8 +1,7 @@
 #pragma once
 
-#include "OrthographicCamera.h"
 #include "Texture.h"
-#include "Hominem/Renderer/Camera.h"
+#include "Camera.h"
 #include "Shader.h"
 #include "Font.h"
 #include "Quad.h"
@@ -76,6 +75,7 @@ namespace Hominem {
 		
 		static void DrawQuad(const glm::mat4& transform, const glm::vec4& color);
 		static void DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture);
+		static void DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture, const glm::vec4& tint);
 		static void DrawQuad(const Quad& q); 
 
 		static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture);
@@ -85,7 +85,6 @@ namespace Hominem {
 		static void DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<SubTexture2D>& subtexture, const glm::vec4& tint);
 		static void DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<Texture2D>& texture, const glm::vec4& tint);
 		static void DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<SubTexture2D>& subtexture, const glm::vec4& tint);
-
 
 		static void DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color);
 

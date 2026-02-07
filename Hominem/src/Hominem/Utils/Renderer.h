@@ -3,7 +3,7 @@
 #include "Hominem/Renderer/Shader.h"
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
-#include <assimp/scene.h>
+// #include <assimp/scene.h>
 
 using namespace Hominem;
 
@@ -22,13 +22,13 @@ inline Ref<Shader> SelectShader(const Ref<Shader>& meshShader,
 // IMPORTANT: Assimp uses row-major matrices, GLM uses column-major.
 // These functions handle the transpose during conversion.
 //
-// WARNING: If Assimp is configured with GLM interop, some properties like
-// aiBone::mOffsetMatrix may return glm::mat4 directly WITHOUT transposing.
-// In that case, use glm::transpose() manually:
-//     glm::mat4 offset = glm::transpose(pBone->mOffsetMatrix);
-//
-// Always use these AiToGlm functions when working with aiMatrix4x4 types.
+// NOTE: Assimp GLM interop is disabled. Always use these AiToGlm functions
+// when working with aiMatrix4x4 types for proper row/column major conversion.
 // =============================================================================
+
+#include <assimp/matrix4x4.h>
+#include <assimp/vector3.h>
+#include <assimp/quaternion.h>
 
 inline glm::mat4 AiToGlm(const aiMatrix4x4& m)
 {

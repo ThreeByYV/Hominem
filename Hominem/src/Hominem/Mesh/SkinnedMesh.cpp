@@ -51,9 +51,12 @@ namespace Hominem {
 
 	bool SkinnedMesh::LoadFromFile(const std::string& filepath)
 	{
+		HMN_CORE_INFO("SkinnedMesh::LoadFromFile - Starting load of '{}'", filepath);
+
 		ReleaseGPUResources();
 		CreateGPUBuffers();
 
+		HMN_CORE_INFO("SkinnedMesh::LoadFromFile - Calling Assimp ReadFile...");
 		m_pScene = m_Importer.ReadFile(filepath.c_str(), ASSIMP_LOAD_FLAGS);
 
 		if (!m_pScene)
@@ -63,12 +66,30 @@ namespace Hominem {
 			return false;
 		}
 
-		HMN_CORE_INFO("SkinnedMesh: Loaded '{}' - {} animations", filepath, m_pScene->mNumAnimations);
+		HMN_CORE_INFO("SkinnedMesh: Loaded '{}' - {} animations, {} meshes",
+			filepath, m_pScene->mNumAnimations, m_pScene->mNumMeshes);
+
+		if (m_pScene->mNumMeshes == 0)
+		{
+			HMN_CORE_ERROR("SkinnedMesh: File loaded but contains 0 meshes!");
+			glBindVertexArray(0);
+			return false;
+		}
 
 		bool success = ParseScene(m_pScene, filepath);
 
-		if (success)
-			UploadToGPU();
+		if (!success)
+		{
+			HMN_CORE_ERROR("SkinnedMesh: ParseScene failed!");
+			glBindVertexArray(0);
+			return false;
+		}
+
+		HMN_CORE_INFO("SkinnedMesh: ParseScene succeeded, uploading to GPU...");
+
+		UploadToGPU();
+
+		HMN_CORE_INFO("SkinnedMesh: LoadFromFile complete - Submeshes: {}", m_Geometry.Submeshes.size());
 
 		glBindVertexArray(0);
 		return success;
@@ -251,6 +272,10 @@ namespace Hominem {
 			return;
 		}
 
+		// Make sure VAO is bound before setting up vertex attributes
+		glBindVertexArray(m_VAO);
+		HMN_CORE_INFO("SkinnedMesh: Binding VAO {} for upload", m_VAO);
+
 		// Position buffer (vec3)
 		glBindBuffer(GL_ARRAY_BUFFER, m_Buffers[POSITION_BUFFER]);
 		glBufferData(GL_ARRAY_BUFFER,
@@ -302,13 +327,21 @@ namespace Hominem {
 		HMN_CORE_INFO("SkinnedMesh: Uploaded {} vertices, {} indices",
 			m_Geometry.Positions.size(), m_Geometry.Indices.size());
 
-		for (uint32_t i = 0; i < std::min(5u, (uint32_t)m_VertexBoneData.size()); i++)
+		// Log first few vertices to verify data
+		for (uint32_t i = 0; i < std::min(3u, (uint32_t)m_Geometry.Positions.size()); i++)
 		{
-			const auto& vb = m_VertexBoneData[i];
-			HMN_CORE_INFO("  Vertex {}: Bones[{},{},{},{}] Weights[{:.2f},{:.2f},{:.2f},{:.2f}]",
-				i, vb.BoneIDs[0], vb.BoneIDs[1], vb.BoneIDs[2], vb.BoneIDs[3],
-				vb.Weights[0], vb.Weights[1], vb.Weights[2], vb.Weights[3]);
+			HMN_CORE_INFO("  Vertex[{}] pos: ({:.2f}, {:.2f}, {:.2f})", i,
+				m_Geometry.Positions[i].x, m_Geometry.Positions[i].y, m_Geometry.Positions[i].z);
 		}
+
+		// Log first few indices
+		HMN_CORE_INFO("  First indices: {} {} {} {} {} {}",
+			m_Geometry.Indices.size() > 0 ? m_Geometry.Indices[0] : -1,
+			m_Geometry.Indices.size() > 1 ? m_Geometry.Indices[1] : -1,
+			m_Geometry.Indices.size() > 2 ? m_Geometry.Indices[2] : -1,
+			m_Geometry.Indices.size() > 3 ? m_Geometry.Indices[3] : -1,
+			m_Geometry.Indices.size() > 4 ? m_Geometry.Indices[4] : -1,
+			m_Geometry.Indices.size() > 5 ? m_Geometry.Indices[5] : -1);
 
 		GLenum error = glGetError();
 		if (error != GL_NO_ERROR)
@@ -326,6 +359,7 @@ namespace Hominem {
 		HMN_CORE_ASSERT(shader, "SkinnedMesh::Render called without a shader");
 
 		shader->Bind();
+
 		glBindVertexArray(m_VAO);
 		DrawSubmeshes();
 		glBindVertexArray(0);
@@ -345,12 +379,28 @@ namespace Hominem {
 			return;
 		}
 
-		for (const auto& submesh : m_Geometry.Submeshes)
+		for (size_t i = 0; i < m_Geometry.Submeshes.size(); i++)
 		{
+			const auto& submesh = m_Geometry.Submeshes[i];
+
+			// Clear any previous errors
+			glGetError();
+
 			// Bind material texture if available
 			if (submesh.MaterialIndex < m_Materials.size() && m_Materials[submesh.MaterialIndex])
 			{
 				m_Materials[submesh.MaterialIndex]->Bind(GL_TEXTURE0);
+			}
+			else
+			{
+				// No material - unbind texture to use shader's default color
+				glBindTexture(GL_TEXTURE_2D, 0);
+			}
+
+			GLenum error = glGetError();
+			if (error != GL_NO_ERROR)
+			{
+				HMN_CORE_ERROR("SkinnedMesh: OpenGL error BEFORE draw call: {}", error);
 			}
 
 			// Draw with base vertex offset (allows shared index buffer)
@@ -361,6 +411,14 @@ namespace Hominem {
 				(void*)(sizeof(uint32_t) * submesh.BaseIndex),
 				submesh.BaseVertex
 			);
+
+			error = glGetError();
+			if (error != GL_NO_ERROR)
+			{
+				HMN_CORE_ERROR("SkinnedMesh: OpenGL error AFTER draw call for submesh {}: {} (0x{:X})", i, error, error);
+				HMN_CORE_ERROR("NumIndices: {}, BaseVertex: {}, BaseIndex: {}",
+					submesh.NumIndices, submesh.BaseVertex, submesh.BaseIndex);
+			}
 		}
 	}
 

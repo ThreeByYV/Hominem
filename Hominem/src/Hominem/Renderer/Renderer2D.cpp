@@ -98,13 +98,16 @@ namespace Hominem {
 
 	void Renderer2D::BeginScene(OrthographicCamera& camera)
 	{
+		s_Data->ViewProjectionMatrix = camera.GetViewProjectionMatrix(); // Store for text rendering
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
 	}
 
 	void Renderer2D::BeginScene(Camera& camera, const glm::mat4& transform)
 	{
-		glm::mat4 viewProj = camera.GetProjection() * glm::inverse(transform); //gives us the projection-view matrix
+		glm::mat4 viewProj = camera.GetProjectionMatrix() * glm::inverse(transform); //gives us the projection-view matrix
+		s_Data->ViewProjectionMatrix = viewProj; // Store for text rendering
+
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetMat4("u_ViewProjection", viewProj);
 	}
@@ -219,6 +222,20 @@ namespace Hominem {
 
 		s_Data->QuadVertexArray->Bind();
 		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
+	void Renderer2D::DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture, const glm::vec4& tint)
+	{
+		s_Data->TextureShader->SetFloat4("u_Color", tint);
+
+		texture->Bind();
+
+		s_Data->TextureShader->SetMat4("u_Transform", transform);
+
+		s_Data->QuadVertexArray->Bind();
+		RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+	}
+
 	void Renderer2D::DrawQuad(const Quad& q)
 	{
 
