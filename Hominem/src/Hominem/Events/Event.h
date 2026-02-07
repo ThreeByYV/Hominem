@@ -1,6 +1,8 @@
 #pragma once
 
-#include "hmnpch.h"
+#include <string>
+#include <functional>
+#include <sstream>
 
 #define BIT(x) (1 << x)
 

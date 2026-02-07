@@ -7,6 +7,7 @@
 #include "Hominem/Core/LayerStack.h"
 #include "Hominem/ImGui/ImGuiLayer.h"
 #include "Hominem/Core/Timestep.h"
+#include "Hominem/Audio/AudioSystem.h"
 
 
 namespace Hominem {
@@ -19,7 +20,7 @@ namespace Hominem {
         void Initialize();
         void Update(float deltaTime);
         void Render();
-      
+
         void Run();
 
         void OnEvent(Event& e);
@@ -31,6 +32,7 @@ namespace Hominem {
 
 
         inline Window& GetWindow() { return *m_Window; }
+        inline AudioSystem& GetAudioSystem() { return m_AudioSystem; }
 
         inline static Application& Get() { return *s_Instance; }
 
@@ -47,11 +49,11 @@ namespace Hominem {
     private:
         std::unique_ptr<Window> m_Window;
         ImGuiLayer* m_ImGuiLayer; //by default always will have a ImGui layer existing
-       
+
         bool m_Running = true;
         bool m_Minimized = false;
 
-     
+
         Timestep m_Timestep;
         float m_LastFrameTime = 0.0f;
 
@@ -60,7 +62,9 @@ namespace Hominem {
             std::unique_ptr<Layer> newLayer;
         };
         std::vector<PendingTransition> m_PendingTransitions;
-       
+
+        AudioSystem m_AudioSystem;
+
     private:
         static Application* s_Instance; //Application is a singleton
 

@@ -16,58 +16,22 @@
 #define INVALID_MATERIAL 0xFFFFFFFF
 
 namespace Hominem {
+	
+	// Forward declare to avoid include
+	struct VertexBoneData;
+	class Skeleton;
+	
 
-	/**
-	 * @brief Loads and renders 3D meshes with skeletal animation support.
-	 *
-	 * ## Architecture
-	 *
-	 * SkinnedMesh is a complete mesh system that composes:
-	 * - **Geometry Data**: Vertex positions, normals, UVs, indices (private)
-	 * - **Skeleton**: Bone hierarchy and animation transforms
-	 * - **Materials**: Textures and material properties
-	 * - **GPU Resources**: OpenGL VAO/VBOs for rendering
-	 *
-	 * The internal geometry representation (MeshGeometry) is intentionally
-	 * hidden as an implementation detail. Users interact only through the
-	 * SkinnedMesh public interface.
-	 *
-	 * ## Usage
-	 *
-	 * @code
-	 * SkinnedMesh mesh;
-	 * mesh.LoadFromFile("character.fbx");
-	 * mesh.InitBoneUniforms(skinningShader);
-	 *
-	 * // Each frame:
-	 * std::vector<glm::mat4> boneTransforms;
-	 * mesh.GetBoneTransforms(elapsedTime, boneTransforms);
-	 * for (size_t i = 0; i < boneTransforms.size(); i++)
-	 *     mesh.UploadBoneTransform(i, boneTransforms[i]);
-	 * mesh.Render();
-	 * @endcode
-	 */
 	class SkinnedMesh
 	{
 	public:
 		SkinnedMesh() = default;
 		~SkinnedMesh();
 
-		/**
-		 * @brief Loads mesh and animation data from file.
-		 *
-		 * Supports any format Assimp can read (FBX, GLTF, OBJ, DAE, etc.).
-		 * After loading, call InitBoneUniforms() with your shader before animating.
-		 *
-		 * @param filepath Path to mesh file
-		 * @return true if load succeeded
-		 */
 		bool LoadFromFile(const std::string& filepath);
 
-		/// @brief Renders using the mesh's assigned shader.
 		void Render();
 
-		/// @brief Renders using a specific shader (for shadow passes, etc.).
 		void Render(const Ref<Shader>& overrideShader);
 
 		// --- Shader Management ---
@@ -75,43 +39,22 @@ namespace Hominem {
 		Ref<Shader> GetShader() const { return m_Shader; }
 
 		// --- Skeleton Access ---
-		int GetBoneCount() const { return m_Skeleton.GetNumBones(); }
+		int GetBoneCount() const { return m_Skeleton.GetBoneCount(); }
 		bool HasSkeleton() const { return m_Skeleton.HasBones(); }
 		Skeleton& GetSkeleton() { return m_Skeleton; }
 		const Skeleton& GetSkeleton() const { return m_Skeleton; }
 
-		/**
-		 * @brief Computes bone transforms for the current animation frame.
-		 * @param timeSeconds Time since animation start (seconds)
-		 * @param[out] transforms Filled with one mat4 per bone
-		 */
 		void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms);
-
-		/**
-		 * @brief Uploads a single bone transform to the shader.
-		 * @param boneIndex Index of the bone (0 to GetBoneCount()-1)
-		 * @param transform The bone's final transformation matrix
-		 */
 		void UploadBoneTransform(uint32_t boneIndex, const glm::mat4& transform);
-
-		/**
-		 * @brief Caches uniform locations for g_Bones[] array.
-		 * Must be called once after loading, before rendering with animation.
-		 */
 		void InitBoneUniforms(const Ref<Shader>& shader);
 
 		// --- Geometry Queries (Read-Only) ---
-		uint32_t GetVertexCount() const { return static_cast<uint32_t>(m_Geometry.Positions.size()); }
-		uint32_t GetIndexCount() const { return static_cast<uint32_t>(m_Geometry.Indices.size()); }
-		uint32_t GetSubmeshCount() const { return static_cast<uint32_t>(m_Geometry.Submeshes.size()); }
+		uint32_t GetVertexCount() const { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Positions.size()); }
+		uint32_t GetIndexCount() const { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Indices.size()); }
+		uint32_t GetSubmeshCount() const { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Submeshes.size()); }
 		uint32_t GetVAO() const { return m_VAO; }
 
 	private:
-		/**
-		 * @brief Describes one submesh within the loaded model.
-		 *
-		 * Internal use only - not exposed in public API.
-		 */
 		struct Submesh
 		{
 			uint32_t NumIndices = 0;
@@ -120,13 +63,6 @@ namespace Hominem {
 			uint32_t MaterialIndex = INVALID_MATERIAL;
 		};
 
-		/**
-		 * @brief Internal geometry storage.
-		 *
-		 * This is kept private to enforce that geometry is only manipulated
-		 * through SkinnedMesh's controlled interface (LoadFromFile, etc.).
-		 * Users should never create or modify MeshGeometry directly.
-		 */
 		struct MeshGeometry
 		{
 			std::vector<glm::vec3> Positions;
@@ -184,7 +120,7 @@ namespace Hominem {
 		uint32_t m_Buffers[NUM_BUFFERS] = { 0 };
 
 		// --- Data ---
-		MeshGeometry m_Geometry;  // Private implementation detail
+		MeshGeometry m_Geometry;
 		std::vector<Ref<Texture2D>> m_Materials;
 		std::vector<VertexBoneData> m_VertexBoneData;
 
@@ -195,7 +131,7 @@ namespace Hominem {
 		// --- Rendering ---
 		Ref<Shader> m_Shader;
 
-		// --- Assimp (kept alive for animation data) ---
+		// --- Assimp ---
 		Assimp::Importer m_Importer;
 		const aiScene* m_pScene = nullptr;
 	};

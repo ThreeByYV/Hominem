@@ -1,0 +1,3 @@
+# This file ensures the PhysX directory is tracked in git
+# The actual PhysX SDK must be installed separately
+# See README.md for setup instructions

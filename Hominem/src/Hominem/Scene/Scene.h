@@ -11,6 +11,7 @@ namespace Hominem {
 	{
 	public:
 		Scene();
+		~Scene();
 
 		Entity CreateEntity(const std::string& name = "");
 

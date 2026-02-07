@@ -1,5 +1,5 @@
+#pragma once
 
-#include "hmnpch.h"
 #include "Event.h"
 #include "Hominem/Core/MouseCodes.h"
 

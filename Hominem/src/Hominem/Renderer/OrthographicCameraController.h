@@ -2,7 +2,6 @@
 
 #include "Hominem/Renderer/Camera.h"
 #include "Hominem/Core/Timestep.h"
-#include "Hominem/Renderer/OrthographicCamera.h"
 
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Events/MouseEvent.h"

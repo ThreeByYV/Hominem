@@ -20,12 +20,27 @@ namespace Hominem {
 	Application::Application()
 	{
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
-		
+
 		s_Instance = this;
 		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
-		
+
 		Renderer::Init();
+
+		// Initialize audio system
+		AudioConfig audioConfig;
+		audioConfig.SampleRate = 44100;
+		audioConfig.MaxSounds = 64;
+		audioConfig.MasterVolume = 1.0f;
+
+		if (!m_AudioSystem.Init(audioConfig))
+		{
+			HMN_CORE_ERROR("Failed to initialize AudioSystem!");
+		}
+		else
+		{
+			HMN_CORE_INFO("AudioSystem initialized successfully");
+		}
 
 		auto imGuiLayer = std::make_unique<ImGuiLayer>();
 		m_ImGuiLayer = imGuiLayer.get();
@@ -148,6 +163,9 @@ namespace Hominem {
 
 	Application::~Application()
 	{
+		// Shutdown audio system before other cleanup
+		m_AudioSystem.Shutdown();
+		HMN_CORE_INFO("AudioSystem shutdown complete");
 	}
 
 }

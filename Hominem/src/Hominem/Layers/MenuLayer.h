@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Hominem/Core/Hominem.h"
+#include "Hominem/Scene/Scene.h"
+#include "Hominem/Scene/Entity.h"
 
 namespace Hominem {
 
@@ -16,10 +18,10 @@ namespace Hominem {
 		void OnImGuiRender() override;
 	private:
 		OrthographicCameraController m_CameraController;
-		Ref<Texture2D> m_BackgroundTexture;
 
-		// Audio system
-		AudioSystem m_AudioSystem;
+		Ref<Scene> m_Scene;
+		Entity m_MusicEntity;
+		Entity m_CameraEntity;
 	};
 
 }
