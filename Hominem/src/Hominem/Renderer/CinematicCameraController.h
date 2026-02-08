@@ -220,4 +220,12 @@ namespace Hominem {
         bool OnWindowResized(WindowResizeEvent& e);
     };
 
+    /// Complete camera sequence configuration for JSON loading
+    struct CameraSequenceData
+    {
+        std::vector<CameraPoint> Points;
+        std::vector<CinematicSequence> Cinematics;
+        float Smoothing = 0.15f;
+    };
+
 }

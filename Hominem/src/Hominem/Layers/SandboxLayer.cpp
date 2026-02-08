@@ -8,6 +8,8 @@
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include "Hominem/Scene/Components.h"
+#include "Hominem/Serialization/JSON.h"
+#include "Hominem/Serialization/GameConfig.h"
 #include "MenuLayer.h"
 
 #include <imgui.h>
@@ -25,6 +27,12 @@ namespace Hominem {
 
 	void SandboxLayer::OnAttach()
 	{
+		// Load game configuration from JSON
+		if (!JSON::Load("src/Hominem/Resources/Config/game_config.json", m_Config))
+		{
+			HMN_CORE_ERROR("Failed to load game config - using defaults from struct definitions");
+		}
+
 		m_ActiveScene = CreateRef<Scene>();
 
 		// Create camera entity with proper ECS setup
@@ -33,7 +41,11 @@ namespace Hominem {
 
 		// Set orthographic camera for 2D/2.5D gameplay
 		auto& window = Application::Get().GetWindow();
-		cameraComp.Camera.SetOrthographic(10.0f, -10.0f, 10.0f);
+		cameraComp.Camera.SetOrthographic(
+			m_Config.Camera.OrthoSize,
+			m_Config.Camera.OrthoNear,
+			m_Config.Camera.OrthoFar
+		);
 		cameraComp.Primary = true;
 
 		// Set initial camera position
@@ -42,36 +54,50 @@ namespace Hominem {
 
 		// Setup ECS camera controller to control this entity
 		m_CameraController.SetEntity(m_CameraEntity);
-		m_CameraController.SetSpeed(5.0f);
+		m_CameraController.SetSpeed(m_Config.Camera.ControllerSpeed);
 
 		// Initialize cinematic camera controller
 		float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
 		m_CinematicCameraController = CreateRef<CinematicCameraController>(aspectRatio);
 
-		// Character falls to floor at y=-6, then runs right along the floor
-		// Camera offset: (x: right/left, y: up/down, z: forward/back)
-		// Zoom: higher = more zoomed out
-		// Floor is at y=-6, character stands at y≈-5
+		// Load camera configuration from JSON using generic loader
+		CameraSequenceData cameraData;
+		if (JSON::LoadNested(
+			"src/Hominem/Resources/Config/camera_config.json",
+			"camera_sequences.level_01_vista",
+			cameraData))
+		{
+			// Add camera points from config
+			for (const auto& point : cameraData.Points)
+			{
+				m_CinematicCameraController->AddCameraPoint(point.PlayerX, point.CameraOffset, point.CameraZoom);
+			}
 
-		// Starting area - camera lower, closer to action
-		m_CinematicCameraController->AddCameraPoint(-2.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
-		m_CinematicCameraController->AddCameraPoint(0.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
+			// Add cinematic sequences from config
+			for (const auto& cinematic : cameraData.Cinematics)
+			{
+				HMN_CORE_INFO("Loading cinematic: '{}' (StartX={:.1f}, EndX={:.1f}, Duration={:.1f}s)",
+					cinematic.Name, cinematic.StartX, cinematic.EndX, cinematic.Duration);
+				m_CinematicCameraController->AddCinematicSequence(
+					cinematic.Name,
+					cinematic.StartX,
+					cinematic.EndX,
+					cinematic.Duration,
+					cinematic.AutoMovePlayer,
+					cinematic.PlayerSpeed
+				);
+			}
 
-		// Approaching vista - camera starts rising
-		m_CinematicCameraController->AddCameraPoint(5.0f, { 0.0f, 5.0f, 0.0f }, 12.0f);
+			// Set smoothing from config
+			m_CinematicCameraController->SetSmoothingFactor(cameraData.Smoothing);
 
-		// VISTA PEAK - dramatic pullback, character tiny in frame
-		m_CinematicCameraController->AddCameraPoint(10.0f, { 0.0f, 10.0f, 0.0f }, 20.0f);
-
-		// After vista - camera swoops back down
-		m_CinematicCameraController->AddCameraPoint(15.0f, { 0.0f, 5.0f, 0.0f }, 12.0f);
-
-		// Return to normal follow
-		m_CinematicCameraController->AddCameraPoint(20.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
-
-		// Add cinematic sequence for vista (optional auto-play)
-		m_CinematicCameraController->AddCinematicSequence("vista_reveal", 7.0f, 13.0f, 4.0f, true, 2.0f);
-		m_CinematicCameraController->SetSmoothingFactor(0.15f);
+			HMN_CORE_INFO("Camera configuration loaded successfully! ({} points, {} cinematics)",
+				cameraData.Points.size(), cameraData.Cinematics.size());
+		}
+		else
+		{
+			HMN_CORE_ERROR("Failed to load camera config - camera sequences will not work!");
+		}
 
 		// Initialize scene viewport
 		m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
@@ -79,16 +105,16 @@ namespace Hominem {
 		Entity floor = m_ActiveScene->CreateEntity("Invisible Floor");
 
 		auto& floorTransform = floor.GetComponent<TransformComponent>();
-		floorTransform.Translation = { 0.0f, -6.0f, 0.0f };
-		floorTransform.Scale = { 20.0f, 0.5f, 20.0f };
+		floorTransform.Translation = m_Config.Physics.Floor.Position;
+		floorTransform.Scale = m_Config.Physics.Floor.Scale;
 
 		auto& floorRb = floor.AddComponent<Rigidbody3DComponent>();
 		floorRb.Type = Rigidbody3DComponent::BodyType::Static;
 
 		auto& floorCollider = floor.AddComponent<BoxCollider3DComponent>();
 		floorCollider.HalfExtents = { 1.0f, 1.0f, 1.0f };
-		floorCollider.StaticFriction = 0.8f;
-		floorCollider.DynamicFriction = 0.6f;
+		floorCollider.StaticFriction = m_Config.Physics.Floor.StaticFriction;
+		floorCollider.DynamicFriction = m_Config.Physics.Floor.DynamicFriction;
 
 		auto& debugSprite = floor.AddComponent<SpriteRendererComponent>();
 		debugSprite.Color = { 0.0f, 1.0f, 0.0f, 0.3f }; // Semi-transparent green
@@ -129,8 +155,8 @@ namespace Hominem {
 		// Create entity with mesh component
 		m_MeshEntity = m_ActiveScene->CreateEntity("Animated Character");
 
-		m_MeshPosition = glm::vec3(0.0f, 1.0f, 3.0f); // Start high so it falls
-		m_MeshScale = glm::vec3(0.01f, 0.01f, 0.01f);
+		m_MeshPosition = m_Config.Player.Spawn.Position;
+		m_MeshScale = m_Config.Player.Spawn.Scale;
 		// Rotate 90 degrees to face right by default (so idle faces sideways, not at camera)
 		m_MeshRotation = glm::vec3(0.0f, glm::radians(90.0f), 0.0f);
 
@@ -164,14 +190,14 @@ namespace Hominem {
 		// Add physics to the 3D model
 		auto& meshRb = m_MeshEntity.AddComponent<Rigidbody3DComponent>();
 		meshRb.Type = Rigidbody3DComponent::BodyType::Dynamic;
-		meshRb.Mass = 10.0f; // Character mass
-	
+		meshRb.Mass = m_Config.Player.Movement.Mass;
+
 
 		auto& meshCollider = m_MeshEntity.AddComponent<BoxCollider3DComponent>();
-		meshCollider.HalfExtents = { 0.5f, 0.5f, 0.3f }; // Character-shaped box (width, height, depth)
-		meshCollider.StaticFriction = 0.5f;
-		meshCollider.DynamicFriction = 0.5f;
-		meshCollider.Offset = { 0.0f, -0.75f, 0.00 };
+		meshCollider.HalfExtents = m_Config.Player.Collider.Extents;
+		meshCollider.StaticFriction = m_Config.Player.Collider.StaticFriction;
+		meshCollider.DynamicFriction = m_Config.Player.Collider.DynamicFriction;
+		meshCollider.Offset = m_Config.Player.Collider.Offset;
 
 		// Start physics runtime AFTER creating all entities
 		m_ActiveScene->OnRuntimeStart();
@@ -198,6 +224,8 @@ namespace Hominem {
 			}
 
 			glm::vec2 playerPos2D = { actualPlayerPos.x, actualPlayerPos.y };
+
+			// Controller handles all cinematic logic and logging internally
 			m_CinematicCameraController->UpdateCameraForPlayer(playerPos2D);
 			m_CinematicCameraController->OnUpdate(ts);
 
@@ -249,37 +277,63 @@ namespace Hominem {
 		if (m_MeshEntity && m_MeshEntity.HasComponent<AnimationComponent>())
 		{
 			auto& animComp = m_MeshEntity.GetComponent<AnimationComponent>();
-
-			// Check if player can move (not in cinematic auto-move)
-			bool canMove = !m_UseCinematicCamera || !m_CinematicCameraController->IsInCinematic();
+			auto& rb = m_MeshEntity.GetComponent<Rigidbody3DComponent>();
 
 			// Check individual movement keys
 			bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
 			bool pressingD = Input::IsKeyPressed(HMN_KEY_D);
 			bool isMoving = pressingA || pressingD;
 
-			// Handle character rotation and movement (face left or right)
-			float moveSpeed = 5.0f; // Units per second
-			if (canMove && pressingA)
+			// Player always has control (Planet of Lana style - cinematic is camera-only)
+			bool canMove = true;
+
+			// Handle character rotation and movement using PHYSICS VELOCITY
+			glm::vec3 velocity = glm::vec3(0.0f);
+
+			if (rb.RuntimeBody)
+			{
+				// Get current velocity to preserve Y (gravity/jumping)
+				velocity = rb.RuntimeBody->GetLinearVelocity();
+			}
+
+			if (pressingA)
 			{
 				// Face left (-90 degrees around Y axis)
 				m_MeshRotation.y = glm::radians(-90.0f);
-				// Move left
-				m_MeshPosition.x -= moveSpeed * ts;
+				// Move left using velocity
+				velocity.x = -m_Config.Player.Movement.Speed;
+				HMN_CORE_INFO("MOVING LEFT: Setting velocity X = {:.2f}", velocity.x);
 			}
-			else if (canMove && pressingD)
+			else if (pressingD)
 			{
 				// Face right (90 degrees around Y axis - flipped)
 				m_MeshRotation.y = glm::radians(90.0f);
-				// Move right
-				m_MeshPosition.x += moveSpeed * ts;
+				// Move right using velocity
+				velocity.x = m_Config.Player.Movement.Speed;
+				HMN_CORE_INFO("MOVING RIGHT: Setting velocity X = {:.2f}", velocity.x);
 			}
-			else if (m_UseCinematicCamera && m_CinematicCameraController->IsInCinematic())
+			else
 			{
-				// During cinematic - get auto-moved player position
-				glm::vec2 autoPos = m_CinematicCameraController->GetPlayerPosition();
-				m_MeshPosition.x = autoPos.x;
-				m_MeshPosition.y = autoPos.y;
+				// Not moving - stop horizontal velocity but preserve vertical (gravity)
+				velocity.x = 0.0f;
+			}
+
+			// Apply velocity to rigidbody
+			if (rb.RuntimeBody)
+			{
+				rb.RuntimeBody->SetLinearVelocity(velocity);
+
+				// Update m_MeshRotation only (position comes from physics now)
+				if (m_MeshEntity.HasComponent<TransformComponent>())
+				{
+					auto& transform = m_MeshEntity.GetComponent<TransformComponent>();
+					transform.Rotation = m_MeshRotation;
+
+					// Log actual position from physics
+					HMN_CORE_TRACE("Physics Position: ({:.2f}, {:.2f}, {:.2f}), Velocity: ({:.2f}, {:.2f}, {:.2f})",
+						transform.Translation.x, transform.Translation.y, transform.Translation.z,
+						velocity.x, velocity.y, velocity.z);
+				}
 			}
 
 			// Handle animation state transitions
@@ -303,13 +357,12 @@ namespace Hominem {
 			}
 		}
 
-		// Update mesh transform from ImGui controls
+		// Update mesh scale from ImGui controls (rotation is handled in movement code above)
 		if (m_MeshEntity && m_MeshEntity.HasComponent<TransformComponent>())
 		{
 			auto& meshTransform = m_MeshEntity.GetComponent<TransformComponent>();
-			meshTransform.Translation = m_MeshPosition;
-			meshTransform.Rotation = m_MeshRotation;
 			meshTransform.Scale = m_MeshScale;
+			// Note: Position is now controlled by physics, rotation by movement code above
 		}
 
 		// Render
@@ -441,7 +494,10 @@ namespace Hominem {
 				m_CinematicCameraController->SetZoomLevel(zoom);
 
 			if (ImGui::Button("Trigger Vista"))
+			{
+				HMN_CORE_WARN("Button clicked! Triggering vista_reveal cinematic...");
 				m_CinematicCameraController->TriggerCinematic("vista_reveal");
+			}
 			ImGui::SameLine();
 			if (ImGui::Button("Trigger Dramatic"))
 				m_CinematicCameraController->TriggerCinematic("dramatic_moment");
