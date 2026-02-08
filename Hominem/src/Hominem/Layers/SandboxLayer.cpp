@@ -48,21 +48,30 @@ namespace Hominem {
 		float aspectRatio = (float)window.GetWidth() / (float)window.GetHeight();
 		m_CinematicCameraController = CreateRef<CinematicCameraController>(aspectRatio);
 
-		// Setup cinematic camera points for dramatic sequences
-		m_CinematicCameraController->AddCameraPoint(-50.0f, { -3.0f, 1.5f, 0.0f }, 6.0f);
-		m_CinematicCameraController->AddCameraPoint(-20.0f, { -1.0f, 3.0f, 0.0f }, 8.0f);
-		m_CinematicCameraController->AddCameraPoint(-10.0f, { 2.0f, 8.0f, 0.0f }, 14.0f);
-		m_CinematicCameraController->AddCameraPoint(0.0f, { 0.0f, 15.0f, 0.0f }, 25.0f);
-		m_CinematicCameraController->AddCameraPoint(10.0f, { 4.0f, 7.0f, 0.0f }, 16.0f);
-		m_CinematicCameraController->AddCameraPoint(20.0f, { 0.0f, 2.5f, 0.0f }, 9.0f);
-		m_CinematicCameraController->AddCameraPoint(35.0f, { 6.0f, 4.0f, 0.0f }, 11.0f);
-		m_CinematicCameraController->AddCameraPoint(45.0f, { 10.0f, 12.0f, 0.0f }, 22.0f);
-		m_CinematicCameraController->AddCameraPoint(60.0f, { 0.0f, 2.0f, 0.0f }, 8.0f);
+		// Character falls to floor at y=-6, then runs right along the floor
+		// Camera offset: (x: right/left, y: up/down, z: forward/back)
+		// Zoom: higher = more zoomed out
+		// Floor is at y=-6, character stands at y≈-5
 
-		// Add cinematic sequences
-		m_CinematicCameraController->AddCinematicSequence("vista_reveal", -22.0f, 12.0f, 8.0f, true, 1.5f);
-		m_CinematicCameraController->AddCinematicSequence("dramatic_moment", 38.0f, 55.0f, 7.0f, true, 2.2f);
-		m_CinematicCameraController->SetSmoothingFactor(0.1f);
+		// Starting area - camera lower, closer to action
+		m_CinematicCameraController->AddCameraPoint(-2.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
+		m_CinematicCameraController->AddCameraPoint(0.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
+
+		// Approaching vista - camera starts rising
+		m_CinematicCameraController->AddCameraPoint(5.0f, { 0.0f, 5.0f, 0.0f }, 12.0f);
+
+		// VISTA PEAK - dramatic pullback, character tiny in frame
+		m_CinematicCameraController->AddCameraPoint(10.0f, { 0.0f, 10.0f, 0.0f }, 20.0f);
+
+		// After vista - camera swoops back down
+		m_CinematicCameraController->AddCameraPoint(15.0f, { 0.0f, 5.0f, 0.0f }, 12.0f);
+
+		// Return to normal follow
+		m_CinematicCameraController->AddCameraPoint(20.0f, { 0.0f, 2.5f, 0.0f }, 8.0f);
+
+		// Add cinematic sequence for vista (optional auto-play)
+		m_CinematicCameraController->AddCinematicSequence("vista_reveal", 7.0f, 13.0f, 4.0f, true, 2.0f);
+		m_CinematicCameraController->SetSmoothingFactor(0.15f);
 
 		// Initialize scene viewport
 		m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
@@ -181,10 +190,30 @@ namespace Hominem {
 		// Update appropriate camera controller based on mode
 		if (m_UseCinematicCamera)
 		{
-			// Cinematic camera mode - update based on player position
-			glm::vec2 playerPos2D = { m_MeshPosition.x, m_MeshPosition.y };
+			// Cinematic camera mode - get actual player position from physics entity
+			glm::vec3 actualPlayerPos = m_MeshPosition;
+			if (m_MeshEntity && m_MeshEntity.HasComponent<TransformComponent>())
+			{
+				actualPlayerPos = m_MeshEntity.GetComponent<TransformComponent>().Translation;
+			}
+
+			glm::vec2 playerPos2D = { actualPlayerPos.x, actualPlayerPos.y };
 			m_CinematicCameraController->UpdateCameraForPlayer(playerPos2D);
 			m_CinematicCameraController->OnUpdate(ts);
+
+			// Sync ECS camera entity with cinematic camera so Scene renders correctly
+			if (m_CameraEntity && m_CameraEntity.HasComponent<CameraComponent>())
+			{
+				auto& cameraTransform = m_CameraEntity.GetComponent<TransformComponent>();
+				auto& cameraComp = m_CameraEntity.GetComponent<CameraComponent>();
+
+				// Update camera position to match cinematic camera
+				cameraTransform.Translation = m_CinematicCameraController->GetCamera().GetPosition();
+
+				// Update camera zoom to match cinematic camera
+				float cinematicZoom = m_CinematicCameraController->GetZoomLevel();
+				cameraComp.Camera.SetOrthographicSize(cinematicZoom);
+			}
 		}
 		else
 		{
