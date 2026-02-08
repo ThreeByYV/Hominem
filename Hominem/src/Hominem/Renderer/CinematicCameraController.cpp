@@ -103,6 +103,9 @@ namespace Hominem {
         {
             if (cinematic.Name == name)
             {
+                HMN_CORE_WARN("🎬 CINEMATIC STARTED: '{}' at x={:.2f} (duration={:.1f}s, autoMove={})",
+                    name, m_CurrentPlayerPos.x, cinematic.Duration, cinematic.AutoMovePlayer);
+
                 m_InCinematic = true;
                 m_ActiveCinematic = &cinematic;
                 m_CinematicProgress = 0.0f;
@@ -113,6 +116,11 @@ namespace Hominem {
 
     void CinematicCameraController::EndCinematic()
     {
+        if (m_ActiveCinematic)
+        {
+            HMN_CORE_INFO("🎬 CINEMATIC ENDED: '{}' at x={:.2f}", m_ActiveCinematic->Name, m_CurrentPlayerPos.x);
+        }
+
         m_InCinematic = false;
         m_ActiveCinematic = nullptr;
         m_CinematicProgress = 0.0f;
@@ -123,6 +131,17 @@ namespace Hominem {
     {
         for (auto& cinematic : m_Cinematics)
         {
+            // Log when approaching trigger (1 unit before)
+            static std::unordered_map<std::string, bool> s_ApproachLogged;
+            if (m_CurrentPlayerPos.x >= cinematic.StartX - 1.0f &&
+                m_CurrentPlayerPos.x < cinematic.StartX &&
+                !s_ApproachLogged[cinematic.Name])
+            {
+                HMN_CORE_WARN("Approaching cinematic '{}' trigger at x={:.1f}! Current x={:.2f}",
+                    cinematic.Name, cinematic.StartX, m_CurrentPlayerPos.x);
+                s_ApproachLogged[cinematic.Name] = true;
+            }
+
             // Trigger when player enters the zone (1 unit tolerance)
             if (m_CurrentPlayerPos.x >= cinematic.StartX &&
                 m_CurrentPlayerPos.x <= cinematic.StartX + 1.0f)

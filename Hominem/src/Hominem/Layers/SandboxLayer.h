@@ -6,6 +6,7 @@
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Scene/Entity.h"
+#include "Hominem/Serialization/GameConfig.h"
 
 namespace Hominem {
 
@@ -25,6 +26,9 @@ namespace Hominem {
 		static long long GetCurrentTimeMillis();
 
 	private:
+		// Game configuration loaded from JSON
+		GameConfig m_Config;
+
 		// ECS-based camera controller
 		EntityCameraController m_CameraController;
 

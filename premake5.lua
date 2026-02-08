@@ -30,6 +30,7 @@ IncludeDir["msdf_atlas_gen"] = "Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen"
 IncludeDir["miniaudio"] = "Hominem/vendor/miniaudio"
 IncludeDir["assimp"] = "Hominem/vendor/assimp/include"
 IncludeDir["assimp_build"] = "Hominem/vendor/assimp/build/include"
+IncludeDir["json"] = "Hominem/vendor/json"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -81,7 +82,8 @@ project "Hominem"
         "%{IncludeDir.msdf_atlas_gen}",
         "%{IncludeDir.miniaudio}",
         "%{IncludeDir.assimp}",
-        "%{IncludeDir.assimp_build}"
+        "%{IncludeDir.assimp_build}",
+        "%{IncludeDir.json}"
     }
 
     links
