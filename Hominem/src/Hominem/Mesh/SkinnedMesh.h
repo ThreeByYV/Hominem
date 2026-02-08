@@ -29,6 +29,7 @@ namespace Hominem {
 		~SkinnedMesh();
 
 		bool LoadFromFile(const std::string& filepath);
+		bool LoadAdditionalAnimation(const std::string& filepath);
 
 		void Render();
 
@@ -44,9 +45,24 @@ namespace Hominem {
 		Skeleton& GetSkeleton() { return m_Skeleton; }
 		const Skeleton& GetSkeleton() const { return m_Skeleton; }
 
-		void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms);
+		void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms, bool disableRootMotion = false);
+		void GetBoneTransformsBlended(float timeSeconds, std::vector<glm::mat4>& transforms,
+			uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion = false);
 		void UploadBoneTransform(uint32_t boneIndex, const glm::mat4& transform);
 		void InitBoneUniforms(const Ref<Shader>& shader);
+
+		// --- Animation Access ---
+		uint32_t GetAnimationCount() const
+		{
+			uint32_t count = m_pScene ? m_pScene->mNumAnimations : 0;
+			// Each additional scene adds its animations
+			for (const auto* scene : m_AdditionalScenes)
+			{
+				if (scene)
+					count += scene->mNumAnimations;
+			}
+			return count;
+		}
 
 		// --- Geometry Queries (Read-Only) ---
 		uint32_t GetVertexCount() const { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Positions.size()); }
@@ -134,6 +150,10 @@ namespace Hominem {
 		// --- Assimp ---
 		Assimp::Importer m_Importer;
 		const aiScene* m_pScene = nullptr;
+
+		// Additional animation files (for multi-file animation support)
+		std::vector<Scope<Assimp::Importer>> m_AdditionalImporters;
+		std::vector<const aiScene*> m_AdditionalScenes;
 	};
 
 }

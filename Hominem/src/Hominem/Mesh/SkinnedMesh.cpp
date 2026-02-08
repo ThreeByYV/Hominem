@@ -4,11 +4,13 @@
 
 #include "glm/gtc/type_ptr.hpp"
 #include "Hominem/Utils/Renderer.h"
+#include "Hominem/Core/Core.h"
 
 namespace Hominem {
 
 	// Vertex attribute locations (must match shader layout qualifiers)
 	namespace VertexAttrib {
+
 		constexpr int Position = 0;
 		constexpr int TexCoord = 1;
 		constexpr int Normal = 2;
@@ -56,6 +58,10 @@ namespace Hominem {
 		ReleaseGPUResources();
 		CreateGPUBuffers();
 
+		// Clear any previous additional animations
+		m_AdditionalImporters.clear();
+		m_AdditionalScenes.clear();
+
 		HMN_CORE_INFO("SkinnedMesh::LoadFromFile - Calling Assimp ReadFile...");
 		m_pScene = m_Importer.ReadFile(filepath.c_str(), ASSIMP_LOAD_FLAGS);
 
@@ -93,6 +99,41 @@ namespace Hominem {
 
 		glBindVertexArray(0);
 		return success;
+	}
+
+	bool SkinnedMesh::LoadAdditionalAnimation(const std::string& filepath)
+	{
+		HMN_CORE_INFO("SkinnedMesh::LoadAdditionalAnimation - Loading animation from '{}'", filepath);
+
+		// Create a new importer for this animation file
+		auto importer = CreateScope<Assimp::Importer>();
+		const aiScene* pScene = importer->ReadFile(filepath.c_str(), ASSIMP_LOAD_FLAGS);
+
+		if (!pScene)
+		{
+			HMN_CORE_ERROR("SkinnedMesh: Failed to load animation from '{0}': {1}", filepath, std::string(importer->GetErrorString()));
+			return false;
+		}
+
+		if (pScene->mNumAnimations == 0)
+		{
+			HMN_CORE_WARN("SkinnedMesh: File '{}' contains no animations!", filepath);
+			return false;
+		}
+
+		HMN_CORE_INFO("SkinnedMesh: Loaded additional animation from '{}' - {} animations",
+			filepath, pScene->mNumAnimations);
+
+		// Store the importer and scene
+		m_AdditionalScenes.push_back(pScene);
+		m_AdditionalImporters.push_back(std::move(importer));
+
+		// Add the scene to the skeleton
+		m_Skeleton.AddAdditionalScene(pScene);
+
+		HMN_CORE_INFO("SkinnedMesh: Total animations now: {}", GetAnimationCount());
+
+		return true;
 	}
 
 	void SkinnedMesh::CreateGPUBuffers()
@@ -422,9 +463,15 @@ namespace Hominem {
 		}
 	}
 
-	void SkinnedMesh::GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms)
+	void SkinnedMesh::GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
-		m_Skeleton.GetBoneTransforms(timeSeconds, transforms);
+		m_Skeleton.GetBoneTransforms(timeSeconds, transforms, disableRootMotion);
+	}
+
+	void SkinnedMesh::GetBoneTransformsBlended(float timeSeconds, std::vector<glm::mat4>& transforms,
+		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
+	{
+		m_Skeleton.GetBoneTransformsBlended(timeSeconds, transforms, startAnimIndex, endAnimIndex, blendFactor, disableRootMotion);
 	}
 
 	void SkinnedMesh::UploadBoneTransform(uint32_t boneIndex, const glm::mat4& transform)
