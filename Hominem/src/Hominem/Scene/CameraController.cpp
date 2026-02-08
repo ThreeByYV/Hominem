@@ -17,7 +17,7 @@ namespace Hominem {
 
 		// 2D camera movement
 		// WASD moves camera in XY plane only
-		float velocity = m_MoveSpeed * ts * 0.75;
+		float velocity = m_MoveSpeed * ts * 0.5;
 
 		if (Input::IsKeyPressed(HMN_KEY_W))
 			position.y += velocity;  // Move up

@@ -144,7 +144,7 @@ namespace Hominem {
 	 * 3. Recursively walk scene hierarchy computing bone transforms
 	 * 4. Copy final transforms to output vector
 	 */
-	void Skeleton::GetBoneTransforms(float animationTimeSec, std::vector<glm::mat4>& transforms)
+	void Skeleton::GetBoneTransforms(float animationTimeSec, std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		if (!m_pScene || !m_pScene->mAnimations || m_pScene->mNumAnimations == 0)
 		{
@@ -165,12 +165,97 @@ namespace Hominem {
 		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(m_pScene->mAnimations[0]->mDuration));
 
 		// This is where the magic happens - recursively compute all bone transforms
-		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, identity);
+		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, identity, disableRootMotion);
 
 		// Copy results for shader upload
 		transforms.resize(m_BoneInfo.size());
+
 		for (uint32_t i = 0; i < m_BoneInfo.size(); i++)
 			transforms[i] = m_BoneInfo[i].FinalTransformation;
+	}
+
+	const aiScene* Skeleton::GetSceneForAnimIndex(uint32_t animIndex) const
+	{
+		// Animation 0 is always in the main scene
+		if (animIndex == 0 && m_pScene)
+			return m_pScene;
+
+		// Additional animations (1, 2, 3...) are in additional scenes
+		// Each additional scene contains 1 animation at index 0
+		uint32_t additionalIndex = animIndex - 1;
+		if (additionalIndex < m_AdditionalScenes.size())
+			return m_AdditionalScenes[additionalIndex];
+
+		HMN_CORE_WARN("Skeleton: Animation index {} not found", animIndex);
+		return nullptr;
+	}
+
+	uint32_t Skeleton::GetAnimIndexInScene(uint32_t globalAnimIndex) const
+	{
+		// Animation 0 is at index 0 in main scene
+		if (globalAnimIndex == 0)
+			return 0;
+
+		// Additional animations are always at index 0 in their respective scenes
+		return 0;
+	}
+
+	float Skeleton::CalcAnimationTimeTicks(float timeInSeconds, uint32_t animationIndex)
+	{
+		const aiScene* pScene = GetSceneForAnimIndex(animationIndex);
+		if (!pScene || !pScene->mAnimations || pScene->mNumAnimations == 0)
+		{
+			HMN_CORE_WARN("Skeleton: Invalid animation index {}", animationIndex);
+			return 0.0f;
+		}
+
+		uint32_t sceneAnimIndex = GetAnimIndexInScene(animationIndex);
+		const aiAnimation* pAnimation = pScene->mAnimations[sceneAnimIndex];
+		float ticksPerSecond = static_cast<float>(pAnimation->mTicksPerSecond != 0
+			? pAnimation->mTicksPerSecond : 25.0f);
+		float timeInTicks = timeInSeconds * ticksPerSecond;
+		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(pAnimation->mDuration));
+
+		return animationTimeTicks;
+	}
+
+	void Skeleton::GetBoneTransformsBlended(float timeInSeconds, std::vector<glm::mat4>& blendedTransforms, uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
+	{
+		const aiScene* startScene = GetSceneForAnimIndex(startAnimIndex);
+		const aiScene* endScene = GetSceneForAnimIndex(endAnimIndex);
+
+		if (!startScene || !endScene)
+		{
+			HMN_CORE_WARN("Skeleton: Invalid scenes for animation blending");
+			blendedTransforms.resize(m_BoneInfo.size(), glm::mat4(1.0f));
+			return;
+		}
+
+		float startAnimTimeTicks = CalcAnimationTimeTicks(timeInSeconds, startAnimIndex);
+		float endAnimTimeTicks = CalcAnimationTimeTicks(timeInSeconds, endAnimIndex);
+
+		uint32_t startSceneAnimIndex = GetAnimIndexInScene(startAnimIndex);
+		uint32_t endSceneAnimIndex = GetAnimIndexInScene(endAnimIndex);
+
+		if (startSceneAnimIndex >= startScene->mNumAnimations || endSceneAnimIndex >= endScene->mNumAnimations)
+		{
+			HMN_CORE_WARN("Skeleton: Animation indices out of range");
+			blendedTransforms.resize(m_BoneInfo.size(), glm::mat4(1.0f));
+			return;
+		}
+
+		const aiAnimation* startAnimation = startScene->mAnimations[startSceneAnimIndex];
+		const aiAnimation* endAnimation = endScene->mAnimations[endSceneAnimIndex];
+
+		// Use the main scene's root node for hierarchy (both animations should have same skeleton structure)
+		ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks, m_pScene->mRootNode, glm::mat4(1.0f), *startAnimation, *endAnimation, blendFactor, disableRootMotion);
+
+		blendedTransforms.resize(m_BoneInfo.size());
+
+		for (uint32_t i = 0; i < m_BoneInfo.size(); i++)
+		{
+			blendedTransforms[i] = m_BoneInfo[i].FinalTransformation;
+		}
 	}
 
 	/**
@@ -191,7 +276,7 @@ namespace Hominem {
 	 * 5. Recurse to children, passing our global transform as their parent
 	 */
 	void Skeleton::ReadNodeHierarchy(float animationTimeTicks, const aiNode* pNode,
-		const glm::mat4& parentTransform)
+		const glm::mat4& parentTransform, bool disableRootMotion)
 	{
 		std::string nodeName{ pNode->mName.C_Str() };
 
@@ -199,6 +284,9 @@ namespace Hominem {
 
 		// Default: use the node's static transform from the bind pose
 		glm::mat4 nodeTransform = AiToGlm(pNode->mTransformation);
+
+		// Check if this is the root node (parent transform is identity)
+		bool isRootNode = (parentTransform == glm::mat4(1.0f));
 
 		// Check if this node has animation data
 		const aiNodeAnim* pNodeAnim = FindNodeAnim(pAnimation, nodeName);
@@ -220,6 +308,13 @@ namespace Hominem {
 			// Translation
 			aiVector3D translation;
 			CalcInterpolatedTranslation(translation, animationTimeTicks, pNodeAnim);
+
+			// If root motion is disabled and this is the root node, zero out translation
+			if (disableRootMotion && isRootNode)
+			{
+				translation = aiVector3D(0.0f, 0.0f, 0.0f);
+			}
+
 			glm::mat4 trans = glm::translate(glm::mat4(1.0f), AiToGlm(translation));
 
 			// Combine: Translation * Rotation * Scale (TRS order)
@@ -247,7 +342,92 @@ namespace Hominem {
 
 		// Recurse to children
 		for (uint32_t i = 0; i < pNode->mNumChildren; i++)
-			ReadNodeHierarchy(animationTimeTicks, pNode->mChildren[i], globalTransform);
+			ReadNodeHierarchy(animationTimeTicks, pNode->mChildren[i], globalTransform, disableRootMotion);
+	}
+
+	void Skeleton::ReadNodeHierarchyBlended(float startAnimTimeTicks, float endAnimTimeTicks, const aiNode* pNode, const glm::mat4& parentTransform,
+											const aiAnimation& startAnimation, const aiAnimation& endAnimation, float blendFactor, bool disableRootMotion)
+	{
+		std::string nodeName{ pNode->mName.C_Str() };
+		glm::mat4 nodeTransformation{ AiToGlm(pNode->mTransformation) };
+
+		// Check if this is the root node
+		bool isRootNode = (parentTransform == glm::mat4(1.0f));
+
+		const aiNodeAnim* pStartNodeAnim = FindNodeAnim(&startAnimation, nodeName);
+
+		LocalTransform startTransform{};
+
+		if (pStartNodeAnim)
+		{
+			CalcLocalTransform(startTransform, startAnimTimeTicks, pStartNodeAnim);
+		}
+
+		LocalTransform endTransform{};
+
+		const aiNodeAnim* pEndNodeAnim = FindNodeAnim(&endAnimation, nodeName);
+
+		HMN_CORE_ASSERT((pStartNodeAnim && pEndNodeAnim) || (!pStartNodeAnim && !pEndNodeAnim),
+			"On the node {} there is an animation node for only one of the start/end animations. This is not supported!", nodeName.c_str());
+
+		if (pEndNodeAnim)
+		{
+			CalcLocalTransform(endTransform, endAnimTimeTicks, pEndNodeAnim);
+		}
+
+		if (pStartNodeAnim && pEndNodeAnim)
+		{
+			// Interpolate scaling
+			const auto& scale0 = startTransform.Scaling;
+			const auto& scale1 = endTransform.Scaling;
+			aiVector3D blendedScaling = (1.0f - blendFactor) * scale0 + scale1 * blendFactor;
+			glm::mat4 scalingM = glm::scale(glm::mat4(1.0f), AiToGlm(blendedScaling));
+
+			// Interpolate rotation
+			const auto& rot0 = startTransform.Rotation;
+			const auto& rot1 = endTransform.Rotation;
+			aiQuaternion blendedRot{};
+			aiQuaternion::Interpolate(blendedRot, rot0, rot1, blendFactor);
+			glm::mat4 rotationM = glm::toMat4(AiToGlm(blendedRot));
+
+			// Interpolate translation
+			const auto& pos0 = startTransform.Translation;
+			const auto& pos1 = endTransform.Translation;
+			aiVector3D blendedTranslation = (1.0f - blendFactor) * pos0 + pos1 * blendFactor;
+
+			// If root motion is disabled and this is the root node, zero out translation
+			if (disableRootMotion && isRootNode)
+			{
+				blendedTranslation = aiVector3D(0.0f, 0.0f, 0.0f);
+			}
+
+			glm::mat4 translationM = glm::translate(glm::mat4(1.0f), AiToGlm(blendedTranslation));
+
+			// Combine all (TRS order: Translation * Rotation * Scale)
+			nodeTransformation = translationM * rotationM * scalingM;
+		}
+
+		glm::mat4 globalTransform = parentTransform * nodeTransformation;
+
+		if (m_BoneNameToIndexMap.contains(nodeName))
+		{
+			uint32_t boneIndex = m_BoneNameToIndexMap[nodeName];
+			m_BoneInfo[boneIndex].FinalTransformation = m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
+		}
+
+		// Recurse to all children
+		for (size_t i = 0; i < pNode->mNumChildren; i++)
+		{
+			ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks, pNode->mChildren[i], globalTransform,
+				startAnimation, endAnimation, blendFactor, disableRootMotion);
+		}
+	}
+
+	void Skeleton::CalcLocalTransform(LocalTransform& localTransform, float animTimeTicks, const aiNodeAnim* pNodeAnim)
+	{
+		CalcInterpolatedScaling(localTransform.Scaling, animTimeTicks, pNodeAnim);
+		CalcInterpolatedRotation(localTransform.Rotation, animTimeTicks, pNodeAnim);
+		CalcInterpolatedTranslation(localTransform.Translation, animTimeTicks, pNodeAnim);
 	}
 
 	/**
@@ -259,7 +439,7 @@ namespace Hominem {
 		for (uint32_t i = 0; i < pAnimation->mNumChannels; i++)
 		{
 			const aiNodeAnim* pNodeAnim = pAnimation->mChannels[i];
-			if (std::string{ pNodeAnim->mNodeName.data } == nodeName)
+			if (std::string{ pNodeAnim->mNodeName.C_Str() } == nodeName)
 				return pNodeAnim;
 		}
 		return nullptr;

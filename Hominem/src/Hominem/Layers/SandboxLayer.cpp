@@ -50,7 +50,7 @@ namespace Hominem {
 		Entity floor = m_ActiveScene->CreateEntity("Invisible Floor");
 
 		auto& floorTransform = floor.GetComponent<TransformComponent>();
-		floorTransform.Translation = { 0.0f, -5.0f, 0.0f };
+		floorTransform.Translation = { 0.0f, -6.0f, 0.0f };
 		floorTransform.Scale = { 20.0f, 0.5f, 20.0f };
 
 		auto& floorRb = floor.AddComponent<Rigidbody3DComponent>();
@@ -64,16 +64,28 @@ namespace Hominem {
 		auto& debugSprite = floor.AddComponent<SpriteRendererComponent>();
 		debugSprite.Color = { 0.0f, 1.0f, 0.0f, 0.3f }; // Semi-transparent green
 
-		// Load animated mesh
-		//component should auto load mesh no manually LoadFromFile needed todo
+		// Load animated mesh from Idle.fbx (contains geometry + idle animation)
 		auto mesh = CreateRef<SkinnedMesh>();
-		std::string meshPath = "src/Hominem/Resources/Textures/test.fbx";
+		std::string idlePath = "src/Hominem/Resources/Textures/Idle.fbx";
 
-		if (!mesh->LoadFromFile(meshPath))
+		if (!mesh->LoadFromFile(idlePath))
 		{
-			HMN_CORE_ERROR("Failed to load mesh from {}", meshPath);
+			HMN_CORE_ERROR("Failed to load mesh from {}", idlePath);
 			return;
 		}
+
+		HMN_CORE_INFO("Loaded base mesh with {} animations", mesh->GetAnimationCount());
+
+		// Load the running animation from Running.fbx
+		std::string runningPath = "src/Hominem/Resources/Textures/Running.fbx";
+		if (!mesh->LoadAdditionalAnimation(runningPath))
+		{
+			HMN_CORE_ERROR("Failed to load running animation from {}", runningPath);
+			// Continue anyway - we'll just use idle animation only
+		}
+
+		uint32_t animCount = mesh->GetAnimationCount();
+		HMN_CORE_INFO("Total animations loaded: {}", animCount);
 
 		auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
 		if (!skinningShader)
@@ -90,15 +102,35 @@ namespace Hominem {
 
 		m_MeshPosition = glm::vec3(0.0f, 1.0f, 3.0f); // Start high so it falls
 		m_MeshScale = glm::vec3(0.01f, 0.01f, 0.01f);
-		m_MeshRotation = glm::vec3(0.0f, 0.0f, 0.0f);
+		// Rotate 90 degrees to face right by default (so idle faces sideways, not at camera)
+		m_MeshRotation = glm::vec3(0.0f, glm::radians(90.0f), 0.0f);
 
 		auto& meshTransform = m_MeshEntity.GetComponent<TransformComponent>();
 		meshTransform.Translation = m_MeshPosition;
 		meshTransform.Scale = m_MeshScale;
 		meshTransform.Rotation = m_MeshRotation;
 
-		m_MeshEntity.AddComponent<SkinnedMeshComponent>(mesh, meshPath);
-		m_MeshEntity.AddComponent<AnimationComponent>(1.0f, true);
+		m_MeshEntity.AddComponent<SkinnedMeshComponent>(mesh, idlePath);
+
+		// Set up animation component with blending support
+		auto& animComp = m_MeshEntity.AddComponent<AnimationComponent>(1.0f, true);
+
+		// Only enable blending if we have at least 2 animations
+		if (animCount >= 2)
+		{
+			HMN_CORE_INFO("Setting up blended animations: Idle(0) <-> Running(1)");
+			animComp.UseBlending = true;
+			animComp.StartAnimIndex = 0;  // Idle animation
+			animComp.EndAnimIndex = 1;    // Running animation
+			animComp.TargetAnimIndex = 0; // Start with idle
+			animComp.BlendFactor = 0.0f;  // Fully idle
+			animComp.BlendSpeed = 5.0f;   // Smooth transition
+		}
+		else
+		{
+			HMN_CORE_WARN("Only {} animation(s) found - blending disabled. Load a mesh with both Idle and Running animations!", animCount);
+			animComp.UseBlending = false;
+		}
 
 		// Add physics to the 3D model
 		auto& meshRb = m_MeshEntity.AddComponent<Rigidbody3DComponent>();
@@ -110,7 +142,7 @@ namespace Hominem {
 		meshCollider.HalfExtents = { 0.5f, 0.5f, 0.3f }; // Character-shaped box (width, height, depth)
 		meshCollider.StaticFriction = 0.5f;
 		meshCollider.DynamicFriction = 0.5f;
-		meshCollider.Offset = { 0.0f, 0.25f, 0.00 };
+		meshCollider.Offset = { 0.0f, -0.75f, 0.00 };
 
 		// Start physics runtime AFTER creating all entities
 		m_ActiveScene->OnRuntimeStart();
@@ -150,6 +182,54 @@ namespace Hominem {
 		{
 			TransitionTo<MenuLayer>();
 			return;
+		}
+
+		// Handle animation state transitions and character rotation based on input
+		if (m_MeshEntity && m_MeshEntity.HasComponent<AnimationComponent>())
+		{
+			auto& animComp = m_MeshEntity.GetComponent<AnimationComponent>();
+
+			// Check individual movement keys
+			bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
+			bool pressingD = Input::IsKeyPressed(HMN_KEY_D);
+			bool isMoving = pressingA || pressingD;
+
+			// Handle character rotation and movement (face left or right)
+			float moveSpeed = 5.0f; // Units per second
+			if (pressingA)
+			{
+				// Face left (-90 degrees around Y axis)
+				m_MeshRotation.y = glm::radians(-90.0f);
+				// Move left
+				m_MeshPosition.x -= moveSpeed * ts;
+			}
+			else if (pressingD)
+			{
+				// Face right (90 degrees around Y axis - flipped)
+				m_MeshRotation.y = glm::radians(90.0f);
+				// Move right
+				m_MeshPosition.x += moveSpeed * ts;
+			}
+
+			// Handle animation state transitions
+			// Keep Start=Idle(0), End=Running(1) always
+			// BlendFactor: 0.0 = Idle, 1.0 = Running
+			if (isMoving && m_CurrentState == CharacterState::Idle)
+			{
+				// Transition to running - blend towards 1.0
+				m_CurrentState = CharacterState::Running;
+				animComp.TargetAnimIndex = 1; // Running
+
+				HMN_CORE_INFO("Transitioning to Running (Blend={} -> 1.0)", animComp.BlendFactor);
+			}
+			else if (!isMoving && m_CurrentState == CharacterState::Running)
+			{
+				// Transition back to idle - blend towards 0.0
+				m_CurrentState = CharacterState::Idle;
+				animComp.TargetAnimIndex = 0; // Idle
+
+				HMN_CORE_INFO("Transitioning to Idle (Blend={} -> 0.0)", animComp.BlendFactor);
+			}
 		}
 
 		// Update mesh transform from ImGui controls
@@ -245,6 +325,18 @@ namespace Hominem {
 			ImGui::Checkbox("Play Animation", &animComp.Playing);
 			ImGui::DragFloat("Animation Speed", &animComp.AnimationSpeed, 0.1f, 0.0f, 5.0f);
 			ImGui::Text("Animation Time: %.2f", animComp.AnimationTime);
+
+			ImGui::Separator();
+			ImGui::Text("Blended Animation System:");
+			ImGui::Checkbox("Use Blending", &animComp.UseBlending);
+			ImGui::Text("Current State: %s", m_CurrentState == CharacterState::Idle ? "Idle" : "Running");
+			ImGui::Text("Start Anim Index: %d", animComp.StartAnimIndex);
+			ImGui::Text("End Anim Index: %d", animComp.EndAnimIndex);
+			ImGui::Text("Target Anim Index: %d", animComp.TargetAnimIndex);
+			ImGui::SliderFloat("Blend Factor", &animComp.BlendFactor, 0.0f, 1.0f);
+			ImGui::DragFloat("Blend Speed", &animComp.BlendSpeed, 0.1f, 0.1f, 10.0f);
+			ImGui::Text("Press A or D to switch to Running");
+			ImGui::Text("Release keys to return to Idle");
 		}
 
 		ImGui::Separator();

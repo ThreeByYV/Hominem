@@ -10,8 +10,8 @@
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Font.h"
 
-// Forward declare physics types
 namespace Hominem {
+
 	class Rigidbody;
 	class BoxCollider;
 }
@@ -121,6 +121,17 @@ namespace Hominem {
 		float AnimationTime = 0.0f;
 		float AnimationSpeed = 1.0f;
 		bool Playing = true;
+
+		// Blending support
+		bool UseBlending = false;
+		uint32_t StartAnimIndex = 0;
+		uint32_t EndAnimIndex = 0;
+		float BlendFactor = 0.0f;      // 0.0 = fully startAnim, 1.0 = fully endAnim
+		float BlendSpeed = 5.0f;       // How fast to blend between animations
+		uint32_t TargetAnimIndex = 0;  // Animation we're blending towards
+
+		// Root motion control
+		bool DisableRootMotion = true; // Ignore translation in animation (for 2.5D games)
 
 		AnimationComponent() = default;
 		AnimationComponent(const AnimationComponent&) = default;

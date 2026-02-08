@@ -1,6 +1,8 @@
 #include "hmnpch.h"
 
 #include <glad/glad.h>
+#include <glm/glm.hpp>
+#include <glm/common.hpp>
 
 #include "Scene.h"
 #include "Entity.h"
@@ -73,10 +75,52 @@ namespace Hominem {
 					animComp.AnimationTime += ts * animComp.AnimationSpeed;
 				}
 
+				// Update blend factor if blending is active
+				if (animComp.UseBlending)
+				{
+					// BlendFactor: 0.0 = fully StartAnim, 1.0 = fully EndAnim
+					// Determine which direction to blend based on target
+					float targetBlend = (animComp.TargetAnimIndex == animComp.EndAnimIndex) ? 1.0f : 0.0f;
+					float blendDelta = animComp.BlendSpeed * ts;
+
+					// Smoothly interpolate blend factor towards target
+					if (glm::abs(animComp.BlendFactor - targetBlend) > 0.01f)
+					{
+						if (animComp.BlendFactor < targetBlend)
+						{
+							animComp.BlendFactor = glm::min(animComp.BlendFactor + blendDelta, 1.0f);
+						}
+						else if (animComp.BlendFactor > targetBlend)
+						{
+							animComp.BlendFactor = glm::max(animComp.BlendFactor - blendDelta, 0.0f);
+						}
+					}
+					else
+					{
+						// Close enough - snap to target
+						animComp.BlendFactor = targetBlend;
+					}
+				}
+
 				if (meshComp.Mesh->HasSkeleton())
 				{
 					std::vector<glm::mat4> boneTransforms;
-					meshComp.Mesh->GetBoneTransforms(animComp.AnimationTime, boneTransforms);
+
+					if (animComp.UseBlending)
+					{
+						meshComp.Mesh->GetBoneTransformsBlended(
+							animComp.AnimationTime,
+							boneTransforms,
+							animComp.StartAnimIndex,
+							animComp.EndAnimIndex,
+							animComp.BlendFactor,
+							animComp.DisableRootMotion
+						);
+					}
+					else
+					{
+						meshComp.Mesh->GetBoneTransforms(animComp.AnimationTime, boneTransforms, animComp.DisableRootMotion);
+					}
 
 					auto shader = meshComp.Mesh->GetShader();
 					if (shader)

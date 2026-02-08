@@ -43,5 +43,13 @@ namespace Hominem {
 		// Camera settings
 		float m_OrthoSize = 10.0f;
 		bool m_UseCinematicCamera = false; // Toggle for future cinematic mode
+
+		// Animation state
+		enum class CharacterState
+		{
+			Idle = 0,
+			Running = 1
+		};
+		CharacterState m_CurrentState = CharacterState::Idle;
 	};
 }
