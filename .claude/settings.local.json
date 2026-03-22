@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"version\\\\|Version\\\\|BOX2D_VERSION\" C:/Users/Owner/source/repos/Hominem/Hominem/vendor/Box2D/include --include=*.h -l)",
+      "Bash(vendor/premake/premake5.exe vs2022:*)",
+      "Bash(find C:/Users/Owner/source/repos/Hominem/bin -name Box2D*)"
+    ]
+  }
+}

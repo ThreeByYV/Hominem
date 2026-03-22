@@ -18,9 +18,9 @@ namespace Hominem {
 
 	struct PlayerColliderConfig
 	{
-		glm::vec3 Extents = { 0.5f, 0.5f, 0.3f };
-		glm::vec3 Offset = { 0.0f, -0.75f, 0.0f };
-		float StaticFriction = 0.5f;
+		glm::vec2 Extents = { 0.5f, 0.5f };
+		glm::vec2 Offset  = { 0.0f, -0.75f };
+		float StaticFriction  = 0.5f;
 		float DynamicFriction = 0.5f;
 	};
 
