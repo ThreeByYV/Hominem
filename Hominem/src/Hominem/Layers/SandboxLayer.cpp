@@ -17,6 +17,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glad/glad.h>
 #include <box2d/box2d.h>
+#include "Hominem/Level/LevelLoader.h"
 
 namespace Hominem {
 
@@ -37,8 +38,17 @@ namespace Hominem {
 			b2DestroyWorld(world);
 		}
 
+		// LDtk smoke test — disabled until a real .ldtk file is created in the LDtk app
+		// {
+		// 	Scene testScene;
+		// 	LevelData levelData;
+		// 	if (LevelLoader::Load("Resources/Levels/example.ldtk", 0, testScene, levelData))
+		// 		HMN_CORE_INFO("LDtk smoke test passed — spawn ({0},{1}), {2} platforms",
+		// 			levelData.PlayerSpawn.x, levelData.PlayerSpawn.y, levelData.PlatformCount);
+		// }
+
 		// Load game configuration from JSON
-		if (!JSON::Load("src/Hominem/Resources/Config/game_config.json", m_Config))
+		if (!JSON::Load("Resources/Config/game_config.json", m_Config))
 		{
 			HMN_CORE_ERROR("Failed to load game config - using defaults from struct definitions");
 		}
@@ -73,7 +83,7 @@ namespace Hominem {
 		// Load camera configuration from JSON using generic loader
 		CameraSequenceData cameraData;
 		if (JSON::LoadNested(
-			"src/Hominem/Resources/Config/camera_config.json",
+			"Resources/Config/camera_config.json",
 			"camera_sequences.level_01_vista",
 			cameraData))
 		{
@@ -131,7 +141,7 @@ namespace Hominem {
 
 		// Load animated mesh from Idle.fbx (contains geometry + idle animation)
 		auto mesh = CreateRef<SkinnedMesh>();
-		std::string idlePath = "src/Hominem/Resources/Textures/Idle.fbx";
+		std::string idlePath = "Resources/Textures/Idle.fbx";
 
 		if (!mesh->LoadFromFile(idlePath))
 		{
@@ -142,7 +152,7 @@ namespace Hominem {
 		HMN_CORE_INFO("Loaded base mesh with {} animations", mesh->GetAnimationCount());
 
 		// Load the running animation from Running.fbx
-		std::string runningPath = "src/Hominem/Resources/Textures/Running.fbx";
+		std::string runningPath = "Resources/Textures/Running.fbx";
 		if (!mesh->LoadAdditionalAnimation(runningPath))
 		{
 			HMN_CORE_ERROR("Failed to load running animation from {}", runningPath);

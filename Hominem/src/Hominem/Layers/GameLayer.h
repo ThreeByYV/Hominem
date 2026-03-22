@@ -20,9 +20,9 @@ namespace Hominem {
 
 		void OnAttach() override
 		{
-			m_BackgroundTexture = Texture2D::Create("src/Hominem/Resources/Textures/gamebg.png");
-			m_Mujun = Texture2D::Create("src/Hominem/Resources/Textures/mujun.png");
-			m_SpriteSheet = Texture2D::Create("src/Hominem/Resources/Textures/spritesheet.png");
+			m_BackgroundTexture = Texture2D::Create("Resources/Textures/gamebg.png");
+			m_Mujun = Texture2D::Create("Resources/Textures/mujun.png");
+			m_SpriteSheet = Texture2D::Create("Resources/Textures/spritesheet.png");
 
 		}
 

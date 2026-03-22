@@ -28,7 +28,7 @@ namespace Hominem {
 		auto& audioSystem = Application::Get().GetAudioSystem();
 
 		// Load menu music
-		SoundBufferHandle musicBuffer = audioSystem.LoadSound("src/Hominem/Resources/Sounds/menu_music.mp3");
+		SoundBufferHandle musicBuffer = audioSystem.LoadSound("Resources/Sounds/menu_music.mp3");
 
 		// Create music entity
 		m_MusicEntity = m_Scene->CreateEntity("Menu Music");
@@ -59,7 +59,7 @@ namespace Hominem {
 		bgTransform.Translation = glm::vec3(0.0f, 0.0f, -0.5f);
 		bgTransform.Scale = glm::vec3(2.7f, 2.0f, 1.0f);
 
-		auto backgroundTexture = Texture2D::Create("src/Hominem/Resources/Textures/menu2.png");
+		auto backgroundTexture = Texture2D::Create("Resources/Textures/menu2.png");
 		backgroundEntity.AddComponent<SpriteRendererComponent>(backgroundTexture);
 
 		// Create title text entity

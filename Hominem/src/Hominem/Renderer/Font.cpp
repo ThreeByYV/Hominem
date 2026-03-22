@@ -80,7 +80,7 @@ namespace Hominem {
 		static Ref<Font> DefaultFont;
 		if (!DefaultFont)
 		{
-			DefaultFont = CreateRef<Font>("src/Hominem/Resources/Fonts/OpenSans-Regular.ttf");
+			DefaultFont = CreateRef<Font>("Resources/Fonts/OpenSans-Regular.ttf");
 		}
 
 		return DefaultFont;

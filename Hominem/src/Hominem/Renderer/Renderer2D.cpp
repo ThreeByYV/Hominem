@@ -67,7 +67,7 @@ namespace Hominem {
 		uint32_t whiteTextureData = 0xffffffff;
 		s_Data->WhiteTexture->SetData(&whiteTextureData, sizeof(uint32_t));
 
-		s_Data->TextureShader = s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/texture.glsl");
+		s_Data->TextureShader = s_Data->ShaderLibrary->Load("Resources/Shaders/texture.glsl");
 		s_Data->DefaultShader = s_Data->ShaderLibrary->Get("texture");
 		s_Data->OverrideShader = nullptr;
 
@@ -88,7 +88,7 @@ namespace Hominem {
 
 		s_Data->TextVertexArray->AddVertexBuffer(s_Data->TextVertexBuffer);
 
-		s_Data->TextShader = Shader::Create("src/Hominem/Resources/Shaders/text.glsl");
+		s_Data->TextShader = Shader::Create("Resources/Shaders/text.glsl");
 	}
 
 	void Renderer2D::Shutdown()
