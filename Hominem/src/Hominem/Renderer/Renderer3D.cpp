@@ -15,9 +15,9 @@ namespace Hominem {
 
         s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
 
-        s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/basic.glsl");
-        s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/fog.glsl");
-        s_Data->ShaderLibrary->Load("src/Hominem/Resources/Shaders/skinning.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/basic.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/fog.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/skinning.glsl");
 
         s_Data->DefaultShader = s_Data->ShaderLibrary->Get("basic");
     }

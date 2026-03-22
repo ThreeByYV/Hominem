@@ -24,6 +24,7 @@ IncludeDir["assimp"]       = "Hominem/vendor/assimp/include"
 IncludeDir["assimp_build"] = "Hominem/vendor/assimp/build/include"
 IncludeDir["json"]         = "Hominem/vendor/json"
 IncludeDir["Box2D"]        = "Hominem/vendor/Box2D/include"
+IncludeDir["LDtkLoader"]   = "Hominem/vendor/LDtkLoader/include"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -31,6 +32,7 @@ include "Hominem/vendor/imgui"
 include "Hominem/vendor/msdf-atlas-gen"
 include "Hominem/vendor/assimp"
 include "Hominem/vendor/Box2D"
+include "Hominem/vendor/LDtkLoader"
 
 project "Hominem"
     location "Hominem"
@@ -83,7 +85,8 @@ project "Hominem"
         "%{IncludeDir.assimp}",
         "%{IncludeDir.assimp_build}",
         "%{IncludeDir.json}",
-        "%{IncludeDir.Box2D}"
+        "%{IncludeDir.Box2D}",
+        "%{IncludeDir.LDtkLoader}"
     }
 
     links
@@ -92,7 +95,8 @@ project "Hominem"
         "Glad",
         "ImGui",
         "msdf-atlas-gen",
-        "Box2D"
+        "Box2D",
+        "LDtkLoader"
     }
 
     filter "files:**/imgui*.cpp"
