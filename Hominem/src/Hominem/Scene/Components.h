@@ -174,41 +174,43 @@ namespace Hominem {
 		AudioListenerComponent(const AudioListenerComponent&) = default;
 	};
 
-	// Physics
-	struct Rigidbody3DComponent
+	// Physics 
+	struct RigidbodyComponent
 	{
 		enum class BodyType { Static = 0, Dynamic, Kinematic };
 		BodyType Type = BodyType::Dynamic;
 
-		// 2.5D constraints
-		bool LockRotationX = true;   // No pitch
-		bool LockRotationY = false;  // Allow turning
-		bool LockRotationZ = true;   // No roll
-		bool LockTranslationZ = true; // Stay on depth layer
+		float Mass            = 1.0f;
+		float LinearDamping   = 0.0f;
+		float AngularDamping  = 0.05f;
 
-		float Mass = 1.0f;
+		// 2.5D: lock rotation so character stays upright on 2D plane
+		bool FixedRotation    = true;
+
+		bool GravityEnabled   = true;
 
 		Ref<Rigidbody> RuntimeBody = nullptr;
 
-		Rigidbody3DComponent() = default;
-		Rigidbody3DComponent(const Rigidbody3DComponent&) = default;
+		RigidbodyComponent() = default;
+		RigidbodyComponent(const RigidbodyComponent&) = default;
 	};
 
-	struct BoxCollider3DComponent
+	struct BoxColliderComponent
 	{
-		glm::vec3 Offset = { 0.0f, 0.0f, 0.0f };
-		glm::vec3 HalfExtents = { 0.5f, 0.5f, 0.5f };
+		// X/Y used for Box2D, Z ignored at runtime
+		glm::vec2 HalfExtents = { 0.5f, 0.5f };
+		glm::vec2 Offset      = { 0.0f, 0.0f };
 
-		float StaticFriction = 0.5f;
+		float StaticFriction  = 0.5f;
 		float DynamicFriction = 0.5f;
-		float Restitution = 0.0f;
+		float Restitution     = 0.0f;
 
 		bool IsTrigger = false;
 
 		Ref<BoxCollider> RuntimeCollider = nullptr;
 
-		BoxCollider3DComponent() = default;
-		BoxCollider3DComponent(const BoxCollider3DComponent&) = default;
+		BoxColliderComponent() = default;
+		BoxColliderComponent(const BoxColliderComponent&) = default;
 	};
 
 }

@@ -4,93 +4,61 @@
 #include "PhysicsTypes.h"
 #include "PhysicsMaterial.h"
 
-namespace physx {
-
-	class PxShape;
-	class PxRigidActor;
-}
+#include <box2d/box2d.h>
 
 namespace Hominem {
 
-	// Base collider class wrapping PxShape
+	// Base collider — holds the spec and material until attached to a Rigidbody
 	class Collider
 	{
 	public:
-		virtual ~Collider();
-
+		virtual ~Collider() = default;
 		ColliderType GetType() const { return m_Type; }
-
-		void SetMaterial(Ref<PhysicsMaterial> material);
 		Ref<PhysicsMaterial> GetMaterial() const { return m_Material; }
 
-		void SetLocalPose(const glm::vec3& offset, const glm::quat& rotation = glm::identity<glm::quat>());
-		glm::vec3 GetLocalPosition() const;
-		glm::quat GetLocalRotation() const;
-
-		void SetTrigger(bool isTrigger);
-		bool IsTrigger() const;
-
-		// Internal PhysX access
-		physx::PxShape* GetNativeShape() const { return m_Shape; }
-
-	public:
-		// Note: Constructor should only be called by PhysicsWorld
-		Collider(physx::PxShape* shape, ColliderType type);
-
 	protected:
-		friend class PhysicsWorld;
+		Collider(ColliderType type, Ref<PhysicsMaterial> material)
+			: m_Type(type), m_Material(material) {}
 
-		physx::PxShape* m_Shape = nullptr;
-		ColliderType m_Type;
-		Ref<PhysicsMaterial> m_Material;
+		friend class Rigidbody;
+		ColliderType          m_Type;
+		Ref<PhysicsMaterial>  m_Material;
+		b2ShapeId             m_ShapeId = b2_nullShapeId;
 	};
 
-	// Box collider
 	class BoxCollider : public Collider
 	{
 	public:
-		void SetHalfExtents(const glm::vec3& halfExtents);
-		glm::vec3 GetHalfExtents() const;
+		BoxCollider(const BoxColliderSpec& spec, Ref<PhysicsMaterial> material)
+			: Collider(ColliderType::Box, material), m_Spec(spec) {}
 
-	public:
-		// Note: Constructor should only be called by PhysicsWorld
-		BoxCollider(physx::PxShape* shape);
+		const BoxColliderSpec& GetSpec() const { return m_Spec; }
 
 	private:
-		friend class PhysicsWorld;
+		BoxColliderSpec m_Spec;
 	};
 
-	// Sphere collider
-	class SphereCollider : public Collider
+	class CircleCollider : public Collider
 	{
 	public:
-		void SetRadius(float radius);
-		float GetRadius() const;
+		CircleCollider(const CircleColliderSpec& spec, Ref<PhysicsMaterial> material)
+			: Collider(ColliderType::Circle, material), m_Spec(spec) {}
 
-	public:
-		// Note: Constructor should only be called by PhysicsWorld
-		SphereCollider(physx::PxShape* shape);
+		const CircleColliderSpec& GetSpec() const { return m_Spec; }
 
 	private:
-		friend class PhysicsWorld;
+		CircleColliderSpec m_Spec;
 	};
 
-	// Capsule collider (oriented along Y-axis by default)
 	class CapsuleCollider : public Collider
 	{
 	public:
-		void SetRadius(float radius);
-		float GetRadius() const;
+		CapsuleCollider(const CapsuleColliderSpec& spec, Ref<PhysicsMaterial> material)
+			: Collider(ColliderType::Capsule, material), m_Spec(spec) {}
 
-		void SetHalfHeight(float halfHeight);
-		float GetHalfHeight() const;
-
-	public:
-		// Note: Constructor should only be called by PhysicsWorld
-		CapsuleCollider(physx::PxShape* shape);
+		const CapsuleColliderSpec& GetSpec() const { return m_Spec; }
 
 	private:
-		friend class PhysicsWorld;
+		CapsuleColliderSpec m_Spec;
 	};
-
 }

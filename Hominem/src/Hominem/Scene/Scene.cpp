@@ -202,12 +202,12 @@ namespace Hominem {
 		{
 			m_PhysicsWorld->Step(ts);
 
-			auto view = m_Registry.view<TransformComponent, Rigidbody3DComponent>();
+			auto view = m_Registry.view<TransformComponent, RigidbodyComponent>();
 			for (auto e : view)
 			{
-				auto [transform, rb] = view.get<TransformComponent, Rigidbody3DComponent>(e);
+				auto [transform, rb] = view.get<TransformComponent, RigidbodyComponent>(e);
 
-				if (rb.RuntimeBody && rb.Type == Rigidbody3DComponent::BodyType::Dynamic)
+				if (rb.RuntimeBody && rb.Type == RigidbodyComponent::BodyType::Dynamic)
 				{
 					transform.Translation = rb.RuntimeBody->GetPosition();
 				}
@@ -326,31 +326,31 @@ namespace Hominem {
 
 	void Scene::OnRuntimeStart()
 	{
-		m_PhysicsWorld = CreateRef<PhysicsWorld>(glm::vec3(0.0f, -9.8f, 0.0f));
+		m_PhysicsWorld = CreateRef<PhysicsWorld>(glm::vec3(0.0f, -9.8f, 0.0f));  // Box2D
 
-		auto view = m_Registry.view<TransformComponent, Rigidbody3DComponent>();
+		auto view = m_Registry.view<TransformComponent, RigidbodyComponent>();
 
 		for (auto e : view)
 		{
 			Entity entity = { e, this };
 			auto& transform = entity.GetComponent<TransformComponent>();
-			auto& rb = entity.GetComponent<Rigidbody3DComponent>();
+			auto& rb = entity.GetComponent<RigidbodyComponent>();
 
 			RigidbodySpec spec;
-			spec.Type = (RigidbodyType)rb.Type;
-			spec.Position = transform.Translation;
-			spec.Rotation = glm::quat(transform.Rotation);
-			spec.LockRotationX = rb.LockRotationX;
-			spec.LockRotationY = rb.LockRotationY;
-			spec.LockRotationZ = rb.LockRotationZ;
-			spec.LockTranslationZ = rb.LockTranslationZ;
-			spec.Mass = rb.Mass;
+			spec.Type             = (RigidbodyType)rb.Type;
+			spec.Position         = transform.Translation;
+			spec.LockRotationZ    = rb.FixedRotation;
+			spec.Mass             = rb.Mass;
+			spec.LinearDamping    = rb.LinearDamping;
+			spec.AngularDamping   = rb.AngularDamping;
 
 			rb.RuntimeBody = m_PhysicsWorld->CreateRigidbody(spec);
 
-			if (entity.HasComponent<BoxCollider3DComponent>())
+			rb.RuntimeBody->SetGravityEnabled(rb.GravityEnabled);
+
+			if (entity.HasComponent<BoxColliderComponent>())
 			{
-				auto& collider = entity.GetComponent<BoxCollider3DComponent>();
+				auto& collider = entity.GetComponent<BoxColliderComponent>();
 
 				auto material = m_PhysicsWorld->CreateMaterial(
 					collider.StaticFriction,
@@ -359,12 +359,13 @@ namespace Hominem {
 				);
 
 				BoxColliderSpec colliderSpec;
-				colliderSpec.HalfExtents = collider.HalfExtents * transform.Scale;
-				colliderSpec.Offset = collider.Offset;
-				colliderSpec.IsTrigger = collider.IsTrigger;
+				colliderSpec.HalfExtents = { collider.HalfExtents.x * transform.Scale.x,
+				                             collider.HalfExtents.y * transform.Scale.y,
+				                             0.0f };
+				colliderSpec.Offset      = { collider.Offset.x, collider.Offset.y, 0.0f };
+				colliderSpec.IsTrigger   = collider.IsTrigger;
 
 				collider.RuntimeCollider = m_PhysicsWorld->CreateBoxCollider(colliderSpec, material);
-
 				rb.RuntimeBody->AttachCollider(collider.RuntimeCollider);
 			}
 		}
@@ -376,10 +377,10 @@ namespace Hominem {
 
 	void Scene::OnRuntimeStop()
  	{
-		auto view = m_Registry.view<Rigidbody3DComponent>();
+		auto view = m_Registry.view<RigidbodyComponent>();
 		for (auto e : view)
 		{
-			auto& rb = view.get<Rigidbody3DComponent>(e);
+			auto& rb = view.get<RigidbodyComponent>(e);
 			if (rb.RuntimeBody)
 			{
 				m_PhysicsWorld->DestroyRigidbody(rb.RuntimeBody);

@@ -16,6 +16,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glad/glad.h>
+#include <box2d/box2d.h>
 
 namespace Hominem {
 
@@ -27,6 +28,15 @@ namespace Hominem {
 
 	void SandboxLayer::OnAttach()
 	{
+		// Box2D smoke test
+		{
+			b2WorldDef worldDef = b2DefaultWorldDef();
+			worldDef.gravity = { 0.0f, -9.8f };
+			b2WorldId world = b2CreateWorld(&worldDef);
+			HMN_CORE_INFO("Box2D smoke test passed — world id: {0}", world.index1);
+			b2DestroyWorld(world);
+		}
+
 		// Load game configuration from JSON
 		if (!JSON::Load("src/Hominem/Resources/Config/game_config.json", m_Config))
 		{
@@ -108,11 +118,11 @@ namespace Hominem {
 		floorTransform.Translation = m_Config.Physics.Floor.Position;
 		floorTransform.Scale = m_Config.Physics.Floor.Scale;
 
-		auto& floorRb = floor.AddComponent<Rigidbody3DComponent>();
-		floorRb.Type = Rigidbody3DComponent::BodyType::Static;
+		auto& floorRb = floor.AddComponent<RigidbodyComponent>();
+		floorRb.Type = RigidbodyComponent::BodyType::Static;
 
-		auto& floorCollider = floor.AddComponent<BoxCollider3DComponent>();
-		floorCollider.HalfExtents = { 1.0f, 1.0f, 1.0f };
+		auto& floorCollider = floor.AddComponent<BoxColliderComponent>();
+		floorCollider.HalfExtents = { 1.0f, 1.0f };
 		floorCollider.StaticFriction = m_Config.Physics.Floor.StaticFriction;
 		floorCollider.DynamicFriction = m_Config.Physics.Floor.DynamicFriction;
 
@@ -188,12 +198,12 @@ namespace Hominem {
 		}
 
 		// Add physics to the 3D model
-		auto& meshRb = m_MeshEntity.AddComponent<Rigidbody3DComponent>();
-		meshRb.Type = Rigidbody3DComponent::BodyType::Dynamic;
+		auto& meshRb = m_MeshEntity.AddComponent<RigidbodyComponent>();
+		meshRb.Type = RigidbodyComponent::BodyType::Dynamic;
 		meshRb.Mass = m_Config.Player.Movement.Mass;
 
 
-		auto& meshCollider = m_MeshEntity.AddComponent<BoxCollider3DComponent>();
+		auto& meshCollider = m_MeshEntity.AddComponent<BoxColliderComponent>();
 		meshCollider.HalfExtents = m_Config.Player.Collider.Extents;
 		meshCollider.StaticFriction = m_Config.Player.Collider.StaticFriction;
 		meshCollider.DynamicFriction = m_Config.Player.Collider.DynamicFriction;
@@ -277,7 +287,7 @@ namespace Hominem {
 		if (m_MeshEntity && m_MeshEntity.HasComponent<AnimationComponent>())
 		{
 			auto& animComp = m_MeshEntity.GetComponent<AnimationComponent>();
-			auto& rb = m_MeshEntity.GetComponent<Rigidbody3DComponent>();
+			auto& rb = m_MeshEntity.GetComponent<RigidbodyComponent>();
 
 			// Check individual movement keys
 			bool pressingA = Input::IsKeyPressed(HMN_KEY_A);

@@ -1,308 +1,149 @@
 #include "hmnpch.h"
 #include "Rigidbody.h"
 
-#include <physx/PxPhysicsAPI.h>
-
-using namespace physx;
+#include <box2d/box2d.h>
+#include <glm/gtc/quaternion.hpp>
 
 namespace Hominem {
 
-	// Helper conversions
-	static glm::vec3 PxVec3ToGlm(const PxVec3& v)
+	static b2BodyType ToBox2DBodyType(RigidbodyType type)
 	{
-		return glm::vec3(v.x, v.y, v.z);
+		switch (type)
+		{
+			case RigidbodyType::Static:    return b2_staticBody;
+			case RigidbodyType::Dynamic:   return b2_dynamicBody;
+			case RigidbodyType::Kinematic: return b2_kinematicBody;
+		}
+		return b2_staticBody;
 	}
 
-	static glm::quat PxQuatToGlm(const PxQuat& q)
+	Rigidbody::Rigidbody(b2WorldId worldId, const RigidbodySpec& spec)
+		: m_WorldId(worldId), m_Type(spec.Type), m_ZPosition(spec.Position.z)
 	{
-		return glm::quat(q.w, q.x, q.y, q.z);
-	}
+		b2BodyDef bodyDef      = b2DefaultBodyDef();
+		bodyDef.type           = ToBox2DBodyType(spec.Type);
+		bodyDef.position       = { spec.Position.x, spec.Position.y };
+		bodyDef.motionLocks.angularZ = spec.LockRotationZ;
+		bodyDef.linearDamping  = spec.LinearDamping;
+		bodyDef.angularDamping = spec.AngularDamping;
 
-	static PxVec3 GlmToPxVec3(const glm::vec3& v)
-	{
-		return PxVec3(v.x, v.y, v.z);
-	}
+		m_BodyId = b2CreateBody(worldId, &bodyDef);
 
-	static PxQuat GlmToPxQuat(const glm::quat& q)
-	{
-		return PxQuat(q.x, q.y, q.z, q.w);
-	}
-
-	Rigidbody::Rigidbody(PxRigidActor* actor, RigidbodyType type)
-		: m_Actor(actor), m_Type(type)
-	{
-		HMN_CORE_ASSERT(m_Actor, "Rigidbody created with null PxRigidActor!");
+		if (spec.Type == RigidbodyType::Dynamic && spec.Mass > 0.0f)
+		{
+			b2MassData massData = b2Body_GetMassData(m_BodyId);
+			massData.mass = spec.Mass;
+			b2Body_SetMassData(m_BodyId, massData);
+		}
 	}
 
 	Rigidbody::~Rigidbody()
 	{
-		// Actor is released by PhysicsWorld, not here
+		if (B2_IS_NON_NULL(m_BodyId) && b2World_IsValid(m_WorldId))
+			b2DestroyBody(m_BodyId);
 	}
-
-	// ========== Transform ==========
 
 	void Rigidbody::SetPosition(const glm::vec3& position)
 	{
-		if (m_Actor)
-		{
-			PxTransform transform = m_Actor->getGlobalPose();
-			transform.p = GlmToPxVec3(position);
-			m_Actor->setGlobalPose(transform);
-		}
+		m_ZPosition = position.z;
+		b2Rot rot = b2Body_GetRotation(m_BodyId);
+		b2Body_SetTransform(m_BodyId, { position.x, position.y }, rot);
 	}
 
 	glm::vec3 Rigidbody::GetPosition() const
 	{
-		if (m_Actor)
-			return PxVec3ToGlm(m_Actor->getGlobalPose().p);
-		return glm::vec3(0.0f);
-	}
-
-	void Rigidbody::SetRotation(const glm::quat& rotation)
-	{
-		if (m_Actor)
-		{
-			PxTransform transform = m_Actor->getGlobalPose();
-			transform.q = GlmToPxQuat(rotation);
-			m_Actor->setGlobalPose(transform);
-		}
-	}
-
-	glm::quat Rigidbody::GetRotation() const
-	{
-		if (m_Actor)
-			return PxQuatToGlm(m_Actor->getGlobalPose().q);
-		return glm::identity<glm::quat>();
-	}
-
-	void Rigidbody::SetTransform(const glm::vec3& position, const glm::quat& rotation)
-	{
-		if (m_Actor)
-		{
-			PxTransform transform(GlmToPxVec3(position), GlmToPxQuat(rotation));
-			m_Actor->setGlobalPose(transform);
-		}
-	}
-
-	// ========== Physics Properties ==========
-
-	void Rigidbody::SetMass(float mass)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setMass(mass);
-		}
-	}
-
-	float Rigidbody::GetMass() const
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return dynamic->getMass();
-		}
-		return 0.0f;
-	}
-
-	void Rigidbody::SetLinearDamping(float damping)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setLinearDamping(damping);
-		}
-	}
-
-	float Rigidbody::GetLinearDamping() const
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return dynamic->getLinearDamping();
-		}
-		return 0.0f;
-	}
-
-	void Rigidbody::SetAngularDamping(float damping)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setAngularDamping(damping);
-		}
-	}
-
-	float Rigidbody::GetAngularDamping() const
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return dynamic->getAngularDamping();
-		}
-		return 0.0f;
+		b2Vec2 pos = b2Body_GetPosition(m_BodyId);
+		return { pos.x, pos.y, m_ZPosition };
 	}
 
 	void Rigidbody::SetLinearVelocity(const glm::vec3& velocity)
 	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setLinearVelocity(GlmToPxVec3(velocity));
-		}
+		b2Body_SetLinearVelocity(m_BodyId, { velocity.x, velocity.y });
 	}
 
 	glm::vec3 Rigidbody::GetLinearVelocity() const
 	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return PxVec3ToGlm(dynamic->getLinearVelocity());
-		}
-		return glm::vec3(0.0f);
+		b2Vec2 vel = b2Body_GetLinearVelocity(m_BodyId);
+		return { vel.x, vel.y, 0.0f };
 	}
-
-	void Rigidbody::SetAngularVelocity(const glm::vec3& velocity)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setAngularVelocity(GlmToPxVec3(velocity));
-		}
-	}
-
-	glm::vec3 Rigidbody::GetAngularVelocity() const
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return PxVec3ToGlm(dynamic->getAngularVelocity());
-		}
-		return glm::vec3(0.0f);
-	}
-
-	// ========== Forces ==========
 
 	void Rigidbody::AddForce(const glm::vec3& force)
 	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->addForce(GlmToPxVec3(force));
-		}
-	}
-
-	void Rigidbody::AddTorque(const glm::vec3& torque)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->addTorque(GlmToPxVec3(torque));
-		}
+		b2Body_ApplyForceToCenter(m_BodyId, { force.x, force.y }, true);
 	}
 
 	void Rigidbody::AddImpulse(const glm::vec3& impulse)
 	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->addForce(GlmToPxVec3(impulse), PxForceMode::eIMPULSE);
-		}
+		b2Body_ApplyLinearImpulseToCenter(m_BodyId, { impulse.x, impulse.y }, true);
 	}
 
-	// ========== Kinematic Control ==========
-
-	void Rigidbody::SetKinematicTarget(const glm::vec3& position, const glm::quat& rotation)
+	void Rigidbody::SetGravityEnabled(bool enabled)
 	{
-		if (m_Type == RigidbodyType::Kinematic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-			{
-				PxTransform target(GlmToPxVec3(position), GlmToPxQuat(rotation));
-				dynamic->setKinematicTarget(target);
-			}
-		}
+		b2Body_SetGravityScale(m_BodyId, enabled ? 1.0f : 0.0f);
 	}
-
-	// ========== Constraints ==========
-
-	void Rigidbody::SetLockFlags(bool lockRotX, bool lockRotY, bool lockRotZ, bool lockTransZ)
-	{
-		if (m_Type == RigidbodyType::Dynamic || m_Type == RigidbodyType::Kinematic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-			{
-				PxRigidDynamicLockFlags lockFlags(0);
-				if (lockRotX) lockFlags |= PxRigidDynamicLockFlag::eLOCK_ANGULAR_X;
-				if (lockRotY) lockFlags |= PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y;
-				if (lockRotZ) lockFlags |= PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-				if (lockTransZ) lockFlags |= PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
-
-				dynamic->setRigidDynamicLockFlags(lockFlags);
-			}
-		}
-	}
-
-	// ========== Colliders ==========
 
 	void Rigidbody::AttachCollider(Ref<Collider> collider)
 	{
-		if (m_Actor && collider)
+		if (!collider) return;
+
+		b2ShapeDef shapeDef = b2DefaultShapeDef();
+		auto mat = collider->GetMaterial();
+		if (mat)
 		{
-			m_Actor->attachShape(*collider->GetNativeShape());
-			m_Colliders.push_back(collider);
+			shapeDef.material.friction    = mat->DynamicFriction;
+			shapeDef.material.restitution = mat->Restitution;
 		}
+
+		switch (collider->GetType())
+		{
+			case ColliderType::Box:
+			{
+				auto* bc = static_cast<BoxCollider*>(collider.get());
+				const auto& spec = bc->GetSpec();
+				shapeDef.isSensor = spec.IsTrigger;
+				b2Polygon box = b2MakeOffsetBox(
+					spec.HalfExtents.x, spec.HalfExtents.y,
+					{ spec.Offset.x, spec.Offset.y },
+					b2Rot_identity
+				);
+				collider->m_ShapeId = b2CreatePolygonShape(m_BodyId, &shapeDef, &box);
+				break;
+			}
+			case ColliderType::Circle:
+			{
+				auto* cc = static_cast<CircleCollider*>(collider.get());
+				const auto& spec = cc->GetSpec();
+				shapeDef.isSensor = spec.IsTrigger;
+				b2Circle circle = { { spec.Offset.x, spec.Offset.y }, spec.Radius };
+				collider->m_ShapeId = b2CreateCircleShape(m_BodyId, &shapeDef, &circle);
+				break;
+			}
+			case ColliderType::Capsule:
+			{
+				auto* cc = static_cast<CapsuleCollider*>(collider.get());
+				const auto& spec = cc->GetSpec();
+				shapeDef.isSensor = spec.IsTrigger;
+				b2Capsule capsule = {
+					{ spec.Offset.x, spec.Offset.y - spec.HalfHeight },
+					{ spec.Offset.x, spec.Offset.y + spec.HalfHeight },
+					spec.Radius
+				};
+				collider->m_ShapeId = b2CreateCapsuleShape(m_BodyId, &shapeDef, &capsule);
+				break;
+			}
+		}
+
+		m_Colliders.push_back(collider);
 	}
 
 	void Rigidbody::DetachCollider(Ref<Collider> collider)
 	{
-		if (m_Actor && collider)
+		if (!collider) return;
+		if (B2_IS_NON_NULL(collider->m_ShapeId) && b2World_IsValid(m_WorldId))
 		{
-			m_Actor->detachShape(*collider->GetNativeShape());
-
-			// Remove from list
-			auto it = std::find(m_Colliders.begin(), m_Colliders.end(), collider);
-			if (it != m_Colliders.end())
-				m_Colliders.erase(it);
+			b2DestroyShape(collider->m_ShapeId, false);
+			collider->m_ShapeId = b2_nullShapeId;
 		}
+		m_Colliders.erase(std::remove(m_Colliders.begin(), m_Colliders.end(), collider), m_Colliders.end());
 	}
-
-	// ========== Gravity ==========
-
-	void Rigidbody::SetGravityEnabled(bool enabled)
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				dynamic->setActorFlag(PxActorFlag::eDISABLE_GRAVITY, !enabled);
-		}
-	}
-
-	bool Rigidbody::IsGravityEnabled() const
-	{
-		if (m_Type == RigidbodyType::Dynamic)
-		{
-			PxRigidDynamic* dynamic = m_Actor->is<PxRigidDynamic>();
-			if (dynamic)
-				return !(dynamic->getActorFlags() & PxActorFlag::eDISABLE_GRAVITY);
-		}
-		return false;
-	}
-
 }
