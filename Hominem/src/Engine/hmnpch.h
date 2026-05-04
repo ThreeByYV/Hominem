@@ -30,3 +30,5 @@
 #ifdef HMN_PLATFORM_WINDOWS
 	#include "Hominem/Core/Window.h"
 #endif
+
+#include "Hominem/Core/Profiler.h"

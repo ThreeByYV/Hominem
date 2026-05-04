@@ -35,7 +35,6 @@ namespace Hominem {
 		s_Data = new Renderer2DStorage();
 		s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
 
-		// --- Batch (PVP + indirect) ---
 		s_Data->QuadBatch.reserve(Renderer2DStorage::MaxQuads);
 
 		s_Data->QuadSSBO = StorageBuffer::Create(
@@ -47,7 +46,7 @@ namespace Hominem {
 
 		s_Data->BatchPVPShader = s_Data->ShaderLibrary->Load("Resources/Shaders/texture_batch.glsl");
 
-		// --- Immediate fallback: unit-quad VAO for custom-shader draws ---
+		// as fallback use the unit-quad VAO for custom-shader draws
 		s_Data->QuadVertexArray = VertexArray::Create();
 
 		float unitQuad[5 * 4] = {
@@ -68,7 +67,7 @@ namespace Hominem {
 		s_Data->QuadIBO = IndexBuffer::Create(indices, ARRAY_SIZE_IN_ELEMENTS(indices));
 		s_Data->QuadVertexArray->SetIndexBuffer(s_Data->QuadIBO);
 
-		// --- Shared resources ---
+		// Shared resources
 		s_Data->WhiteTexture = Texture2D::Create(1, 1);
 		uint32_t white = 0xffffffff;
 		s_Data->WhiteTexture->SetData(&white, sizeof(uint32_t));
@@ -80,7 +79,7 @@ namespace Hominem {
 		s_Data->TextureShader->Bind();
 		s_Data->TextureShader->SetInt("u_Texture", 0);
 
-		// --- Text ---
+		// Text
 		s_Data->TextVertexArray  = VertexArray::Create();
 		s_Data->TextVertexBuffer = VertexBuffer::Create(Renderer2DStorage::MaxQuads * sizeof(TextVertex));
 		s_Data->TextVertexArray->SetIndexBuffer(s_Data->QuadIBO);
@@ -130,6 +129,7 @@ namespace Hominem {
 
 	void Renderer2D::Flush()
 	{
+		HMN_PROFILE_FUNCTION();
 		if (s_Data->QuadBatch.empty()) return;
 
 		// One upload for all quads this frame
@@ -193,8 +193,6 @@ namespace Hominem {
 	{
 		return s_Data->ShaderLibrary;
 	}
-
-	// --- DrawQuad overloads ---
 
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 	{

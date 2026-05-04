@@ -28,3 +28,6 @@
 [submodule "Hominem/vendor/miniaudio"]
 	path = Hominem/vendor/miniaudio
 	url = https://github.com/mackron/miniaudio.git
+[submodule "Hominem/vendor/tracy"]
+	path = Hominem/vendor/tracy
+	url = https://github.com/wolfpld/tracy

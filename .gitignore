@@ -22,7 +22,8 @@ cmake-build-*/
 **.csproj
 .vscode/
 .idea/
-
+out/
+tools/
 
 # Directories
 Hominem/vendor/VulkanSDK

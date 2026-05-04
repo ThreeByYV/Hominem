@@ -4,8 +4,6 @@
 
 namespace Hominem {
 
-	// ---- StorageBuffer ----
-
 	OpenGLStorageBuffer::OpenGLStorageBuffer(uint32_t capacity)
 	{
 		glCreateBuffers(1, &m_RendererID);
@@ -26,8 +24,6 @@ namespace Hominem {
 	{
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, m_RendererID);
 	}
-
-	// ---- DrawIndirectBuffer ----
 
 	OpenGLDrawIndirectBuffer::OpenGLDrawIndirectBuffer(uint32_t capacity)
 	{

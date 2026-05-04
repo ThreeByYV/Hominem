@@ -31,7 +31,6 @@ namespace Hominem {
 	{
 		glm::mat4 ViewProjectionMatrix;
 
-		// --- Batch (PVP + indirect) ---
 		static const uint32_t MaxQuads = 10000;
 		Ref<StorageBuffer>     QuadSSBO;
 		Ref<DrawIndirectBuffer> IndirectBuffer;
@@ -48,7 +47,6 @@ namespace Hominem {
 
 		Ref<Shader> BatchPVPShader;
 
-		// --- Immediate fallback (unit-quad VAO, used for custom-shader draws) ---
 		Ref<VertexArray>  QuadVertexArray;
 		Ref<VertexBuffer> QuadVBO;
 		Ref<IndexBuffer>  QuadIBO;
@@ -57,7 +55,7 @@ namespace Hominem {
 		Ref<Shader> OverrideShader;
 		Ref<Shader> TextureShader;
 
-		// --- Text ---
+		// Text
 		Ref<VertexArray>  TextVertexArray;
 		Ref<VertexBuffer> TextVertexBuffer;
 		Ref<Shader>       TextShader;

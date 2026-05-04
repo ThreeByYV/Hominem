@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <string>
 
@@ -18,7 +19,6 @@ namespace Hominem {
 		aiQuaternion Rotation;
 		aiVector3D Translation;
 	};
-
 
 	struct VertexBoneData
 	{
@@ -61,7 +61,14 @@ namespace Hominem {
 		bool HasBones() const { return !m_BoneInfo.empty(); }
 
 		void SetScene(const aiScene* pScene) { m_pScene = pScene; }
-		void AddAdditionalScene(const aiScene* pScene) { m_AdditionalScenes.push_back(pScene); }
+		void AddAdditionalScene(const aiScene* pScene)
+		{
+			m_AdditionalScenes.push_back(pScene);
+			if (pScene->mNumAnimations > 0)
+				m_AdditionalChannelMaps.push_back(BuildChannelMap(pScene->mAnimations[0]));
+			else
+				m_AdditionalChannelMaps.push_back({});
+		}
 
 	private:
 		void ParseMeshBones(uint32_t meshIndex, const aiMesh* pMesh,
@@ -72,18 +79,23 @@ namespace Hominem {
 			const std::vector<uint32_t>& meshBaseVertices,
 			std::vector<VertexBoneData>& vertexBones);
 
-		void ReadNodeHierarchyBlended(float startAnimTimeTicks, float endAnimTimeTicks, const aiNode* pNode, const glm::mat4& parentTransform,
-									 const aiAnimation& startAnimation, const aiAnimation& endAnimation, float blendFactor, bool disableRootMotion = false);
+		void ReadNodeHierarchy(float animationTimeTicks, const aiNode* pNode,
+			const glm::mat4& parentTransform, bool disableRootMotion = false);
+
+		void ReadNodeHierarchyBlended(float startAnimTimeTicks, float endAnimTimeTicks,
+			const aiNode* pNode, const glm::mat4& parentTransform,
+			const aiAnimation& startAnimation, const aiAnimation& endAnimation,
+			float blendFactor, bool disableRootMotion = false);
 
 		int GetBoneId(const aiBone* pBone);
 
-		const aiNodeAnim* FindNodeAnim(const aiAnimation* pAnimation, const std::string& nodeName);
+		using ChannelMap = std::unordered_map<std::string, const aiNodeAnim*>;
+		const aiNodeAnim* FindNodeAnim(const ChannelMap& map, const std::string& nodeName) const;
+		ChannelMap BuildChannelMap(const aiAnimation* pAnimation) const;
 
 		void CalcInterpolatedScaling(aiVector3D& out, float animationTimeTicks, const aiNodeAnim* pNodeAnim);
 		void CalcInterpolatedRotation(aiQuaternion& out, float animationTimeTicks, const aiNodeAnim* pNodeAnim);
 		void CalcInterpolatedTranslation(aiVector3D& out, float animationTimeTicks, const aiNodeAnim* pNodeAnim);
-
-		void ReadNodeHierarchy(float animationTimeTicks, const aiNode* pNode, const glm::mat4& parentTransform, bool disableRootMotion = false);
 
 		void CalcLocalTransform(LocalTransform& transform, float animTimeTicks, const aiNodeAnim* pNodeAnim);
 
@@ -94,10 +106,13 @@ namespace Hominem {
 
 	private:
 		std::map<std::string, int> m_BoneNameToIndexMap;
-		std::vector<BoneInfo> m_BoneInfo;
-		glm::mat4 m_GlobalInverseTransform{ 1.0f };
-		const aiScene* m_pScene = nullptr;
+		std::vector<BoneInfo>      m_BoneInfo;
+		glm::mat4                  m_GlobalInverseTransform{ 1.0f };
+		const aiScene*             m_pScene = nullptr;
 		std::vector<const aiScene*> m_AdditionalScenes;
+
+		ChannelMap              m_MainChannelMap;
+		std::vector<ChannelMap> m_AdditionalChannelMaps;
 	};
 
 }
