@@ -9,6 +9,13 @@
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/Renderer.h"
 #include <GLFW/glfw3.h>
+#include <thread>
+#include <chrono>
+#ifdef HMN_PLATFORM_WINDOWS
+    #include <windows.h>
+    #include <timeapi.h>
+    #pragma comment(lib, "winmm.lib")
+#endif
 
 #include "Hominem/Renderer/Camera.h"
 
@@ -22,6 +29,12 @@ namespace Hominem {
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
 
 		s_Instance = this;
+
+#ifdef HMN_PLATFORM_WINDOWS
+		// Default Windows timer resolution is 15.6ms — sleep_for snaps to that quantum.
+		// 1ms resolution makes the frame limiter sleep accurate to ~1ms.
+		timeBeginPeriod(1);
+#endif
 		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
@@ -67,9 +80,17 @@ namespace Hominem {
 
 	void Application::Run()
 	{
-		
+		// Belt-and-suspenders frame cap alongside VSync.
+		// glfwSwapInterval(1) is unreliable on Windows — drivers can override it.
+		// This ensures the loop never burns more than one core at idle.
+		static constexpr float k_TargetFrameTime = 1.0f / 60.0f;
+
 		while (m_Running)
 		{
+			HMN_PROFILE_FRAME("MainThread");
+
+			float frameStart = (float)glfwGetTime();
+
 			if (Input::IsKeyPressed(HMN_KEY_ESCAPE))
 				m_Running = false;
 
@@ -99,7 +120,14 @@ namespace Hominem {
 			m_Window->OnUpdate();
 
 			// Process pending transitions AFTER all updates complete
-			ProcessPendingTransitions(); //now it's safe to delete it all and replace 
+			ProcessPendingTransitions(); //now it's safe to delete it all and replace
+
+			// Frame limiter — only needed if VSync is disabled or overridden by the GPU driver.
+			// When VSync is on, SwapBuffers already blocks until vblank so this is a no-op.
+			// float elapsed = (float)glfwGetTime() - frameStart;
+			// float remaining = k_TargetFrameTime - elapsed - 0.001f;
+			// if (remaining > 0.001f)
+			//     std::this_thread::sleep_for(std::chrono::microseconds((int)(remaining * 1e6f)));
 		}
 	}
 
@@ -166,6 +194,10 @@ namespace Hominem {
 		// Shutdown audio system before other cleanup
 		m_AudioSystem.Shutdown();
 		HMN_CORE_INFO("AudioSystem shutdown complete");
+
+#ifdef HMN_PLATFORM_WINDOWS
+		timeEndPeriod(1);
+#endif
 	}
 
 }

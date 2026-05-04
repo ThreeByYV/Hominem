@@ -47,7 +47,6 @@ namespace Hominem {
 		// Store the global inverse transform for animation math
 		m_GlobalInverseTransform = glm::inverse(AiToGlm(pScene->mRootNode->mTransformation));
 
-
 		// Parse bones from each mesh
 		for (uint32_t i = 0; i < pScene->mNumMeshes; i++)
 		{
@@ -57,6 +56,10 @@ namespace Hominem {
 		}
 
 		HMN_CORE_INFO("Skeleton: {} bones parsed", m_BoneInfo.size());
+
+		// Pre-build channel map for the primary animation so per-frame lookup is a hash map hit
+		if (pScene->mNumAnimations > 0)
+			m_MainChannelMap = BuildChannelMap(pScene->mAnimations[0]);
 	}
 
 	void Skeleton::ParseMeshBones(uint32_t meshIndex, const aiMesh* pMesh,
@@ -149,8 +152,6 @@ namespace Hominem {
 			return;
 		}
 
-		glm::mat4 identity = glm::mat4(1.0f);
-
 		// Animations use "ticks" as time units, not seconds.
 		// ticksPerSecond tells us how to convert.
 		float ticksPerSecond = static_cast<float>(m_pScene->mAnimations[0]->mTicksPerSecond != 0
@@ -160,12 +161,10 @@ namespace Hominem {
 		// Loop the animation
 		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(m_pScene->mAnimations[0]->mDuration));
 
-		// This is where the magic happens - recursively compute all bone transforms
-		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, identity, disableRootMotion);
+		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, glm::mat4(1.0f), disableRootMotion);
 
 		// Copy results for shader upload
 		transforms.resize(m_BoneInfo.size());
-
 		for (uint32_t i = 0; i < m_BoneInfo.size(); i++)
 			transforms[i] = m_BoneInfo[i].FinalTransformation;
 	}
@@ -176,8 +175,8 @@ namespace Hominem {
 		if (animIndex == 0 && m_pScene)
 			return m_pScene;
 
-		// Additional animations (1, 2, 3...) are in additional scenes
-		// Each additional scene contains 1 animation at index 0
+		// Additional animations (1, 2, 3...) are in additional scenes.
+		// Each additional scene contains 1 animation at index 0.
 		uint32_t additionalIndex = animIndex - 1;
 		if (additionalIndex < m_AdditionalScenes.size())
 			return m_AdditionalScenes[additionalIndex];
@@ -188,11 +187,8 @@ namespace Hominem {
 
 	uint32_t Skeleton::GetAnimIndexInScene(uint32_t globalAnimIndex) const
 	{
-		// Animation 0 is at index 0 in main scene
-		if (globalAnimIndex == 0)
-			return 0;
-
-		// Additional animations are always at index 0 in their respective scenes
+		// Animation 0 is at index 0 in main scene.
+		// Additional animations are always at index 0 in their respective scenes.
 		return 0;
 	}
 
@@ -210,15 +206,14 @@ namespace Hominem {
 		float ticksPerSecond = static_cast<float>(pAnimation->mTicksPerSecond != 0
 			? pAnimation->mTicksPerSecond : 25.0f);
 		float timeInTicks = timeInSeconds * ticksPerSecond;
-		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(pAnimation->mDuration));
-
-		return animationTimeTicks;
+		return fmod(timeInTicks, static_cast<float>(pAnimation->mDuration));
 	}
 
-	void Skeleton::GetBoneTransformsBlended(float timeInSeconds, std::vector<glm::mat4>& blendedTransforms, uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
+	void Skeleton::GetBoneTransformsBlended(float timeInSeconds, std::vector<glm::mat4>& blendedTransforms,
+		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
 	{
 		const aiScene* startScene = GetSceneForAnimIndex(startAnimIndex);
-		const aiScene* endScene = GetSceneForAnimIndex(endAnimIndex);
+		const aiScene* endScene   = GetSceneForAnimIndex(endAnimIndex);
 
 		if (!startScene || !endScene)
 		{
@@ -228,10 +223,10 @@ namespace Hominem {
 		}
 
 		float startAnimTimeTicks = CalcAnimationTimeTicks(timeInSeconds, startAnimIndex);
-		float endAnimTimeTicks = CalcAnimationTimeTicks(timeInSeconds, endAnimIndex);
+		float endAnimTimeTicks   = CalcAnimationTimeTicks(timeInSeconds, endAnimIndex);
 
 		uint32_t startSceneAnimIndex = GetAnimIndexInScene(startAnimIndex);
-		uint32_t endSceneAnimIndex = GetAnimIndexInScene(endAnimIndex);
+		uint32_t endSceneAnimIndex   = GetAnimIndexInScene(endAnimIndex);
 
 		if (startSceneAnimIndex >= startScene->mNumAnimations || endSceneAnimIndex >= endScene->mNumAnimations)
 		{
@@ -241,21 +236,20 @@ namespace Hominem {
 		}
 
 		const aiAnimation* startAnimation = startScene->mAnimations[startSceneAnimIndex];
-		const aiAnimation* endAnimation = endScene->mAnimations[endSceneAnimIndex];
+		const aiAnimation* endAnimation   = endScene->mAnimations[endSceneAnimIndex];
 
-		// Use the main scene's root node for hierarchy (both animations should have same skeleton structure)
-		ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks, m_pScene->mRootNode, glm::mat4(1.0f), *startAnimation, *endAnimation, blendFactor, disableRootMotion);
+		// Use the main scene's root node for hierarchy (both animations share the same skeleton structure)
+		ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks,
+			m_pScene->mRootNode, glm::mat4(1.0f),
+			*startAnimation, *endAnimation, blendFactor, disableRootMotion);
 
 		blendedTransforms.resize(m_BoneInfo.size());
-
 		for (uint32_t i = 0; i < m_BoneInfo.size(); i++)
-		{
 			blendedTransforms[i] = m_BoneInfo[i].FinalTransformation;
-		}
 	}
 
 	/**
-	 * Core animation function. Recursively processes the scene tree.
+	 * Core animation function. Recursively processes the scene node tree.
 	 *
 	 * For each node:
 	 * 1. Start with node's default transform (from bind pose)
@@ -276,17 +270,13 @@ namespace Hominem {
 	{
 		std::string nodeName{ pNode->mName.C_Str() };
 
-		const aiAnimation* pAnimation = m_pScene->mAnimations[0];
-
 		// Default: use the node's static transform from the bind pose
 		glm::mat4 nodeTransform = AiToGlm(pNode->mTransformation);
 
-		// Check if this is the root node (parent transform is identity)
+		// Detect the root of the hierarchy — used to optionally suppress root motion translation
 		bool isRootNode = (parentTransform == glm::mat4(1.0f));
 
-		// Check if this node has animation data
-		const aiNodeAnim* pNodeAnim = FindNodeAnim(pAnimation, nodeName);
-
+		const aiNodeAnim* pNodeAnim = FindNodeAnim(m_MainChannelMap, nodeName);
 		if (pNodeAnim)
 		{
 			// This node is animated - interpolate keyframes to get current transform
@@ -307,9 +297,7 @@ namespace Hominem {
 
 			// If root motion is disabled and this is the root node, zero out translation
 			if (disableRootMotion && isRootNode)
-			{
 				translation = aiVector3D(0.0f, 0.0f, 0.0f);
-			}
 
 			glm::mat4 trans = glm::translate(glm::mat4(1.0f), AiToGlm(translation));
 
@@ -341,65 +329,59 @@ namespace Hominem {
 			ReadNodeHierarchy(animationTimeTicks, pNode->mChildren[i], globalTransform, disableRootMotion);
 	}
 
-	void Skeleton::ReadNodeHierarchyBlended(float startAnimTimeTicks, float endAnimTimeTicks, const aiNode* pNode, const glm::mat4& parentTransform,
-											const aiAnimation& startAnimation, const aiAnimation& endAnimation, float blendFactor, bool disableRootMotion)
+	void Skeleton::ReadNodeHierarchyBlended(float startAnimTimeTicks, float endAnimTimeTicks,
+		const aiNode* pNode, const glm::mat4& parentTransform,
+		const aiAnimation& startAnimation, const aiAnimation& endAnimation,
+		float blendFactor, bool disableRootMotion)
 	{
 		std::string nodeName{ pNode->mName.C_Str() };
 		glm::mat4 nodeTransformation{ AiToGlm(pNode->mTransformation) };
 
-		// Check if this is the root node
 		bool isRootNode = (parentTransform == glm::mat4(1.0f));
 
-		const aiNodeAnim* pStartNodeAnim = FindNodeAnim(&startAnimation, nodeName);
+		// Resolve channel maps for these animations (main or additional)
+		auto resolveMap = [&](const aiAnimation& anim) -> const ChannelMap& {
+			if (m_pScene && m_pScene->mNumAnimations > 0 && m_pScene->mAnimations[0] == &anim)
+				return m_MainChannelMap;
+			for (size_t i = 0; i < m_AdditionalScenes.size(); i++)
+				if (m_AdditionalScenes[i]->mNumAnimations > 0 && m_AdditionalScenes[i]->mAnimations[0] == &anim)
+					return m_AdditionalChannelMaps[i];
+			static ChannelMap empty;
+			return empty;
+		};
 
-		LocalTransform startTransform{};
+		const ChannelMap& startMap = resolveMap(startAnimation);
+		const ChannelMap& endMap   = resolveMap(endAnimation);
 
-		if (pStartNodeAnim)
-		{
-			CalcLocalTransform(startTransform, startAnimTimeTicks, pStartNodeAnim);
-		}
-
-		LocalTransform endTransform{};
-
-		const aiNodeAnim* pEndNodeAnim = FindNodeAnim(&endAnimation, nodeName);
+		const aiNodeAnim* pStartNodeAnim = FindNodeAnim(startMap, nodeName);
+		const aiNodeAnim* pEndNodeAnim   = FindNodeAnim(endMap,   nodeName);
 
 		HMN_CORE_ASSERT((pStartNodeAnim && pEndNodeAnim) || (!pStartNodeAnim && !pEndNodeAnim),
-			"On the node {} there is an animation node for only one of the start/end animations. This is not supported!", nodeName.c_str());
-
-		if (pEndNodeAnim)
-		{
-			CalcLocalTransform(endTransform, endAnimTimeTicks, pEndNodeAnim);
-		}
+			"Node {} has animation in only one of the blended clips — not supported", nodeName.c_str());
 
 		if (pStartNodeAnim && pEndNodeAnim)
 		{
+			LocalTransform startT{}, endT{};
+			CalcLocalTransform(startT, startAnimTimeTicks, pStartNodeAnim);
+			CalcLocalTransform(endT,   endAnimTimeTicks,   pEndNodeAnim);
+
 			// Interpolate scaling
-			const auto& scale0 = startTransform.Scaling;
-			const auto& scale1 = endTransform.Scaling;
-			aiVector3D blendedScaling = (1.0f - blendFactor) * scale0 + scale1 * blendFactor;
+			aiVector3D blendedScaling = (1.0f - blendFactor) * startT.Scaling + endT.Scaling * blendFactor;
 			glm::mat4 scalingM = glm::scale(glm::mat4(1.0f), AiToGlm(blendedScaling));
 
-			// Interpolate rotation
-			const auto& rot0 = startTransform.Rotation;
-			const auto& rot1 = endTransform.Rotation;
+			// Interpolate rotation (spherical interpolation via Assimp)
 			aiQuaternion blendedRot{};
-			aiQuaternion::Interpolate(blendedRot, rot0, rot1, blendFactor);
+			aiQuaternion::Interpolate(blendedRot, startT.Rotation, endT.Rotation, blendFactor);
 			glm::mat4 rotationM = glm::toMat4(AiToGlm(blendedRot));
 
 			// Interpolate translation
-			const auto& pos0 = startTransform.Translation;
-			const auto& pos1 = endTransform.Translation;
-			aiVector3D blendedTranslation = (1.0f - blendFactor) * pos0 + pos1 * blendFactor;
-
-			// If root motion is disabled and this is the root node, zero out translation
+			aiVector3D blendedTranslation = (1.0f - blendFactor) * startT.Translation + endT.Translation * blendFactor;
 			if (disableRootMotion && isRootNode)
-			{
 				blendedTranslation = aiVector3D(0.0f, 0.0f, 0.0f);
-			}
 
 			glm::mat4 translationM = glm::translate(glm::mat4(1.0f), AiToGlm(blendedTranslation));
 
-			// Combine all (TRS order: Translation * Rotation * Scale)
+			// Combine (TRS order: Translation * Rotation * Scale)
 			nodeTransformation = translationM * rotationM * scalingM;
 		}
 
@@ -408,37 +390,36 @@ namespace Hominem {
 		if (m_BoneNameToIndexMap.contains(nodeName))
 		{
 			uint32_t boneIndex = m_BoneNameToIndexMap[nodeName];
-			m_BoneInfo[boneIndex].FinalTransformation = m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
+			m_BoneInfo[boneIndex].FinalTransformation =
+				m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
 		}
 
-		// Recurse to all children
+		// Recurse to children
 		for (size_t i = 0; i < pNode->mNumChildren; i++)
-		{
 			ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks, pNode->mChildren[i], globalTransform,
 				startAnimation, endAnimation, blendFactor, disableRootMotion);
-		}
 	}
 
 	void Skeleton::CalcLocalTransform(LocalTransform& localTransform, float animTimeTicks, const aiNodeAnim* pNodeAnim)
 	{
-		CalcInterpolatedScaling(localTransform.Scaling, animTimeTicks, pNodeAnim);
-		CalcInterpolatedRotation(localTransform.Rotation, animTimeTicks, pNodeAnim);
+		CalcInterpolatedScaling(localTransform.Scaling,         animTimeTicks, pNodeAnim);
+		CalcInterpolatedRotation(localTransform.Rotation,       animTimeTicks, pNodeAnim);
 		CalcInterpolatedTranslation(localTransform.Translation, animTimeTicks, pNodeAnim);
 	}
 
-	/**
-	 * Searches animation channels for one matching the given node name.
-	 * Returns nullptr if the node is not animated.
-	 */
-	const aiNodeAnim* Skeleton::FindNodeAnim(const aiAnimation* pAnimation, const std::string& nodeName)
+	Skeleton::ChannelMap Skeleton::BuildChannelMap(const aiAnimation* pAnimation) const
 	{
+		ChannelMap map;
+		map.reserve(pAnimation->mNumChannels);
 		for (uint32_t i = 0; i < pAnimation->mNumChannels; i++)
-		{
-			const aiNodeAnim* pNodeAnim = pAnimation->mChannels[i];
-			if (std::string{ pNodeAnim->mNodeName.C_Str() } == nodeName)
-				return pNodeAnim;
-		}
-		return nullptr;
+			map[pAnimation->mChannels[i]->mNodeName.C_Str()] = pAnimation->mChannels[i];
+		return map;
+	}
+
+	const aiNodeAnim* Skeleton::FindNodeAnim(const ChannelMap& map, const std::string& nodeName) const
+	{
+		auto it = map.find(nodeName);
+		return it != map.end() ? it->second : nullptr;
 	}
 
 	/**
@@ -446,9 +427,12 @@ namespace Hominem {
 	 *
 	 * Animation data is stored as discrete keyframes (e.g., position at t=0, t=0.5, t=1.0).
 	 * This function finds which two keyframes surround the current time and linearly
-	 * interpolates between them.
+	 * interpolates between them. Works directly on Assimp's raw key arrays — no heap allocation.
+	 *
+	 * @tparam T            Output value type (aiVector3D, aiQuaternion)
+	 * @tparam KeyType      Assimp key type (aiVectorKey, aiQuatKey)
+	 * @tparam Interpolator Lambda that blends two values by a [0,1] factor
 	 */
-	// Works directly on Assimp's raw key arrays — no vector copy, no heap allocation.
 	template<typename T, typename KeyType, typename Interpolator>
 	static void CalcInterpolatedGeneric(
 		T& out,

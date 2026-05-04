@@ -1,3 +1,0 @@
-C:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir
-C:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/edit_cache.dir
-C:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir

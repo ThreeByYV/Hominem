@@ -1,4 +1,4 @@
-#include "hmnpch.h"
+ #include "hmnpch.h"
 #include "AnimationSystem.h"
 #include "Hominem/Scene/Components.h"
 
@@ -6,6 +6,7 @@ namespace Hominem {
 
 	void AnimationSystem::OnUpdate(Timestep ts, entt::registry& registry)
 	{
+		HMN_PROFILE_FUNCTION();
 		auto view = registry.view<SkinnedMeshComponent, AnimationComponent>();
 		for (auto entity : view)
 		{
@@ -29,14 +30,20 @@ namespace Hominem {
 
 			m_BoneCache.clear();
 
-			if (animComp.UseBlending)
-				meshComp.Mesh->GetBoneTransformsBlended(animComp.AnimationTime, m_BoneCache,
-					animComp.StartAnimIndex, animComp.EndAnimIndex,
-					animComp.BlendFactor, animComp.DisableRootMotion);
-			else
-				meshComp.Mesh->GetBoneTransforms(animComp.AnimationTime, m_BoneCache, animComp.DisableRootMotion);
+			{
+				HMN_PROFILE_SCOPE("GetBoneTransforms");
+				if (animComp.UseBlending)
+					meshComp.Mesh->GetBoneTransformsBlended(animComp.AnimationTime, m_BoneCache,
+						animComp.StartAnimIndex, animComp.EndAnimIndex,
+						animComp.BlendFactor, animComp.DisableRootMotion);
+				else
+					meshComp.Mesh->GetBoneTransforms(animComp.AnimationTime, m_BoneCache, animComp.DisableRootMotion);
+			}
 
-			meshComp.Mesh->DispatchSkinning(m_BoneCache);
+			{
+				HMN_PROFILE_SCOPE("DispatchSkinning");
+				meshComp.Mesh->DispatchSkinning(m_BoneCache);
+			}
 		}
 	}
 

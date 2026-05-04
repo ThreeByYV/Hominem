@@ -34,7 +34,6 @@ include "Hominem/vendor/assimp"
 include "Hominem/vendor/Box2D"
 include "Hominem/vendor/tracy"
 
--- Shared vendor include dirs used by both projects
 VendorIncludes = {
     "Hominem/vendor/spdlog/include",
     "%{IncludeDir.GLFW}",
@@ -88,8 +87,8 @@ project "Hominem"
     includedirs
     (
         table.move(VendorIncludes, 1, #VendorIncludes, 3,
-            { "Hominem/src/Engine",  -- Engine abstract headers
-              "Hominem/src" })        -- allows #include "Platform/OpenGL/..."
+            { "Hominem/src/Engine",
+              "Hominem/src" })
     )
 
     filter "system:windows"
@@ -149,8 +148,8 @@ project "PostHominem"
     includedirs
     (
         table.move(VendorIncludes, 1, #VendorIncludes, 3,
-            { "Hominem/src/Engine",   -- Engine public headers
-              "Hominem/src/Game" })   -- own headers
+            { "Hominem/src/Engine",
+              "Hominem/src/Game" })
     )
 
     links
