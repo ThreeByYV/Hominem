@@ -11,6 +11,8 @@ namespace Hominem {
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		glEnable(GL_DEPTH_TEST);
+
+		glCreateVertexArrays(1, &m_EmptyVAO);
 	}
 
 	void OpenGLRendererAPI::SetClearColor(const glm::vec4& color)
@@ -31,6 +33,21 @@ namespace Hominem {
 	void OpenGLRendererAPI::DrawIndexed(const Ref<VertexArray>& vertexArray)
 	{
 		glDrawElements(GL_TRIANGLES, vertexArray->GetIndexBuffer()->GetCount(), GL_UNSIGNED_INT, nullptr);
+	}
+
+	void OpenGLRendererAPI::BindEmptyVAO()
+	{
+		glBindVertexArray(m_EmptyVAO);
+	}
+
+	void OpenGLRendererAPI::UnbindVAO()
+	{
+		glBindVertexArray(0);
+	}
+
+	void OpenGLRendererAPI::DrawArraysIndirect(uint32_t offset)
+	{
+		glDrawArraysIndirect(GL_TRIANGLES, reinterpret_cast<const void*>(static_cast<uintptr_t>(offset)));
 	}
 
 }

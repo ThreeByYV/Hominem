@@ -1,3 +1,6 @@
+# Machine-local MSBuild overrides
+*.props.user
+
 # Binaries
 **/bin/
 bin-int/
@@ -12,6 +15,7 @@ cmake-build-*/
 # Visual Studio files and folder
 .vs/
 **.sln
+**.slnx
 **.vcxproj
 **.vcxproj.filters
 **.vcxproj.user
