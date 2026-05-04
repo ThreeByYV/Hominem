@@ -28,6 +28,3 @@
 [submodule "Hominem/vendor/miniaudio"]
 	path = Hominem/vendor/miniaudio
 	url = https://github.com/mackron/miniaudio.git
-[submodule "Hominem/vendor/LDtkLoader"]
-	path = Hominem/vendor/LDtkLoader
-	url = https://github.com/Madour/LDtkLoader

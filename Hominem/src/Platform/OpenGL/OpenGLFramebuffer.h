@@ -14,6 +14,7 @@ namespace Hominem {
 
 		void Bind() override;
 		void Unbind() override;
+		void Resize(uint32_t width, uint32_t height) override;
 
 		uint32_t GetColorAttachmentRendererID() const override { return m_ColorAttachment; } //this will be bind as a tetxure
 		const FramebufferSpecification& GetSpecification() const override { return m_Spec; }

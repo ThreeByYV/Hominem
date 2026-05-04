@@ -1,11 +1,9 @@
 ﻿#include "hmnpch.h"
 
 #include "OpenGLShader.h"
-#include "hmnpch.h"
-#include <fstream>
 #include <glad/glad.h>
-
 #include <glm/gtc/type_ptr.hpp>
+#include "Hominem/Utils/FileUtils.h"
 
 namespace Hominem {
 
@@ -71,18 +69,7 @@ namespace Hominem {
 
 	std::string OpenGLShader::ReadTextFile(const std::filesystem::path& path)
 	{
-		std::ifstream file(path);
-
-		if (!file.is_open())
-		{
-			HMN_CORE_ERROR("Could not open file '{0}'", path.string());
-			return {};
-		}
-
-		std::ostringstream contentStream;
-		contentStream << file.rdbuf();
-
-		return contentStream.str();
+		return FileUtils::ReadTextFile(path);
 	}
 
 
@@ -334,6 +321,96 @@ namespace Hominem {
 	OpenGLShader::~OpenGLShader()
 	{
 		glDeleteProgram(m_RendererID);
+	}
+
+
+	OpenGLComputeShader::OpenGLComputeShader(const std::string& filepath)
+	{
+		// Derive name from filename without extension
+		auto lastSlash = filepath.find_last_of("/\\");
+		auto start = (lastSlash == std::string::npos) ? 0 : lastSlash + 1;
+		auto lastDot = filepath.rfind('.');
+		auto count = (lastDot == std::string::npos) ? filepath.size() - start : lastDot - start;
+		m_Name = filepath.substr(start, count);
+
+		std::string src = FileUtils::ReadTextFile(filepath);
+		if (src.empty()) return;
+
+		const char* cstr = src.c_str();
+		GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+		glShaderSource(shader, 1, &cstr, nullptr);
+		glCompileShader(shader);
+
+		GLint ok = 0;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+		if (!ok)
+		{
+			GLint len = 0;
+			glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
+			std::string log(len, '\0');
+			glGetShaderInfoLog(shader, len, nullptr, log.data());
+			HMN_CORE_ERROR("ComputeShader '{}' compile error: {}", filepath, log);
+			glDeleteShader(shader);
+			return;
+		}
+
+		m_RendererID = glCreateProgram();
+		glAttachShader(m_RendererID, shader);
+		glLinkProgram(m_RendererID);
+		glDetachShader(m_RendererID, shader);
+		glDeleteShader(shader);
+
+		GLint linked = 0;
+		glGetProgramiv(m_RendererID, GL_LINK_STATUS, &linked);
+		if (!linked)
+		{
+			GLint len = 0;
+			glGetProgramiv(m_RendererID, GL_INFO_LOG_LENGTH, &len);
+			std::string log(len, '\0');
+			glGetProgramInfoLog(m_RendererID, len, nullptr, log.data());
+			HMN_CORE_ERROR("ComputeShader '{}' link error: {}", filepath, log);
+			glDeleteProgram(m_RendererID);
+			m_RendererID = 0;
+			return;
+		}
+
+		HMN_CORE_INFO("ComputeShader '{}' compiled OK", m_Name);
+	}
+
+	OpenGLComputeShader::~OpenGLComputeShader()
+	{
+		if (m_RendererID) glDeleteProgram(m_RendererID);
+	}
+
+	void OpenGLComputeShader::Bind() const
+	{
+		glUseProgram(m_RendererID);
+	}
+
+	void OpenGLComputeShader::Dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ) const
+	{
+		glDispatchCompute(groupsX, groupsY, groupsZ);
+		// Barrier so the VS can safely read the SSBO output
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
+
+	void OpenGLComputeShader::SetUint(const std::string& name, uint32_t value)
+	{
+		glUniform1ui(GetUniformLocation(name), value);
+	}
+
+	void OpenGLComputeShader::SetInt(const std::string& name, int value)
+	{
+		glUniform1i(GetUniformLocation(name), value);
+	}
+
+	GLint OpenGLComputeShader::GetUniformLocation(const std::string& name) const
+	{
+		auto it = m_UniformCache.find(name);
+		if (it != m_UniformCache.end()) return it->second;
+		GLint loc = glGetUniformLocation(m_RendererID, name.c_str());
+		m_UniformCache[name] = loc;
+		return loc;
 	}
 
 }

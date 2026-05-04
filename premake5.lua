@@ -11,20 +11,20 @@ workspace "Hominem"
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
 IncludeDir = {}
-IncludeDir["GLFW"]         = "Hominem/vendor/GLFW/include"
-IncludeDir["Glad"]         = "Hominem/vendor/Glad/include"
-IncludeDir["ImGui"]        = "Hominem/vendor/imgui"
-IncludeDir["glm"]          = "Hominem/vendor/glm"
-IncludeDir["stb_image"]    = "Hominem/vendor/stb_image"
-IncludeDir["entt"]         = "Hominem/vendor/entt/include"
-IncludeDir["msdfgen"]      = "Hominem/vendor/msdf-atlas-gen/msdfgen"
+IncludeDir["GLFW"]           = "Hominem/vendor/GLFW/include"
+IncludeDir["Glad"]           = "Hominem/vendor/Glad/include"
+IncludeDir["ImGui"]          = "Hominem/vendor/imgui"
+IncludeDir["glm"]            = "Hominem/vendor/glm"
+IncludeDir["stb_image"]      = "Hominem/vendor/stb_image"
+IncludeDir["entt"]           = "Hominem/vendor/entt/include"
+IncludeDir["msdfgen"]        = "Hominem/vendor/msdf-atlas-gen/msdfgen"
 IncludeDir["msdf_atlas_gen"] = "Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen"
-IncludeDir["miniaudio"]    = "Hominem/vendor/miniaudio"
-IncludeDir["assimp"]       = "Hominem/vendor/assimp/include"
-IncludeDir["assimp_build"] = "Hominem/vendor/assimp/build/include"
-IncludeDir["json"]         = "Hominem/vendor/json"
-IncludeDir["Box2D"]        = "Hominem/vendor/Box2D/include"
-IncludeDir["LDtkLoader"]   = "Hominem/vendor/LDtkLoader/include"
+IncludeDir["miniaudio"]      = "Hominem/vendor/miniaudio"
+IncludeDir["assimp"]         = "Hominem/vendor/assimp/include"
+IncludeDir["assimp_build"]   = "Hominem/vendor/assimp/build/include"
+IncludeDir["json"]           = "Hominem/vendor/json"
+IncludeDir["Box2D"]          = "Hominem/vendor/Box2D/include"
+IncludeDir["tracy"]          = "Hominem/vendor/tracy/public"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -32,87 +32,153 @@ include "Hominem/vendor/imgui"
 include "Hominem/vendor/msdf-atlas-gen"
 include "Hominem/vendor/assimp"
 include "Hominem/vendor/Box2D"
-include "Hominem/vendor/LDtkLoader"
+include "Hominem/vendor/tracy"
+
+-- Shared vendor include dirs used by both projects
+VendorIncludes = {
+    "Hominem/vendor/spdlog/include",
+    "%{IncludeDir.GLFW}",
+    "%{IncludeDir.Glad}",
+    "%{IncludeDir.ImGui}",
+    "%{IncludeDir.glm}",
+    "%{IncludeDir.stb_image}",
+    "%{IncludeDir.entt}",
+    "%{IncludeDir.msdfgen}",
+    "%{IncludeDir.msdf_atlas_gen}",
+    "%{IncludeDir.miniaudio}",
+    "%{IncludeDir.assimp}",
+    "%{IncludeDir.assimp_build}",
+    "%{IncludeDir.json}",
+    "%{IncludeDir.Box2D}",
+    "%{IncludeDir.tracy}"
+}
 
 project "Hominem"
     location "Hominem"
-    kind "ConsoleApp"
+    kind "StaticLib"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
+    multiprocessorcompile "on"
 
-    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir    ("bin-int/" .. outputdir .. "/%{prj.name}")
+    filter "action:vs*"
+        buildoptions { "/experimental:module-" }
+    filter {}
 
-    debugdir ("bin/" .. outputdir .. "/%{prj.name}")
-
-    postbuildcommands {
-        "{COPYDIR} %{wks.location}Hominem/src/Hominem/Resources %{cfg.targetdir}/Resources"
-    }
+    targetdir ("bin/" .. outputdir .. "/Hominem")
+    objdir    ("bin-int/" .. outputdir .. "/Hominem")
 
     pchheader "hmnpch.h"
-    pchsource "Hominem/src/hmnpch.cpp"
+    pchsource "Hominem/src/Engine/hmnpch.cpp"
 
     files
     {
-        "%{prj.name}/src/**.h",
-        "%{prj.name}/src/**.cpp",
-        "%{prj.name}/src/**.hpp",
-        "%{prj.name}/vendor/stb_image/**.h",
-        "%{prj.name}/vendor/stb_image/**.cpp",
-        "%{prj.name}/vendor/glm/glm/**.hpp",
-        "%{prj.name}/vendor/glm/glm/**.inl"
+        "Hominem/src/Engine/**.h",
+        "Hominem/src/Engine/**.cpp",
+        "Hominem/src/Engine/**.hpp",
+        "Hominem/src/Platform/**.h",
+        "Hominem/src/Platform/**.cpp",
+        "Hominem/vendor/stb_image/**.h",
+        "Hominem/vendor/stb_image/**.cpp",
+        "Hominem/vendor/glm/glm/**.hpp",
+        "Hominem/vendor/glm/glm/**.inl"
     }
 
-    defines
-    {
-        "_CRT_SECURE_NO_WARNINGS",
-        "GLM_ENABLE_EXPERIMENTAL"
-    }
+    defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
 
     includedirs
+    (
+        table.move(VendorIncludes, 1, #VendorIncludes, 3,
+            { "Hominem/src/Engine",  -- Engine abstract headers
+              "Hominem/src" })        -- allows #include "Platform/OpenGL/..."
+    )
+
+    filter "system:windows"
+        systemversion "latest"
+        buildoptions { "/utf-8", "/FS" }
+        defines { "HMN_PLATFORM_WINDOWS" }
+
+    filter "configurations:Debug"
+        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        symbols "on"
+        editandcontinue "Off"
+        runtime "Debug"
+
+    filter "configurations:Release"
+        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        optimize "on"
+        runtime "Release"
+
+    filter "configurations:Dist"
+        defines { "HMN_DIST", "NDEBUG" }
+        optimize "On"
+        runtime "Release"
+
+project "PostHominem"
+    location "Hominem"
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++latest"
+    multiprocessorcompile "on"
+
+    filter "action:vs*"
+        buildoptions { "/experimental:module-" }
+    filter {}
+
+    targetdir ("bin/" .. outputdir .. "/PostHominem")
+    objdir    ("bin-int/" .. outputdir .. "/PostHominem")
+
+    debugdir ("bin/" .. outputdir .. "/PostHominem")
+
+    postbuildcommands
     {
-        "%{prj.name}/vendor/spdlog/include",
-        "%{prj.name}/src",
-        "%{IncludeDir.GLFW}",
-        "%{IncludeDir.Glad}",
-        "%{IncludeDir.ImGui}",
-        "%{IncludeDir.glm}",
-        "%{IncludeDir.stb_image}",
-        "%{IncludeDir.entt}",
-        "%{IncludeDir.msdfgen}",
-        "%{IncludeDir.msdf_atlas_gen}",
-        "%{IncludeDir.miniaudio}",
-        "%{IncludeDir.assimp}",
-        "%{IncludeDir.assimp_build}",
-        "%{IncludeDir.json}",
-        "%{IncludeDir.Box2D}",
-        "%{IncludeDir.LDtkLoader}"
+        "{COPYDIR} %{wks.location}Hominem/src/Game/Resources %{cfg.targetdir}/Resources"
     }
+
+    pchheader "hmnpch.h"
+    pchsource "Hominem/src/Game/hmnpch.cpp"
+
+    files
+    {
+        "Hominem/src/Game/**.h",
+        "Hominem/src/Game/**.cpp",
+        "Hominem/src/Game/**.hpp"
+    }
+
+    defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
+
+    includedirs
+    (
+        table.move(VendorIncludes, 1, #VendorIncludes, 3,
+            { "Hominem/src/Engine",   -- Engine public headers
+              "Hominem/src/Game" })   -- own headers
+    )
 
     links
     {
+        "Hominem",
         "GLFW",
         "Glad",
         "ImGui",
         "msdf-atlas-gen",
         "Box2D",
-        "LDtkLoader"
+        "Tracy"
     }
 
     filter "files:**/imgui*.cpp"
-        flags { "NoPCH" }
+        enablepch "Off"
 
     filter "system:windows"
         systemversion "latest"
-        buildoptions { "/utf-8" }
+        buildoptions { "/utf-8", "/FS" }
         defines { "HMN_PLATFORM_WINDOWS" }
-        removefiles { "%{prj.name}/src/Platform/MacOS/**" }
+            removefiles { "Hominem/src/Game/**/MacOS/**" }
 
     filter "configurations:Debug"
-        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG" }
+        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
         symbols "on"
+        editandcontinue "Off"
         runtime "Debug"
-        linkoptions { "/NODEFAULTLIB:LIBCMTD" }
+        linkoptions { "/NODEFAULTLIB:LIBCMTD", "/DEBUG:FASTLINK" }
         libdirs {
             "Hominem/vendor/assimp/build/lib/Debug",
             "Hominem/vendor/assimp/build/contrib/zlib/Debug"
@@ -120,7 +186,7 @@ project "Hominem"
         links { "assimp-vc143-mtd", "zlibstaticd" }
 
     filter "configurations:Release"
-        defines { "HMN_RELEASE", "NDEBUG" }
+        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
         optimize "on"
         runtime "Release"
         libdirs {

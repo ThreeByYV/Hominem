@@ -143,6 +143,39 @@ build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Log.cpp.obj: CXX_COMPILER_
   TARGET_PDB = Hominem.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
 
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\GameConfig.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Game\GameConfig.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\PlayGameMode.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Game\PlayGameMode.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\Player.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Game\Player.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
 build CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiBuild.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\ImGui\ImGuiBuild.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
   CONFIG = Debug
   DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
@@ -161,6 +194,17 @@ build CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiLayer.cpp.obj: CXX_C
   INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
   OBJECT_DIR = CMakeFiles\Hominem.dir
   OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\GameLayer.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Layers\GameLayer.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers
   TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
   TARGET_PDB = Hominem.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
@@ -216,28 +260,6 @@ build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh\SkinnedMesh.cpp.obj: CXX_C
   INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
   OBJECT_DIR = CMakeFiles\Hominem.dir
   OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh
-  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
-  TARGET_PDB = Hominem.pdb
-  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
-
-build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\Collider.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Physics\Collider.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
-  CONFIG = Debug
-  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
-  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
-  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
-  OBJECT_DIR = CMakeFiles\Hominem.dir
-  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics
-  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
-  TARGET_PDB = Hominem.pdb
-  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
-
-build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\PhysicsMaterial.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Physics\PhysicsMaterial.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
-  CONFIG = Debug
-  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
-  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
-  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
-  OBJECT_DIR = CMakeFiles\Hominem.dir
-  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics
   TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
   TARGET_PDB = Hominem.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
@@ -495,13 +517,101 @@ build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\SceneCamera.cpp.obj: CXX_
   TARGET_PDB = Hominem.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
 
-build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Serialization\JSON.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Serialization\JSON.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\AnimationSystem.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scene\Systems\AnimationSystem.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
   CONFIG = Debug
   DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
   FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
   INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
   OBJECT_DIR = CMakeFiles\Hominem.dir
-  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Serialization
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\AudioSourceSystem.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scene\Systems\AudioSourceSystem.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\PhysicsSystem.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scene\Systems\PhysicsSystem.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\RenderSystem.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scene\Systems\RenderSystem.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\ScriptSystem.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scene\Systems\ScriptSystem.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\LuaSequencer.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scripting\LuaSequencer.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptEngine.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scripting\ScriptEngine.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptGlue.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scripting\ScriptGlue.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting
+  TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
+  TARGET_PDB = Hominem.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
+
+build CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptInstance.cpp.obj: CXX_COMPILER__Hominem_unscanned_Debug C$:\Users\Owner\source\repos\Hominem\Hominem\src\Hominem\Scripting\ScriptInstance.cpp | CMakeFiles\Hominem.dir\cmake_pch.hxx CMakeFiles\Hominem.dir\cmake_pch.cxx.pch || cmake_object_order_depends_target_Hominem
+  CONFIG = Debug
+  DEFINES = -DHMN_DEBUG -DHMN_ENABLE_ASSERTS -DHMN_PLATFORM_WINDOWS -D_CRT_SECURE_NO_WARNINGS
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /YuC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx /FpC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/.//cmake_pch.cxx.pch /FIC:/Users/Owner/source/repos/Hominem/out/build/x64-Debug/CMakeFiles/Hominem.dir/cmake_pch.hxx
+  INCLUDES = -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\spdlog\include -IC:\Users\Owner\source\repos\Hominem\Hominem\src -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\GLFW\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\Glad\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\imgui -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\glm -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\stb_image -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\assimp\build\include -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdfgen -IC:\Users\Owner\source\repos\Hominem\Hominem\vendor\msdf-atlas-gen\msdf-atlas-gen
+  OBJECT_DIR = CMakeFiles\Hominem.dir
+  OBJECT_FILE_DIR = CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting
   TARGET_COMPILE_PDB = CMakeFiles\Hominem.dir\
   TARGET_PDB = Hominem.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\Hominem.dir
@@ -679,7 +789,7 @@ build CMakeFiles\Hominem.dir\Hominem\vendor\stb_image\stb_image.cpp.obj: CXX_COM
 #############################################
 # Link the executable Hominem.exe
 
-build Hominem.exe: CXX_EXECUTABLE_LINKER__Hominem_Debug CMakeFiles\Hominem.dir\cmake_pch.cxx.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\AudioSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\MiniaudioBackend.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\SoundBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Application.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Layer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\LayerStack.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Log.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiBuild.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\MenuLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\SandboxLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\VoidLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh\Skeleton.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh\SkinnedMesh.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\Collider.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\PhysicsMaterial.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\PhysicsWorld.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\Rigidbody.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Platform\Vulkan\VulkanRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Buffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\CameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\CinematicCameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Font.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Framebuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\GBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\OrthographicCamera.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\RenderCommand.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer2D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer3D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\RendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Shader.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\SubTexture2D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Texture.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\VertexArray.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\CameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Entity.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Scene.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\SceneCamera.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Serialization\JSON.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Threading\JobSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Main.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLContext.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLFramebuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLGBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLShader.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLTexture.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLVertexArray.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Vulkan\VulkanRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Windows\WindowsInput.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Windows\WindowsWindow.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\hmnpch.cpp.obj CMakeFiles\Hominem.dir\Hominem\vendor\stb_image\stb_image.cpp.obj
+build Hominem.exe: CXX_EXECUTABLE_LINKER__Hominem_Debug CMakeFiles\Hominem.dir\cmake_pch.cxx.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\AudioSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\MiniaudioBackend.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Audio\SoundBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Application.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Layer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\LayerStack.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Core\Log.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\GameConfig.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\PlayGameMode.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Game\Player.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiBuild.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\ImGui\ImGuiLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\GameLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\MenuLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\SandboxLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Layers\VoidLayer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh\Skeleton.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Mesh\SkinnedMesh.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\PhysicsWorld.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Physics\Rigidbody.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Platform\Vulkan\VulkanRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Buffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\CameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\CinematicCameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Font.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Framebuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\GBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\OrthographicCamera.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\RenderCommand.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer2D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Renderer3D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\RendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Shader.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\SubTexture2D.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\Texture.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Renderer\VertexArray.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\CameraController.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Entity.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Scene.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\SceneCamera.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\AnimationSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\AudioSourceSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\PhysicsSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\RenderSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scene\Systems\ScriptSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\LuaSequencer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptEngine.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptGlue.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Scripting\ScriptInstance.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Hominem\Threading\JobSystem.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Main.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLContext.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLFramebuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLGBuffer.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLShader.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLTexture.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\OpenGL\OpenGLVertexArray.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Vulkan\VulkanRendererAPI.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Windows\WindowsInput.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\Platform\Windows\WindowsWindow.cpp.obj CMakeFiles\Hominem.dir\Hominem\src\hmnpch.cpp.obj CMakeFiles\Hominem.dir\Hominem\vendor\stb_image\stb_image.cpp.obj
   CONFIG = Debug
   FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
   LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console

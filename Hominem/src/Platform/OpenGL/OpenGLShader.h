@@ -57,4 +57,26 @@ namespace Hominem {
 		std::unordered_map<GLenum, std::string> PreProcess(const std::string& source);
 		void Compile(std::unordered_map<GLenum, std::string> shaderSources);
 	};
+
+	class OpenGLComputeShader : public ComputeShader
+	{
+	public:
+		OpenGLComputeShader(const std::string& filepath);
+		~OpenGLComputeShader();
+
+		void Bind() const override;
+		void Dispatch(uint32_t groupsX, uint32_t groupsY = 1, uint32_t groupsZ = 1) const override;
+
+		void SetUint(const std::string& name, uint32_t value) override;
+		void SetInt(const std::string& name, int value) override;
+
+		const std::string& GetName() const override { return m_Name; }
+
+	private:
+		GLint GetUniformLocation(const std::string& name) const;
+
+		std::string m_Name;
+		uint32_t m_RendererID = 0;
+		mutable std::unordered_map<std::string, GLint> m_UniformCache;
+	};
 }
