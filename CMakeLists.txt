@@ -159,10 +159,12 @@ file(GLOB_RECURSE ENGINE_SOURCES
 
 add_library(Hominem STATIC ${ENGINE_SOURCES})
 
-target_include_directories(Hominem PUBLIC
-    ${CMAKE_SOURCE_DIR}/Hominem/src/Engine
-    ${CMAKE_SOURCE_DIR}/Hominem/src
-    ${VENDOR_INCLUDES}
+target_include_directories(Hominem
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/Hominem/src/Engine
+        ${VENDOR_INCLUDES}
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/Hominem/src
 )
 
 target_precompile_headers(Hominem PRIVATE

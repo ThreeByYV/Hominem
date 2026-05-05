@@ -3,11 +3,33 @@
 #include "Hominem/Scene/Components.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
+#include <glad/glad.h>
 
 namespace Hominem {
 
 	void RenderSystem::OnUpdate(Timestep ts, entt::registry& registry)
 	{
+		// Sync all non-fixed cameras to the actual GL viewport every frame.
+		// This is more reliable than depending on resize events propagating correctly
+		// through the full layer/system chain.
+		{
+			GLint vp[4];
+			glGetIntegerv(GL_VIEWPORT, vp);
+			uint32_t vpW = static_cast<uint32_t>(vp[2]);
+			uint32_t vpH = static_cast<uint32_t>(vp[3]);
+
+			if (vpW > 0 && vpH > 0)
+			{
+				auto camView = registry.view<CameraComponent>();
+				for (auto entity : camView)
+				{
+					auto& cam = camView.get<CameraComponent>(entity);
+					if (!cam.FixedAspectRatio)
+						cam.Camera.SetViewportSize(vpW, vpH);
+				}
+			}
+		}
+
 		// Find primary camera
 		Camera* mainCamera = nullptr;
 		glm::mat4 cameraTransform;
