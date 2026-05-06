@@ -75,20 +75,43 @@ namespace Hominem {
 
 		HMN_CORE_ASSERT(interalFormat != 0 && dataFormat != 0, "Image format not supported!");
 
-		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
-		glTextureStorage2D(m_RendererID, 1, interalFormat, m_Width, m_Height);
+		int mipLevels = 1 + (int)std::floor(std::log2((float)std::max(m_Width, m_Height)));
 
-		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
+		glTextureStorage2D(m_RendererID, mipLevels, interalFormat, m_Width, m_Height);
+
+		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 		glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, dataFormat, GL_UNSIGNED_BYTE, data);
+		glGenerateTextureMipmap(m_RendererID);
 
 		stbi_image_free(data);
 	}
 
+
+	static GLenum WrapToGL(TextureWrap w)
+	{
+		switch (w)
+		{
+			case TextureWrap::ClampToEdge:    return GL_CLAMP_TO_EDGE;
+			case TextureWrap::MirroredRepeat: return GL_MIRRORED_REPEAT;
+			default:                          return GL_REPEAT;
+		}
+	}
+
+	void OpenGLTexture2D::SetWrapS(TextureWrap wrap)
+	{
+		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, WrapToGL(wrap));
+	}
+
+	void OpenGLTexture2D::SetWrapT(TextureWrap wrap)
+	{
+		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, WrapToGL(wrap));
+	}
 
 	void OpenGLTexture2D::SetData(void* data, uint32_t size)
 	{

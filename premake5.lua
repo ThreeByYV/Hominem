@@ -113,7 +113,7 @@ project "Hominem"
         runtime "Release"
 
 project "PostHominem"
-    location "Hominem"
+    location "PostHominem"
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++latest"
@@ -130,17 +130,17 @@ project "PostHominem"
 
     postbuildcommands
     {
-        "{COPYDIR} %{wks.location}Hominem/src/Game/Resources %{cfg.targetdir}/Resources"
+        "{COPYDIR} %{wks.location}PostHominem/src/Resources %{cfg.targetdir}/Resources"
     }
 
     pchheader "hmnpch.h"
-    pchsource "Hominem/src/Game/hmnpch.cpp"
+    pchsource "PostHominem/src/hmnpch.cpp"
 
     files
     {
-        "Hominem/src/Game/**.h",
-        "Hominem/src/Game/**.cpp",
-        "Hominem/src/Game/**.hpp"
+        "PostHominem/src/**.h",
+        "PostHominem/src/**.cpp",
+        "PostHominem/src/**.hpp"
     }
 
     defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
@@ -149,7 +149,7 @@ project "PostHominem"
     (
         table.move(VendorIncludes, 1, #VendorIncludes, 3,
             { "Hominem/src/Engine",
-              "Hominem/src/Game" })
+              "PostHominem/src" })
     )
 
     links

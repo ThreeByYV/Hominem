@@ -9,6 +9,8 @@ namespace Hominem {
 		RGBA8,
 		RED8
 	};
+
+	enum class TextureWrap { Repeat, ClampToEdge, MirroredRepeat };
 	
 	class Texture
 	{
@@ -30,6 +32,9 @@ namespace Hominem {
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height);
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height, TextureFormat format);
 		static Ref<Texture2D> Create(const std::string& path);
+
+		virtual void SetWrapS(TextureWrap wrap) = 0;
+		virtual void SetWrapT(TextureWrap wrap) = 0;
 	};
 
 }

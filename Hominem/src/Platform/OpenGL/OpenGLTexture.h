@@ -18,6 +18,8 @@ namespace Hominem {
 
 		void SetData(void* data, uint32_t size) override;
 		void Bind(uint32_t slot) const override;
+		void SetWrapS(TextureWrap wrap) override;
+		void SetWrapT(TextureWrap wrap) override;
 
 		static void UnbindAll();
 

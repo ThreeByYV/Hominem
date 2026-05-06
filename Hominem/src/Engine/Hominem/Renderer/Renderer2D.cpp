@@ -221,6 +221,12 @@ namespace Hominem {
 		PushQuad(transform, tint, s_FullUVMin, s_FullUVMax, texture);
 	}
 
+	void Renderer2D::DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture,
+	                          const glm::vec2& uvMin, const glm::vec2& uvMax)
+	{
+		PushQuad(transform, glm::vec4(1.f), uvMin, uvMax, texture);
+	}
+
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const Ref<Texture2D>& texture)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, texture);
@@ -357,7 +363,7 @@ namespace Hominem {
 			if (i < string.size() - 1)
 				fontGeometry.getAdvance(advance, character, string[i + 1]);
 
-			x += fsScale * advance + 1.0f; // +1 = kerning offset between characters
+			x += fsScale * advance;
 		}
 	}
 }
