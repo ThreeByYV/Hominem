@@ -182,14 +182,14 @@ if(MSVC)
 endif()
 
 file(GLOB_RECURSE GAME_SOURCES
-    "Hominem/src/Game/*.cpp"
-    "Hominem/src/Game/*.h"
+    "PostHominem/src/*.cpp"
+    "PostHominem/src/*.h"
 )
 
 add_executable(PostHominem ${GAME_SOURCES})
 
 target_include_directories(PostHominem PRIVATE
-    ${CMAKE_SOURCE_DIR}/Hominem/src/Game
+    ${CMAKE_SOURCE_DIR}/PostHominem/src
 )
 
 target_precompile_headers(PostHominem PRIVATE
@@ -209,6 +209,6 @@ endif()
 
 add_custom_command(TARGET PostHominem POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/Hominem/src/Game/Resources"
+        "${CMAKE_SOURCE_DIR}/PostHominem/src/Resources"
         "$<TARGET_FILE_DIR:PostHominem>/Resources"
 )
