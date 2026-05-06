@@ -4,38 +4,42 @@
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/Renderer3D.h"
-#include "Hominem/Scene/Components.h"
-#include "Hominem/Physics/Rigidbody.h"
+#include "Hominem/Scene/Scene.h"
+#include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Physics/PhysicsTypes.h"
+#include "Game/WorldConfig.h"
 
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Hominem {
 
-	Player::Player(Scene& scene, const PlayerConfig& config)
-		: m_Scene(scene), m_Config(config)
+	Player::Player(const PlayerConfig& config)
+		: m_Config(config)
 	{
-		// Load base mesh (Idle.fbx contains geometry + idle animation)
-		auto mesh = CreateRef<SkinnedMesh>();
-		std::string idlePath = "Resources/Textures/Idle.fbx";
+		// Position / scale come from config; OnCreate() runs after m_Scene is set.
+		Position = m_Config.Spawn.Position;
+		Scale    = m_Config.Spawn.Scale;
+		Rotation = glm::vec3(0.f, glm::radians(90.f), 0.f);
+	}
 
-		if (!mesh->LoadFromFile(idlePath))
+	void Player::OnCreate()
+	{
+		m_Mesh = CreateRef<SkinnedMesh>();
+		const std::string idlePath    = "Resources/Textures/Idle.fbx";
+		const std::string runningPath = "Resources/Textures/Running.fbx";
+
+		if (!m_Mesh->LoadFromFile(idlePath))
 		{
 			HMN_CORE_ERROR("Player: Failed to load mesh from {}", idlePath);
 			return;
 		}
+		HMN_CORE_INFO("Player: Loaded base mesh with {} animations", m_Mesh->GetAnimationCount());
 
-		HMN_CORE_INFO("Player: Loaded base mesh with {} animations", mesh->GetAnimationCount());
-
-		// Load running animation
-		std::string runningPath = "Resources/Textures/Running.fbx";
-		if (!mesh->LoadAdditionalAnimation(runningPath))
-		{
+		if (!m_Mesh->LoadAdditionalAnimation(runningPath))
 			HMN_CORE_ERROR("Player: Failed to load running animation from {}", runningPath);
-		}
 
-		uint32_t animCount = mesh->GetAnimationCount();
-		HMN_CORE_INFO("Player: Total animations loaded: {}", animCount);
+		HMN_CORE_INFO("Player: Total animations: {}", m_Mesh->GetAnimationCount());
 
 		auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
 		if (!skinningShader)
@@ -43,188 +47,182 @@ namespace Hominem {
 			HMN_CORE_ERROR("Player: Skinning shader not found!");
 			return;
 		}
+		m_Mesh->SetShader(skinningShader);
 
-		mesh->SetShader(skinningShader);
-
-		// Create ECS entity
-		m_Entity = m_Scene.CreateEntity("Animated Character");
-
-		m_Scale    = config.Spawn.Scale;
-		m_Rotation = glm::vec3(0.0f, glm::radians(90.0f), 0.0f); // Face right by default
-
-		auto& transform = m_Entity.GetComponent<TransformComponent>();
-		transform.Translation = config.Spawn.Position;
-		transform.Scale       = m_Scale;
-		transform.Rotation    = m_Rotation;
-
-		m_Entity.AddComponent<SkinnedMeshComponent>(mesh, idlePath);
-
-		// Animation component with blending
-		auto& animComp = m_Entity.AddComponent<AnimationComponent>(1.0f, true);
-
-		if (animCount >= 2)
+		if (m_Mesh->GetAnimationCount() >= 2)
 		{
-			HMN_CORE_INFO("Player: Setting up blended animations: Idle(0) <-> Running(1)");
-			animComp.UseBlending    = true;
-			animComp.StartAnimIndex = 0;   // Idle
-			animComp.EndAnimIndex   = 1;   // Running
-			animComp.TargetAnimIndex = 0;
-			animComp.BlendFactor    = 0.0f;
-			animComp.BlendSpeed     = 5.0f;
+			HMN_CORE_INFO("Player: Blended animations: Idle(0) <-> Running(1)");
+			m_UseBlending = true;
+			m_StartAnim   = 0;
+			m_EndAnim     = 1;
+			m_TargetAnim  = 0;
+			m_BlendFactor = 0.f;
 		}
 		else
 		{
-			HMN_CORE_WARN("Player: Only {} animation(s) found — blending disabled.", animCount);
-			animComp.UseBlending = false;
+			HMN_CORE_WARN("Player: Only {} animation(s) — blending disabled.", m_Mesh->GetAnimationCount());
 		}
 
-		// Physics
-		auto& rb    = m_Entity.AddComponent<RigidbodyComponent>();
-		rb.Type     = RigidbodyComponent::BodyType::Dynamic;
-		rb.Mass     = config.Movement.Mass;
+		auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
+		if (!world)
+		{
+			HMN_CORE_WARN("Player: No PhysicsWorld on scene — skipping physics setup");
+			return;
+		}
 
-		auto& collider              = m_Entity.AddComponent<BoxColliderComponent>();
-		collider.HalfExtents        = config.Collider.Extents;
-		collider.StaticFriction     = config.Collider.StaticFriction;
-		collider.DynamicFriction    = config.Collider.DynamicFriction;
-		collider.Offset             = config.Collider.Offset;
+		RigidbodySpec rbSpec;
+		rbSpec.Type          = RigidbodyType::Dynamic;
+		rbSpec.Position      = Position;
+		rbSpec.LockRotationZ = true;
+		rbSpec.Mass          = m_Config.Movement.Mass;
+		m_Body = world->CreateRigidbody(rbSpec);
+		m_Body->SetGravityEnabled(true);
+
+		auto material = world->CreateMaterial(
+			m_Config.Collider.StaticFriction,
+			m_Config.Collider.DynamicFriction,
+			0.f);
+
+		BoxColliderSpec colSpec;
+		colSpec.HalfExtents = { m_Config.Collider.Extents.x, m_Config.Collider.Extents.y, 0.f };
+		colSpec.Offset      = { m_Config.Collider.Offset.x,  m_Config.Collider.Offset.y,  0.f };
+
+		m_Collider = world->CreateBoxCollider(colSpec, material);
+		m_Body->AttachCollider(m_Collider);
 	}
 
 	void Player::OnUpdate(Timestep ts)
 	{
-		if (!m_Entity || !m_Entity.HasComponent<AnimationComponent>())
-			return;
+		if (m_AnimPlaying)
+			m_AnimTime += ts * m_AnimSpeed;
 
-		auto& animComp = m_Entity.GetComponent<AnimationComponent>();
-		auto& rb       = m_Entity.GetComponent<RigidbodyComponent>();
+		if (m_UseBlending)
+		{
+			float target = (m_TargetAnim == m_EndAnim) ? 1.0f : 0.0f;
+			float delta  = m_BlendSpeed * ts;
+			if (glm::abs(m_BlendFactor - target) > 0.01f)
+				m_BlendFactor = glm::clamp(m_BlendFactor + (m_BlendFactor < target ? delta : -delta), 0.f, 1.f);
+			else
+				m_BlendFactor = target;
+		}
+
+		if (m_Mesh && m_Mesh->HasSkeleton())
+		{
+			m_BoneCache.clear();
+			if (m_UseBlending)
+				m_Mesh->GetBoneTransformsBlended(m_AnimTime, m_BoneCache,
+					m_StartAnim, m_EndAnim, m_BlendFactor, m_DisableRootMotion);
+			else
+				m_Mesh->GetBoneTransforms(m_AnimTime, m_BoneCache, m_DisableRootMotion);
+
+			m_Mesh->DispatchSkinning(m_BoneCache);
+		}
+
+		// --- Physics input ---------------------------------------------------
+		if (!m_Body) return;
 
 		bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
 		bool pressingD = Input::IsKeyPressed(HMN_KEY_D);
 		bool isMoving  = pressingA || pressingD;
 
-		// Preserve Y velocity (gravity) while controlling X
-		glm::vec3 velocity = glm::vec3(0.0f);
-		if (rb.RuntimeBody)
-			velocity = rb.RuntimeBody->GetLinearVelocity();
+		glm::vec3 velocity = m_Body->GetLinearVelocity();
 
 		if (pressingA)
 		{
-			m_Rotation.y = glm::radians(-90.0f);
-			velocity.x   = -m_Config.Movement.Speed;
+			Rotation.y = glm::radians(-90.f);
+			velocity.x = -m_Config.Movement.Speed;
 		}
 		else if (pressingD)
 		{
-			m_Rotation.y = glm::radians(90.0f);
-			velocity.x   = m_Config.Movement.Speed;
+			Rotation.y = glm::radians(90.f);
+			velocity.x =  m_Config.Movement.Speed;
 		}
 		else
 		{
-			velocity.x = 0.0f;
+			velocity.x = 0.f;
 		}
 
-		if (rb.RuntimeBody)
-		{
-			rb.RuntimeBody->SetLinearVelocity(velocity);
+		m_Body->SetLinearVelocity(velocity);
 
-			if (m_Entity.HasComponent<TransformComponent>())
-			{
-				auto& transform    = m_Entity.GetComponent<TransformComponent>();
-				transform.Rotation = m_Rotation;
-				transform.Scale    = m_Scale;
-			}
-		}
+		// Sync position from physics body.
+		Position = m_Body->GetPosition();
 
-		// State machine: Idle <-> Running
+		// --- State machine ---------------------------------------------------
 		if (isMoving && m_State == State::Idle)
 		{
-			m_State = State::Running;
-			animComp.TargetAnimIndex = 1;
+			m_State      = State::Running;
+			m_TargetAnim = m_EndAnim;
 		}
 		else if (!isMoving && m_State == State::Running)
 		{
-			m_State = State::Idle;
-			animComp.TargetAnimIndex = 0;
+			m_State      = State::Idle;
+			m_TargetAnim = m_StartAnim;
 		}
 	}
 
-	void Player::OnImGuiRender()
+	void Player::OnDraw3D()
 	{
-		if (!m_Entity)
-			return;
+		if (!m_Mesh) return;
 
-		// Transform controls
-		ImGui::Text("Player Transform");
-		ImGui::DragFloat3("Scale",    &m_Scale.x,    0.001f, 0.001f, 10.0f);
-		ImGui::DragFloat3("Rotation", &m_Rotation.x, 0.01f, -3.14159f, 3.14159f);
+		// DrawSkinnedMesh sets u_ViewProjection, u_Model, and gCameraWorldPos
+		// using the values stored by Renderer3D::BeginScene.
+		Renderer3D::DrawSkinnedMesh(*m_Mesh, GetTransform());
+	}
 
-		if (ImGui::Button("Reset Transform"))
-		{
-			m_Scale    = m_Config.Spawn.Scale;
-			m_Rotation = glm::vec3(0.0f, glm::radians(90.0f), 0.0f);
-		}
-
-		ImGui::Separator();
-
-		// Mesh info
-		if (m_Entity.HasComponent<SkinnedMeshComponent>())
-		{
-			auto& meshComp = m_Entity.GetComponent<SkinnedMeshComponent>();
-			if (meshComp.Mesh)
-			{
-				ImGui::Text("Mesh Info:");
-				ImGui::Text("  VAO: %u",       meshComp.Mesh->GetVAO());
-				ImGui::Text("  Vertices: %u",  meshComp.Mesh->GetVertexCount());
-				ImGui::Text("  Indices: %u",   meshComp.Mesh->GetIndexCount());
-				ImGui::Text("  Submeshes: %u", meshComp.Mesh->GetSubmeshCount());
-				ImGui::Text("  Has Skeleton: %s", meshComp.Mesh->HasSkeleton() ? "Yes" : "No");
-				ImGui::Text("  Bones: %d",     meshComp.Mesh->GetBoneCount());
-			}
-		}
-
-		ImGui::Separator();
-
-		// Animation controls
-		if (m_Entity.HasComponent<AnimationComponent>())
-		{
-			auto& animComp = m_Entity.GetComponent<AnimationComponent>();
-			ImGui::Checkbox("Play Animation",    &animComp.Playing);
-			ImGui::DragFloat("Animation Speed",  &animComp.AnimationSpeed, 0.1f, 0.0f, 5.0f);
-			ImGui::Text("Animation Time: %.2f",   animComp.AnimationTime);
-
-			ImGui::Separator();
-			ImGui::Text("Blended Animation System:");
-			ImGui::Checkbox("Use Blending", &animComp.UseBlending);
-			ImGui::Text("Current State: %s", m_State == State::Idle ? "Idle" : "Running");
-			ImGui::Text("Start Anim Index: %d",  animComp.StartAnimIndex);
-			ImGui::Text("End Anim Index: %d",    animComp.EndAnimIndex);
-			ImGui::Text("Target Anim Index: %d", animComp.TargetAnimIndex);
-			ImGui::SliderFloat("Blend Factor",   &animComp.BlendFactor, 0.0f, 1.0f);
-			ImGui::DragFloat("Blend Speed",      &animComp.BlendSpeed, 0.1f, 0.1f, 10.0f);
-			ImGui::Text("Press A or D to switch to Running");
-			ImGui::Text("Release keys to return to Idle");
-		}
+	void Player::OnDestroy()
+	{
+		// Physics resources are ref-counted; nothing manual needed.
 	}
 
 	void Player::ReloadShader()
 	{
-		if (!m_Entity || !m_Entity.HasComponent<SkinnedMeshComponent>())
-			return;
-
+		if (!m_Mesh) return;
 		auto skinningShader = Renderer3D::GetShaderLibrary()->Get("skinning");
-		if (!skinningShader) return;
-
-		auto& meshComp = m_Entity.GetComponent<SkinnedMeshComponent>();
-		if (meshComp.Mesh)
-		{
-			meshComp.Mesh->SetShader(skinningShader);
-		}
+		if (skinningShader)
+			m_Mesh->SetShader(skinningShader);
 	}
 
-	glm::vec3 Player::GetPosition() const
+	void Player::OnImGuiRender()
 	{
-		if (m_Entity && m_Entity.HasComponent<TransformComponent>())
-			return m_Entity.GetComponent<TransformComponent>().Translation;
-		return glm::vec3(0.0f);
+		ImGui::Text("Player Transform");
+		ImGui::DragFloat3("Position", &Position.x, 0.01f);
+		ImGui::DragFloat3("Scale",    &Scale.x,    0.001f, 0.001f, 10.f);
+		ImGui::DragFloat3("Rotation", &Rotation.x, 0.01f, -3.14159f, 3.14159f);
+
+		if (ImGui::Button("Reset Transform"))
+		{
+			Scale    = m_Config.Spawn.Scale;
+			Rotation = glm::vec3(0.f, glm::radians(90.f), 0.f);
+		}
+
+		ImGui::Separator();
+
+		if (m_Mesh)
+		{
+			ImGui::Text("Mesh Info:");
+			ImGui::Text("  VAO: %u",       m_Mesh->GetVAO());
+			ImGui::Text("  Vertices: %u",  m_Mesh->GetVertexCount());
+			ImGui::Text("  Indices: %u",   m_Mesh->GetIndexCount());
+			ImGui::Text("  Submeshes: %u", m_Mesh->GetSubmeshCount());
+			ImGui::Text("  Has Skeleton: %s", m_Mesh->HasSkeleton() ? "Yes" : "No");
+			ImGui::Text("  Bones: %d",     m_Mesh->GetBoneCount());
+		}
+
+		ImGui::Separator();
+
+		ImGui::Checkbox("Play Animation",   &m_AnimPlaying);
+		ImGui::DragFloat("Animation Speed", &m_AnimSpeed, 0.1f, 0.f, 5.f);
+		ImGui::Text("Animation Time: %.2f",  m_AnimTime);
+
+		ImGui::Separator();
+		ImGui::Text("Blended Animation System:");
+		ImGui::Checkbox("Use Blending",    &m_UseBlending);
+		ImGui::Text("State: %s",           m_State == State::Idle ? "Idle" : "Running");
+		ImGui::Text("Start Anim: %d",      m_StartAnim);
+		ImGui::Text("End Anim: %d",        m_EndAnim);
+		ImGui::Text("Target Anim: %d",     m_TargetAnim);
+		ImGui::SliderFloat("Blend Factor", &m_BlendFactor, 0.f, 1.f);
+		ImGui::DragFloat("Blend Speed",    &m_BlendSpeed,  0.1f, 0.1f, 10.f);
 	}
 
 }
