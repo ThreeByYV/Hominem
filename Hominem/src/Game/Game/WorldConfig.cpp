@@ -1,5 +1,5 @@
 #include "hmnpch.h"
-#include "Game/GameConfig.h"
+#include "Game/WorldConfig.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 
@@ -51,16 +51,15 @@ namespace nlohmann {
 		j.at("floor").get_to(c.Floor);
 	}
 
-	static void from_json(const json& j, Hominem::CameraControllerConfig& c)
+	static void from_json(const json& j, Hominem::CameraConfig& c)
 	{
-		j.at("controller_speed").get_to(c.ControllerSpeed);
 		j.at("smoothing").get_to(c.Smoothing);
 		j.at("ortho_size").get_to(c.OrthoSize);
 		j.at("ortho_near").get_to(c.OrthoNear);
 		j.at("ortho_far").get_to(c.OrthoFar);
 	}
 
-	static void from_json(const json& j, Hominem::GameConfig& c)
+	static void from_json(const json& j, Hominem::WorldConfig& c)
 	{
 		j.at("player").get_to(c.Player);
 		j.at("physics").get_to(c.Physics);
@@ -71,14 +70,14 @@ namespace nlohmann {
 
 namespace Hominem {
 
-	bool GameConfig::LoadFromFile(const std::string& path, GameConfig& out)
+	bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)
 	{
 		try
 		{
 			std::ifstream file(path);
 			if (!file.is_open())
 			{
-				HMN_CORE_ERROR("GameConfig: cannot open '{}'", path);
+				HMN_CORE_ERROR("WorldConfig: cannot open '{}'", path);
 				return false;
 			}
 			json::parse(file).get_to(out);
@@ -86,7 +85,7 @@ namespace Hominem {
 		}
 		catch (const json::exception& e)
 		{
-			HMN_CORE_ERROR("GameConfig: parse error in '{}': {}", path, e.what());
+			HMN_CORE_ERROR("WorldConfig: parse error in '{}': {}", path, e.what());
 			return false;
 		}
 	}

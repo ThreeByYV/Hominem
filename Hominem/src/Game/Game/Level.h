@@ -6,14 +6,15 @@
 
 namespace Hominem {
 
-	class GameMode
+	/// Base class for all game levels / play modes.
+	class Level
 	{
 	public:
-		virtual ~GameMode() = default;
+		virtual ~Level() = default;
 
 		virtual void OnEnter(Scene& scene) = 0;
-		virtual void OnUpdate(Timestep ts) = 0;
-		virtual void OnExit() = 0;
+		virtual void OnUpdate(Timestep ts)  = 0;
+		virtual void OnExit()               = 0;
 
 		virtual void OnImGuiRender() {}
 		virtual void OnEvent(Event& e) {}
