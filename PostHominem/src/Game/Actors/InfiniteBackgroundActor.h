@@ -9,11 +9,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-/// Infinitely tiling background.
-/// - Scrolls horizontally with the camera (GL_REPEAT on S).
-/// - Sky extends upward infinitely: a second quad above the image samples
-///   UV.y = 1.0 everywhere — with GL_CLAMP_TO_EDGE that is always the top
-///   edge row of pixels, so the sky colour bleeds up with zero artifacts.
+
 class InfiniteBackgroundActor : public Hominem::Actor
 {
 public:
@@ -38,7 +34,7 @@ public:
 		}
 	}
 
-	void OnDraw2D() override
+	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override
 	{
 		if (!m_Texture || !m_Scene) return;
 
@@ -49,25 +45,24 @@ public:
 		float uvMinX = (camX - quadW * 0.5f) / TileWidth;
 		float uvMaxX = (camX + quadW * 0.5f) / TileWidth;
 
-		// Sky extension — UV.y uses a tiny non-zero range to avoid degenerate LOD.
 		float imageTopY = NaturalHeight * 0.5f;
 		float skyMidY   = imageTopY + SkyExtent * 0.5f;
-		{
-			glm::mat4 t =
-				glm::translate(glm::mat4(1.f), glm::vec3(camX, skyMidY, ZDepth))
-				* glm::scale(glm::mat4(1.f), glm::vec3(quadW, SkyExtent, 1.f));
 
-			Hominem::Renderer2D::DrawQuad(t, m_Texture, { uvMinX, 0.999f }, { uvMaxX, 1.f });
-		}
+		Hominem::QuadDraw sky;
+		sky.transform = glm::translate(glm::mat4(1.f), glm::vec3(camX, skyMidY, ZDepth))
+		              * glm::scale(glm::mat4(1.f), glm::vec3(quadW, SkyExtent, 1.f));
+		sky.texture = m_Texture;
+		sky.uvMin   = { uvMinX, 0.999f };
+		sky.uvMax   = { uvMaxX, 1.f };
+		frame.quads.push_back(std::move(sky));
 
-		// Background image at its natural size, UV.y in [0, 1].
-		{
-			glm::mat4 t =
-				glm::translate(glm::mat4(1.f), glm::vec3(camX, 0.f, ZDepth))
-				* glm::scale(glm::mat4(1.f), glm::vec3(quadW, NaturalHeight, 1.f));
-
-			Hominem::Renderer2D::DrawQuad(t, m_Texture, { uvMinX, 0.f }, { uvMaxX, 1.f });
-		}
+		Hominem::QuadDraw bg;
+		bg.transform = glm::translate(glm::mat4(1.f), glm::vec3(camX, 0.f, ZDepth))
+		             * glm::scale(glm::mat4(1.f), glm::vec3(quadW, NaturalHeight, 1.f));
+		bg.texture = m_Texture;
+		bg.uvMin   = { uvMinX, 0.f };
+		bg.uvMax   = { uvMaxX, 1.f };
+		frame.quads.push_back(std::move(bg));
 	}
 
 private:

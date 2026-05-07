@@ -4,6 +4,8 @@
 #include <glad/glad.h>
 #include <glm/gtc/type_ptr.hpp>
 #include "Hominem/Utils/FileUtils.h"
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -23,6 +25,7 @@ namespace Hominem {
 	OpenGLShader::OpenGLShader(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 		: m_Name(name)
 	{
+		ASSERT_RENDER_THREAD();
 		std::unordered_map<GLenum, std::string> sources;
 
 		std::string vertexShaderSource = ReadTextFile(vertexPath);
@@ -35,6 +38,7 @@ namespace Hominem {
 
 	OpenGLShader::OpenGLShader(const std::string& filepath)
 	{
+		ASSERT_RENDER_THREAD();
 		std::string source = ReadTextFile(filepath);
 		auto shaderSources = PreProcess(source);
 		Compile(shaderSources);
@@ -62,6 +66,7 @@ namespace Hominem {
 	OpenGLShader::OpenGLShader(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc)
 		: m_Name(name)
 	{
+		ASSERT_RENDER_THREAD();
 		std::unordered_map<GLenum, std::string> sources;
 
 		sources[GL_VERTEX_SHADER] = vertexSrc;
@@ -189,6 +194,7 @@ namespace Hominem {
 	
 	void OpenGLShader::Bind() const
 	{
+		ASSERT_RENDER_THREAD();
 		glUseProgram(m_RendererID);
 	}
 
@@ -322,6 +328,7 @@ namespace Hominem {
 
 	OpenGLShader::~OpenGLShader()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteProgram(m_RendererID);
 	}
 

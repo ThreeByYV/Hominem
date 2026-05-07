@@ -1,17 +1,21 @@
 #include "hmnpch.h"
 #include "OpenGLStorageBuffer.h"
 #include <glad/glad.h>
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
 	OpenGLStorageBuffer::OpenGLStorageBuffer(uint32_t capacity)
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateBuffers(1, &m_RendererID);
 		glNamedBufferData(m_RendererID, capacity, nullptr, GL_DYNAMIC_DRAW);
 	}
 
 	OpenGLStorageBuffer::~OpenGLStorageBuffer()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteBuffers(1, &m_RendererID);
 	}
 
@@ -27,12 +31,14 @@ namespace Hominem {
 
 	OpenGLDrawIndirectBuffer::OpenGLDrawIndirectBuffer(uint32_t capacity)
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateBuffers(1, &m_RendererID);
 		glNamedBufferData(m_RendererID, capacity, nullptr, GL_DYNAMIC_DRAW);
 	}
 
 	OpenGLDrawIndirectBuffer::~OpenGLDrawIndirectBuffer()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteBuffers(1, &m_RendererID);
 	}
 

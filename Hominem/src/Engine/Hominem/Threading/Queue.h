@@ -51,7 +51,7 @@ namespace Hominem {
 
 			T item = std::move(m_Queue.front());
 			m_Queue.pop();
-			return item;
+			return std::optional<T>(std::move(item));
 		}
 
 		void Shutdown()

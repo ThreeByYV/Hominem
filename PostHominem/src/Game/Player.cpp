@@ -24,7 +24,8 @@ Player::Player(const PlayerConfig& config)
 
 void Player::OnCreate()
 {
-	m_Mesh = CreateRef<SkinnedMesh>();
+	m_Mesh = SkinnedMesh::Create();
+
 	const std::string idlePath    = "Resources/Textures/Idle.fbx";
 	const std::string runningPath = "Resources/Textures/Running.fbx";
 
@@ -48,19 +49,13 @@ void Player::OnCreate()
 	}
 	m_Mesh->SetShader(skinningShader);
 
-	if (m_Mesh->GetAnimationCount() >= 2)
-	{
-		HMN_CORE_INFO("Player: Blended animations: Idle(0) <-> Running(1)");
-		m_UseBlending = true;
-		m_StartAnim   = 0;
-		m_EndAnim     = 1;
-		m_TargetAnim  = 0;
-		m_BlendFactor = 0.f;
-	}
-	else
-	{
-		HMN_CORE_WARN("Player: Only {} animation(s) — blending disabled.", m_Mesh->GetAnimationCount());
-	}
+	// Build one blend sample per loaded animation, all starting at weight 0 except the first.
+	uint32_t animCount = m_Mesh->GetAnimationCount();
+	m_AnimSamples.resize(animCount);
+	for (uint32_t i = 0; i < animCount; i++)
+		m_AnimSamples[i] = { i, 0.f, (i == 0) ? 1.f : 0.f };
+
+	HMN_CORE_INFO("Player: {} animation(s) registered for blending", animCount);
 
 	auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
 	if (!world)
@@ -95,26 +90,28 @@ void Player::OnUpdate(Timestep ts)
 	if (m_AnimPlaying)
 		m_AnimTime += ts * m_AnimSpeed;
 
-	if (m_UseBlending)
+	// Blend weights toward the active animation and away from all others.
+	if (!m_AnimSamples.empty())
 	{
-		float target = (m_TargetAnim == m_EndAnim) ? 1.0f : 0.0f;
-		float delta  = m_BlendSpeed * ts;
-		if (glm::abs(m_BlendFactor - target) > 0.01f)
-			m_BlendFactor = glm::clamp(m_BlendFactor + (m_BlendFactor < target ? delta : -delta), 0.f, 1.f);
-		else
-			m_BlendFactor = target;
+		float delta = m_BlendSpeed * ts;
+		for (uint32_t i = 0; i < m_AnimSamples.size(); i++)
+		{
+			float target = (i == m_ActiveAnim) ? 1.f : 0.f;
+			float& w = m_AnimSamples[i].weight;
+			if (glm::abs(w - target) > 0.001f)
+				w = glm::clamp(w + (w < target ? delta : -delta), 0.f, 1.f);
+			else
+				w = target;
+
+			m_AnimSamples[i].time = m_AnimTime;
+		}
 	}
 
 	if (m_Mesh && m_Mesh->HasSkeleton())
 	{
 		m_BoneCache.clear();
-		if (m_UseBlending)
-			m_Mesh->GetBoneTransformsBlended(m_AnimTime, m_BoneCache,
-				m_StartAnim, m_EndAnim, m_BlendFactor, m_DisableRootMotion);
-		else
-			m_Mesh->GetBoneTransforms(m_AnimTime, m_BoneCache, m_DisableRootMotion);
-
-		m_Mesh->DispatchSkinning(m_BoneCache);
+		m_Mesh->GetBoneTransformsBlendedN(m_AnimSamples, m_BoneCache, m_DisableRootMotion);
+		// DispatchSkinning moved to RenderThread::ExecuteFrame.
 	}
 
 	if (!m_Body) return;
@@ -145,20 +142,24 @@ void Player::OnUpdate(Timestep ts)
 
 	if (isMoving && m_State == State::Idle)
 	{
-		m_State      = State::Running;
-		m_TargetAnim = m_EndAnim;
+		m_State       = State::Running;
+		m_ActiveAnim  = 1; // Running animation
 	}
 	else if (!isMoving && m_State == State::Running)
 	{
-		m_State      = State::Idle;
-		m_TargetAnim = m_StartAnim;
+		m_State       = State::Idle;
+		m_ActiveAnim  = 0; // Idle animation
 	}
 }
 
-void Player::OnDraw3D()
+void Player::OnBuildRenderFrame(RenderFrame& frame)
 {
 	if (!m_Mesh) return;
-	Renderer3D::DrawSkinnedMesh(*m_Mesh, GetTransform());
+	MeshDraw draw;
+	draw.mesh      = m_Mesh;
+	draw.transform = GetTransform();
+	draw.bones     = m_BoneCache;
+	frame.meshes.push_back(std::move(draw));
 }
 
 void Player::OnDestroy() {}
@@ -188,28 +189,19 @@ void Player::OnImGuiRender()
 
 	if (m_Mesh)
 	{
-		ImGui::Text("Mesh Info:");
-		ImGui::Text("  VAO: %u",       m_Mesh->GetVAO());
-		ImGui::Text("  Vertices: %u",  m_Mesh->GetVertexCount());
-		ImGui::Text("  Indices: %u",   m_Mesh->GetIndexCount());
-		ImGui::Text("  Submeshes: %u", m_Mesh->GetSubmeshCount());
-		ImGui::Text("  Has Skeleton: %s", m_Mesh->HasSkeleton() ? "Yes" : "No");
-		ImGui::Text("  Bones: %d",     m_Mesh->GetBoneCount());
+		ImGui::Text("Mesh: %u verts  %u idx  %u submesh  %d bones",
+			m_Mesh->GetVertexCount(), m_Mesh->GetIndexCount(),
+			m_Mesh->GetSubmeshCount(), m_Mesh->GetBoneCount());
 	}
 
 	ImGui::Separator();
-
 	ImGui::Checkbox("Play Animation",   &m_AnimPlaying);
 	ImGui::DragFloat("Animation Speed", &m_AnimSpeed, 0.1f, 0.f, 5.f);
-	ImGui::Text("Animation Time: %.2f",  m_AnimTime);
+	ImGui::DragFloat("Blend Speed",     &m_BlendSpeed, 0.1f, 0.1f, 10.f);
+	ImGui::Text("Time: %.2f  State: %s  Active: %u",
+		m_AnimTime, m_State == State::Idle ? "Idle" : "Running", m_ActiveAnim);
 
-	ImGui::Separator();
-	ImGui::Text("Blended Animation System:");
-	ImGui::Checkbox("Use Blending",    &m_UseBlending);
-	ImGui::Text("State: %s",           m_State == State::Idle ? "Idle" : "Running");
-	ImGui::Text("Start Anim: %d",      m_StartAnim);
-	ImGui::Text("End Anim: %d",        m_EndAnim);
-	ImGui::Text("Target Anim: %d",     m_TargetAnim);
-	ImGui::SliderFloat("Blend Factor", &m_BlendFactor, 0.f, 1.f);
-	ImGui::DragFloat("Blend Speed",    &m_BlendSpeed,  0.1f, 0.1f, 10.f);
+	ImGui::Text("Blend weights:");
+	for (uint32_t i = 0; i < m_AnimSamples.size(); i++)
+		ImGui::Text("  [%u] %.2f", i, m_AnimSamples[i].weight);
 }

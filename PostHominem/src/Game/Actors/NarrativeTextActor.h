@@ -10,9 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-/// Hollow Knight / Ori style narrative text.
-/// Shows a dark panel + centered text.
-/// Call Show() to trigger. Actor follows the camera automatically.
+
 class NarrativeTextActor : public Hominem::Actor
 {
 public:
@@ -35,45 +33,43 @@ public:
 		Position = m_Scene->GetCameraPosition() + ScreenOffset;
 	}
 
-	void OnDraw2D() override
+	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override
 	{
 		if (!m_Visible || m_Text.empty()) return;
 
-		glm::mat4 panelTransform =
-			glm::translate(glm::mat4(1.f), Position)
-			* glm::scale(glm::mat4(1.f), glm::vec3(14.f, 2.0f, 1.f));
+		Hominem::QuadDraw panel;
+		panel.transform = glm::translate(glm::mat4(1.f), Position)
+		                * glm::scale(glm::mat4(1.f), glm::vec3(14.f, 2.0f, 1.f));
+		panel.color = glm::vec4(0.f, 0.f, 0.f, PanelAlpha);
+		frame.quads.push_back(std::move(panel));
 
-		Hominem::Renderer2D::DrawQuad(panelTransform, glm::vec4(0.f, 0.f, 0.f, PanelAlpha));
-		Hominem::Renderer2D::Flush();
+		if (!m_Font) return;
 
-		if (m_Font)
+		// Compute text half-width for centering — CPU math only, no GL.
+		float halfWidth = 0.f;
 		{
-			float halfWidth = 0.f;
+			const auto& fg  = m_Font->GetMSDFData()->FontGeometry;
+			const auto& met = fg.getMetrics();
+			double fsS  = 1.0 / (met.ascenderY - met.descenderY);
+			double xAcc = 0.0;
+			for (size_t i = 0; i < m_Text.size(); i++)
 			{
-				const auto& fg  = m_Font->GetMSDFData()->FontGeometry;
-				const auto& met = fg.getMetrics();
-				double fsS  = 1.0 / (met.ascenderY - met.descenderY);
-				double xAcc = 0.0;
-				for (size_t i = 0; i < m_Text.size(); i++)
-				{
-					auto g = fg.getGlyph(m_Text[i]);
-					if (!g) g = fg.getGlyph('?');
-					if (!g) continue;
-					double adv = g->getAdvance();
-					if (i + 1 < m_Text.size())
-						fg.getAdvance(adv, m_Text[i], m_Text[i + 1]);
-					xAcc += fsS * adv;
-				}
-				halfWidth = static_cast<float>(xAcc * 0.5 * TextScale);
+				auto g = fg.getGlyph(m_Text[i]);
+				if (!g) g = fg.getGlyph('?');
+				if (!g) continue;
+				double adv = g->getAdvance();
+				if (i + 1 < m_Text.size())
+					fg.getAdvance(adv, m_Text[i], m_Text[i + 1]);
+				xAcc += fsS * adv;
 			}
-
-			glm::vec3 textPos = Position + glm::vec3(-halfWidth, 0.f, 0.5f);
-			glm::mat4 textTransform =
-				glm::translate(glm::mat4(1.f), textPos)
-				* glm::scale(glm::mat4(1.f), glm::vec3(TextScale));
-
-			Hominem::Renderer2D::DrawString(m_Text, m_Font, textTransform, glm::vec4(1.f));
+			halfWidth = static_cast<float>(xAcc * 0.5 * TextScale);
 		}
+
+		glm::vec3 textPos = Position + glm::vec3(-halfWidth, 0.f, 0.5f);
+		glm::mat4 textTransform = glm::translate(glm::mat4(1.f), textPos)
+		                        * glm::scale(glm::mat4(1.f), glm::vec3(TextScale));
+
+		frame.texts.push_back({ m_Text, m_Font, textTransform, glm::vec4(1.f) });
 	}
 
 private:

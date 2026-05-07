@@ -60,7 +60,7 @@ public:
 			m_Segments.end());
 	}
 
-	void OnDraw2D() override {}
+	void OnBuildRenderFrame(Hominem::RenderFrame&) override {}
 
 private:
 	struct Segment

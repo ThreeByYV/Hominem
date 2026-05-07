@@ -23,12 +23,13 @@ namespace Hominem {
 			Color    = color;
 		}
 
-		void OnDraw2D() override
+		void OnBuildRenderFrame(RenderFrame& frame) override
 		{
-			if (Texture)
-				Renderer2D::DrawQuad(GetTransform(), Texture, Color);
-			else
-				Renderer2D::DrawQuad(GetTransform(), Color);
+			QuadDraw q;
+			q.transform = GetTransform();
+			q.color     = Color;
+			q.texture   = Texture;
+			frame.quads.push_back(std::move(q));
 		}
 
 		Ref<Texture2D> Texture;

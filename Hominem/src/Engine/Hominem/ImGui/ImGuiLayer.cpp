@@ -23,25 +23,18 @@ namespace Hominem {
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     
-		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; 
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+		// ViewportsEnable requires UpdatePlatformWindows() to be called in sync with
+		// NewFrame(). With a split render thread that's a race — disable for game use.
 
 
 		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
 
 		ImGuiStyle& style = ImGui::GetStyle();
-
-		//When ImGui viewports are enabled, we change the windowRounding a little
-		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-		{
-			style.WindowRounding = 0.0f;
-			style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-
-			style.WindowMinSize = ImVec2(32, 32);
-		}
+		style.WindowMinSize = ImVec2(32, 32);
 
 		// Setup Platform/Renderer backends
 		Application& app = Application::Get();
@@ -55,7 +48,7 @@ namespace Hominem {
 
 	void ImGuiLayer::Begin()
 	{
-		ImGui_ImplOpenGL3_NewFrame();
+		// ImGui_ImplOpenGL3_NewFrame runs on the render thread (GL context lives there).
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 	}
@@ -66,18 +59,8 @@ namespace Hominem {
 		Application& app = Application::Get();
 		io.DisplaySize = ImVec2((float)app.GetWindow().GetWidth(), (float)app.GetWindow().GetHeight());
 
-		//Rendering
+		// Builds draw lists only — no GL. RenderThread calls RenderDrawData.
 		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-		{
-			GLFWwindow* backup_current_context = glfwGetCurrentContext();
-			ImGui::UpdatePlatformWindows();
-			ImGui::RenderPlatformWindowsDefault();
-
-			glfwMakeContextCurrent(backup_current_context);
-		}
 	}
 
 	void ImGuiLayer::OnImGuiRender()

@@ -13,6 +13,16 @@ namespace Hominem {
 #define MAX_NUM_BONES_PER_VERTEX 4
 #define MAX_BONES 100
 
+	/// One animation contributing to a multi-way blend.
+	/// Caller fills an array with these and passes to GetBoneTransformsBlendedN.
+	/// Weights do not need to be pre-normalised — the method normalises internally.
+	struct AnimBlendSample
+	{
+		uint32_t animIndex = 0;   // index into loaded animations (0 = base, 1+ = additional)
+		float    time      = 0.f; // playback position in seconds (per-clip, independent)
+		float    weight    = 1.f; // contribution weight
+	};
+
 	struct LocalTransform
 	{
 		aiVector3D Scaling;
@@ -56,6 +66,13 @@ namespace Hominem {
 									float blendFactor,
 									bool disableRootMotion = false);
 
+		/// Blend any number of animations by weight.
+		/// Weights are normalised internally so they don't need to sum to 1.
+		/// Uses per-clip local-space slerp — same quality as the 2-way blend path.
+		void GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
+									   std::vector<glm::mat4>& transforms,
+									   bool disableRootMotion = false);
+
 		int GetNumBones() const { return static_cast<int>(m_BoneInfo.size()); }
 		int GetBoneCount() const { return static_cast<int>(m_BoneInfo.size()); }
 		bool HasBones() const { return !m_BoneInfo.empty(); }
@@ -67,10 +84,12 @@ namespace Hominem {
 			if (pScene->mNumAnimations > 0)
 				m_AdditionalChannelMaps.push_back(BuildChannelMap(pScene->mAnimations[0]));
 			else
-				m_AdditionalChannelMaps.push_back({});
+				m_AdditionalChannelMaps.emplace_back();
 		}
 
 	private:
+		using ChannelMap = std::unordered_map<std::string, const aiNodeAnim*>;
+
 		void ParseMeshBones(uint32_t meshIndex, const aiMesh* pMesh,
 			const std::vector<uint32_t>& meshBaseVertices,
 			std::vector<VertexBoneData>& vertexBones);
@@ -87,9 +106,16 @@ namespace Hominem {
 			const aiAnimation& startAnimation, const aiAnimation& endAnimation,
 			float blendFactor, bool disableRootMotion = false);
 
+		void ReadNodeHierarchyBlendedN(
+			const std::vector<std::pair<const aiAnimation*, float>>& animsAndTimes,
+			const std::vector<float>& normalisedWeights,
+			const aiNode* pNode, const glm::mat4& parentTransform,
+			bool disableRootMotion);
+
+		const ChannelMap& GetChannelMapForAnim(const aiAnimation* anim) const;
+
 		int GetBoneId(const aiBone* pBone);
 
-		using ChannelMap = std::unordered_map<std::string, const aiNodeAnim*>;
 		const aiNodeAnim* FindNodeAnim(const ChannelMap& map, const std::string& nodeName) const;
 		ChannelMap BuildChannelMap(const aiAnimation* pAnimation) const;
 

@@ -45,6 +45,8 @@ void MenuLayer::OnAttach()
 void MenuLayer::OnDetach()
 {
 	Application::Get().GetAudioSystem().StopMusic();
+	m_ActiveScene.reset();
+	m_Background = nullptr;
 }
 
 void MenuLayer::OnUpdate(Timestep ts)
@@ -60,10 +62,14 @@ void MenuLayer::OnUpdate(Timestep ts)
 
 	Application::Get().GetAudioSystem().UpdateMusic();
 
-	RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
-	RenderCommand::Clear();
 	m_ActiveScene->OnUpdate(ts);
-	m_ActiveScene->OnDraw();
+}
+
+void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
+{
+	frame.clearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+	if (m_ActiveScene)
+		m_ActiveScene->BuildRenderFrame(frame);
 }
 
 bool MenuLayer::OnWindowResize(WindowResizeEvent& e)

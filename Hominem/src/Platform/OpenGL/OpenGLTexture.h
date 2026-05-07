@@ -2,6 +2,7 @@
 
 #include "Hominem/Renderer/Texture.h"
 #include <glad/glad.h>
+#include <vector>
 
 namespace Hominem {
 
@@ -24,10 +25,16 @@ namespace Hominem {
 		static void UnbindAll();
 
 	private:
+		void UploadToGPU() const; // called lazily from Bind() on the render thread
+
 		std::string m_Path;
-		uint32_t m_Width, m_Height;
-		uint32_t m_RendererID;
-		GLenum m_InternalFormat, m_DataFormat;
+		uint32_t m_Width = 0, m_Height = 0;
+		mutable uint32_t m_RendererID = 0;
+		GLenum m_InternalFormat = 0, m_DataFormat = 0;
+
+		// CPU pixel data held until first Bind() on the render thread
+		mutable std::vector<uint8_t> m_PendingPixels;
+		mutable int m_MipLevels = 1;
 	};
 }
 

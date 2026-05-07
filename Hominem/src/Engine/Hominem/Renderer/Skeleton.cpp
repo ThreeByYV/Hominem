@@ -209,6 +209,142 @@ namespace Hominem {
 		return fmod(timeInTicks, static_cast<float>(pAnimation->mDuration));
 	}
 
+	const Skeleton::ChannelMap& Skeleton::GetChannelMapForAnim(const aiAnimation* anim) const
+	{
+		if (m_pScene && m_pScene->mNumAnimations > 0 && m_pScene->mAnimations[0] == anim)
+			return m_MainChannelMap;
+		for (size_t i = 0; i < m_AdditionalScenes.size(); i++)
+			if (m_AdditionalScenes[i]->mNumAnimations > 0 && m_AdditionalScenes[i]->mAnimations[0] == anim)
+				return m_AdditionalChannelMaps[i];
+		static ChannelMap empty;
+		return empty;
+	}
+
+	void Skeleton::GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
+		std::vector<glm::mat4>& transforms, bool disableRootMotion)
+	{
+		if (samples.empty())
+		{
+			transforms.resize(m_BoneInfo.size(), glm::mat4(1.f));
+			return;
+		}
+
+		// Single sample — fast path, no blending needed.
+		if (samples.size() == 1)
+		{
+			GetBoneTransformsBlended(samples[0].time, transforms,
+				samples[0].animIndex, samples[0].animIndex, 0.f, disableRootMotion);
+			return;
+		}
+
+		// Two samples — use the existing optimised 2-way path.
+		if (samples.size() == 2)
+		{
+			float total = samples[0].weight + samples[1].weight;
+			float factor = total > 0.f ? samples[1].weight / total : 0.f;
+			GetBoneTransformsBlended(samples[0].time, transforms,
+				samples[0].animIndex, samples[1].animIndex, factor, disableRootMotion);
+			return;
+		}
+
+		// N > 2 — normalise weights and resolve anim pointers, then blend at node level.
+		float totalWeight = 0.f;
+		for (auto& s : samples) totalWeight += s.weight;
+		if (totalWeight <= 0.f)
+		{
+			transforms.resize(m_BoneInfo.size(), glm::mat4(1.f));
+			return;
+		}
+
+		std::vector<std::pair<const aiAnimation*, float>> animsAndTimes;
+		std::vector<float> normWeights;
+		animsAndTimes.reserve(samples.size());
+		normWeights.reserve(samples.size());
+
+		for (auto& s : samples)
+		{
+			const aiScene* scene = GetSceneForAnimIndex(s.animIndex);
+			if (!scene || scene->mNumAnimations == 0) continue;
+			const aiAnimation* anim = scene->mAnimations[GetAnimIndexInScene(s.animIndex)];
+			animsAndTimes.push_back({ anim, CalcAnimationTimeTicks(s.time, s.animIndex) });
+			normWeights.push_back(s.weight / totalWeight);
+		}
+
+		ReadNodeHierarchyBlendedN(animsAndTimes, normWeights, m_pScene->mRootNode, glm::mat4(1.f), disableRootMotion);
+
+		transforms.resize(m_BoneInfo.size());
+		for (uint32_t i = 0; i < m_BoneInfo.size(); i++)
+			transforms[i] = m_BoneInfo[i].FinalTransformation;
+	}
+
+	void Skeleton::ReadNodeHierarchyBlendedN(
+		const std::vector<std::pair<const aiAnimation*, float>>& animsAndTimes,
+		const std::vector<float>& normWeights,
+		const aiNode* pNode, const glm::mat4& parentTransform, bool disableRootMotion)
+	{
+		std::string nodeName(pNode->mName.C_Str());
+		glm::mat4 nodeTransformation = AiToGlm(pNode->mTransformation);
+		bool isRootNode = (parentTransform == glm::mat4(1.f));
+
+		// Accumulate local transforms across all samples that animate this node.
+		// Uses iterative weighted slerp — same quality as the 2-way path.
+		aiVector3D   blendedScale{};
+		aiQuaternion blendedRot{};
+		aiVector3D   blendedTranslation{};
+		float        accumWeight = 0.f;
+
+		for (size_t i = 0; i < animsAndTimes.size(); i++)
+		{
+			const ChannelMap& map = GetChannelMapForAnim(animsAndTimes[i].first);
+			const aiNodeAnim* nodeAnim = FindNodeAnim(map, nodeName);
+			if (!nodeAnim) continue;
+
+			LocalTransform t;
+			CalcLocalTransform(t, animsAndTimes[i].second, nodeAnim);
+
+			float w = normWeights[i];
+			if (accumWeight == 0.f)
+			{
+				blendedScale       = t.Scaling;
+				blendedRot         = t.Rotation;
+				blendedTranslation = t.Translation;
+				accumWeight        = w;
+			}
+			else
+			{
+				float f = w / (accumWeight + w);
+				blendedScale       = (1.f - f) * blendedScale       + f * t.Scaling;
+				blendedTranslation = (1.f - f) * blendedTranslation + f * t.Translation;
+				aiQuaternion::Interpolate(blendedRot, blendedRot, t.Rotation, f);
+				blendedRot.Normalize();
+				accumWeight += w;
+			}
+		}
+
+		if (accumWeight > 0.f)
+		{
+			if (disableRootMotion && isRootNode)
+				blendedTranslation = aiVector3D(0.f, 0.f, 0.f);
+
+			glm::mat4 S = glm::scale(glm::mat4(1.f), AiToGlm(blendedScale));
+			glm::mat4 R = glm::toMat4(AiToGlm(blendedRot));
+			glm::mat4 T = glm::translate(glm::mat4(1.f), AiToGlm(blendedTranslation));
+			nodeTransformation = T * R * S;
+		}
+
+		glm::mat4 globalTransform = parentTransform * nodeTransformation;
+
+		if (m_BoneNameToIndexMap.contains(nodeName))
+		{
+			uint32_t boneIndex = m_BoneNameToIndexMap[nodeName];
+			m_BoneInfo[boneIndex].FinalTransformation =
+				m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
+		}
+
+		for (uint32_t i = 0; i < pNode->mNumChildren; i++)
+			ReadNodeHierarchyBlendedN(animsAndTimes, normWeights, pNode->mChildren[i], globalTransform, disableRootMotion);
+	}
+
 	void Skeleton::GetBoneTransformsBlended(float timeInSeconds, std::vector<glm::mat4>& blendedTransforms,
 		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
 	{

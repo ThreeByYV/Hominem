@@ -119,6 +119,16 @@ namespace Hominem {
 		s_Data->TextureShader->SetMat4("u_ViewProjection", viewProj);
 	}
 
+	void Renderer2D::BeginScene(const glm::mat4& viewProjection)
+	{
+		s_Data->ViewProjectionMatrix = viewProjection;
+		s_Data->QuadBatch.clear();
+		s_Data->TextureGroups.clear();
+
+		s_Data->TextureShader->Bind();
+		s_Data->TextureShader->SetMat4("u_ViewProjection", viewProjection);
+	}
+
 	void Renderer2D::EndScene()
 	{
 		if (!s_Data) return;

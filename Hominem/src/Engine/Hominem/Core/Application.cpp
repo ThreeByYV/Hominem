@@ -8,6 +8,8 @@
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/Renderer.h"
+#include "Hominem/Renderer/Renderer2D.h"
+#include "Hominem/Renderer/Renderer3D.h"
 #include <GLFW/glfw3.h>
 #include <thread>
 #include <chrono>
@@ -80,55 +82,67 @@ namespace Hominem {
 
 	void Application::Run()
 	{
-		// Belt-and-suspenders frame cap alongside VSync.
-		// glfwSwapInterval(1) is unreliable on Windows — drivers can override it.
-		// This ensures the loop never burns more than one core at idle.
-		static constexpr float k_TargetFrameTime = 1.0f / 60.0f;
+		// Hand the GL context to the render thread — all GL calls happen there from now on.
+		GLFWwindow* nativeWindow = static_cast<GLFWwindow*>(m_Window->GetNativeWindow());
+		glfwMakeContextCurrent(nullptr); // release from main thread
+		m_RenderThread.Start(nativeWindow);
 
 		while (m_Running)
 		{
 			HMN_PROFILE_FRAME("MainThread");
 
-			float frameStart = (float)glfwGetTime();
+			float time      = (float)glfwGetTime();
+			Timestep timestep = time - m_LastFrameTime;
+			m_LastFrameTime = time;
 
 			if (Input::IsKeyPressed(HMN_KEY_ESCAPE))
 				m_Running = false;
 
-			float time = (float)glfwGetTime();
-
-			Timestep timestep = time - m_LastFrameTime; //impliclit cast via constructor
-			m_LastFrameTime = time;
-
-			//layers shouldn't be updated when the window is minimized away
 			if (!m_Minimized)
 			{
 				for (auto& layer : m_LayerStack)
-				{
 					layer->OnUpdate(timestep);
-				}
 			}
 
+			// ImGui CPU side — builds draw lists, no GL calls after our ImGuiLayer split.
 			m_ImGuiLayer->Begin();
-
 			for (auto& layer : m_LayerStack)
-			{
 				layer->OnImGuiRender();
+			m_ImGuiLayer->End();
+
+			// Collect draw commands — pure data, no GL.
+			RenderFrame frame;
+			if (!m_Minimized)
+			{
+				for (auto& layer : m_LayerStack)
+					layer->OnBuildRenderFrame(frame);
 			}
 
-			m_ImGuiLayer->End();
-	
-			m_Window->OnUpdate();
+			// Hand frame to render thread. Main thread continues immediately.
+			// Blocks only if render thread hasn't consumed the previous frame yet (GPU-bound).
+			m_RenderThread.Submit(std::move(frame));
 
-			// Process pending transitions AFTER all updates complete
-			ProcessPendingTransitions(); //now it's safe to delete it all and replace
+			m_Window->OnUpdate(); // glfwPollEvents — SwapBuffers moved to render thread
 
-			// Frame limiter — only needed if VSync is disabled or overridden by the GPU driver.
-			// When VSync is on, SwapBuffers already blocks until vblank so this is a no-op.
-			// float elapsed = (float)glfwGetTime() - frameStart;
-			// float remaining = k_TargetFrameTime - elapsed - 0.001f;
-			// if (remaining > 0.001f)
-			//     std::this_thread::sleep_for(std::chrono::microseconds((int)(remaining * 1e6f)));
+			ProcessPendingTransitions();
 		}
+
+		m_RenderThread.Stop();
+
+		// Re-acquire the GL context — render thread released it, but we need it
+		// for all GL cleanup below (OnDetach, Renderer statics, layer resources).
+		glfwMakeContextCurrent(nativeWindow);
+
+		// Detach and destroy all layers now while the context is valid.
+		// LayerStack's destructor is =default so it never calls OnDetach itself,
+		// and m_LayerStack outlives m_Window (declared first = destroyed last),
+		// meaning its destructor would run after the context is gone.
+		for (auto& layer : m_LayerStack)
+			layer->OnDetach();
+		m_LayerStack.Clear(); // destroys layer unique_ptrs (and their GL resources) here
+
+		// Free all Renderer static GL objects (shaders, VAOs, white texture, etc.)
+		Renderer::Shutdown();
 	}
 
 	bool Application::OnWindowClose(WindowCloseEvent& e)

@@ -37,11 +37,15 @@ void SandboxLayer::OnUpdate(Timestep ts)
 		return;
 	}
 
-	RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
-	RenderCommand::Clear();
-	m_ActiveScene->OnUpdate(ts);  // physics + actors move first
-	m_GameMode->OnUpdate(ts);     // camera reads fresh positions
-	m_ActiveScene->OnDraw();
+	m_ActiveScene->OnUpdate(ts);
+	m_GameMode->OnUpdate(ts);
+}
+
+void SandboxLayer::OnBuildRenderFrame(RenderFrame& frame)
+{
+	frame.clearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+	if (m_ActiveScene)
+		m_ActiveScene->BuildRenderFrame(frame);
 }
 
 void SandboxLayer::OnImGuiRender()

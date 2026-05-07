@@ -155,8 +155,8 @@ namespace Hominem {
 
 	void WindowsWindow::OnUpdate()
 	{
+		// SwapBuffers moved to RenderThread — only poll events here.
 		glfwPollEvents();
-		m_Context->SwapBuffers();
 	}
  
 

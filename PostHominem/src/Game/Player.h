@@ -18,7 +18,7 @@ public:
 
 	void OnCreate()  override;
 	void OnUpdate(Hominem::Timestep ts) override;
-	void OnDraw3D()  override;
+	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override;
 	void OnDestroy() override;
 
 	void OnImGuiRender();
@@ -27,18 +27,18 @@ public:
 private:
 	PlayerConfig m_Config;
 
-	Hominem::Ref<Hominem::SkinnedMesh>  m_Mesh;
-	float                               m_AnimTime          = 0.f;
-	float                               m_AnimSpeed         = 1.f;
-	bool                                m_AnimPlaying       = true;
-	bool                                m_UseBlending       = false;
-	uint32_t                            m_StartAnim         = 0;
-	uint32_t                            m_EndAnim           = 1;
-	uint32_t                            m_TargetAnim        = 0;
-	float                               m_BlendFactor       = 0.f;
-	float                               m_BlendSpeed        = 5.f;
-	bool                                m_DisableRootMotion = true;
-	std::vector<glm::mat4>              m_BoneCache;
+	Hominem::Ref<Hominem::SkinnedMesh>         m_Mesh;
+	float                                      m_AnimTime          = 0.f;
+	float                                      m_AnimSpeed         = 1.f;
+	bool                                       m_AnimPlaying       = true;
+	bool                                       m_DisableRootMotion = true;
+	std::vector<glm::mat4>                     m_BoneCache;
+
+	// Each entry corresponds to a loaded animation (index matches load order).
+	// Weights are managed per-frame and normalised inside GetBoneTransformsBlendedN.
+	std::vector<Hominem::AnimBlendSample>      m_AnimSamples;
+	float                                      m_BlendSpeed        = 5.f;
+	uint32_t                                   m_ActiveAnim        = 0; // target animation index
 
 	Hominem::Ref<Hominem::Rigidbody>   m_Body;
 	Hominem::Ref<Hominem::BoxCollider> m_Collider;

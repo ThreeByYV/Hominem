@@ -20,9 +20,11 @@ void VoidLayer::OnUpdate(Timestep ts)
 		TransitionTo<SandboxLayer>();
 		return;
 	}
+}
 
-	RenderCommand::SetClearColor({ 0.6f, 0.1f, 0.2f, 1.0f });
-	RenderCommand::Clear();
+void VoidLayer::OnBuildRenderFrame(RenderFrame& frame)
+{
+	frame.clearColor = { 0.6f, 0.1f, 0.2f, 1.0f };
 }
 
 void VoidLayer::OnImGuiRender()

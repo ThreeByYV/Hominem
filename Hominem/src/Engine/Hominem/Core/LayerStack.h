@@ -10,10 +10,11 @@ namespace Hominem {
 		LayerStack();
 		~LayerStack() = default;
 
-		void PushLayer(std::unique_ptr<Layer> layer);      
-		void PushOverlay(std::unique_ptr<Layer> overlay); 
+		void PushLayer(std::unique_ptr<Layer> layer);
+		void PushOverlay(std::unique_ptr<Layer> overlay);
 		void PopLayer(Layer* layer);
 		void PopOverlayer(Layer* overlay);
+		void Clear() { m_Layers.clear(); }
 
 
 		//todo add reverse iterator, since will need to propagate events in a reverse fashion

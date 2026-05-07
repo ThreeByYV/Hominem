@@ -28,6 +28,7 @@ void GameLayer::OnAttach()
 void GameLayer::OnDetach()
 {
 	m_GameMode->OnExit();
+	m_ActiveScene.reset();
 }
 
 void GameLayer::OnUpdate(Timestep ts)
@@ -38,11 +39,15 @@ void GameLayer::OnUpdate(Timestep ts)
 		return;
 	}
 
-	RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
-	RenderCommand::Clear();
 	m_ActiveScene->OnUpdate(ts);
 	m_GameMode->OnUpdate(ts);
-	m_ActiveScene->OnDraw();
+}
+
+void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
+{
+	frame.clearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+	if (m_ActiveScene)
+		m_ActiveScene->BuildRenderFrame(frame);
 }
 
 void GameLayer::OnImGuiRender()
@@ -74,6 +79,9 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 
 	if (e.GetKeyCode() == HMN_KEY_N)
 		Renderer3D::SetDrawNormals(!Renderer3D::GetDrawNormals());
+
+	if (e.GetKeyCode() == HMN_KEY_B)
+		Renderer3D::SetDrawAABB(!Renderer3D::GetDrawAABB());
 
 	return false;
 }

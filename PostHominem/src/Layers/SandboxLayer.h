@@ -13,9 +13,10 @@ public:
 
 	void OnAttach()                      override;
 	void OnDetach()                      override;
-	void OnUpdate(Hominem::Timestep ts)  override;
-	void OnImGuiRender()                 override;
-	void OnEvent(Hominem::Event& e)      override;
+	void OnUpdate(Hominem::Timestep ts)              override;
+	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
+	void OnImGuiRender()                             override;
+	void OnEvent(Hominem::Event& e)                  override;
 
 private:
 	bool OnWindowResize(Hominem::WindowResizeEvent& e);

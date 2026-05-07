@@ -1,13 +1,15 @@
 #include "hmnpch.h"
 #include "OpenGLGBuffer.h"
 #include <glad/glad.h>
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
 	OpenGLGBuffer::OpenGLGBuffer(uint32_t width, uint32_t height)
 		: m_Width(width), m_Height(height)
 	{
-		// Create the FBO
+		ASSERT_RENDER_THREAD();
 		glGenFramebuffers(1, &m_FBO);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_FBO);
 
@@ -53,6 +55,7 @@ namespace Hominem {
 
 	OpenGLGBuffer::~OpenGLGBuffer()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteTextures(GBUFFER_NUM_TEXTURES, m_Textures);
 		glDeleteTextures(1, &m_DepthTexture);
 		glDeleteFramebuffers(1, &m_FBO);
