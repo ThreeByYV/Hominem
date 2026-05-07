@@ -9,10 +9,12 @@ namespace Hominem {
 
 	static GLenum ShaderTypeFromString(const std::string& type)
 	{
-		if (type == "vertex") 
+		if (type == "vertex")
 			return GL_VERTEX_SHADER;
 		if (type == "fragment" || type == "pixel")
 			return GL_FRAGMENT_SHADER;
+		if (type == "geometry")
+			return GL_GEOMETRY_SHADER;
 
 		HMN_CORE_ASSERT(false, "Unknown shader type!");
 		return 0;
@@ -111,8 +113,8 @@ namespace Hominem {
 	{
 		GLuint program = glCreateProgram();
 
-		HMN_CORE_ASSERT(shaderSources.size() <= 2, "We only support 2 shaders for now");
-		std::array<GLenum, 2> glShaderIDs;
+		HMN_CORE_ASSERT(shaderSources.size() <= 3, "We only support up to 3 shaders (vert/geom/frag)");
+		std::array<GLenum, 3> glShaderIDs = {0, 0, 0};
 
 		int glShaderIDIndex = 0;
 
@@ -173,7 +175,7 @@ namespace Hominem {
 			glDeleteProgram(program);
 
 			for (auto id : glShaderIDs)
-				glDeleteShader(id);
+				if (id) glDeleteShader(id);
 
 			HMN_CORE_ERROR("{0}", infoLog.data());
 			HMN_CORE_ASSERT(false, "Shader link failure!");
@@ -182,7 +184,7 @@ namespace Hominem {
 
 		// Always detach shaders after a successful link.
 		for (auto id : glShaderIDs)
-			glDetachShader(program, id);
+			if (id) glDetachShader(program, id);
 	}
 	
 	void OpenGLShader::Bind() const

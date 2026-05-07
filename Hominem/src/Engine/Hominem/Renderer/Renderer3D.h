@@ -2,6 +2,7 @@
 
 #include "Shader.h"
 #include "Hominem/Renderer/SkinnedMesh.h"
+#include "Hominem/Renderer/StaticMesh.h"
 
 namespace Hominem {
 
@@ -16,6 +17,8 @@ namespace Hominem {
 		Ref<ShaderLibrary> ShaderLibrary;
 		Ref<Shader>        DefaultShader;
 		Ref<Shader>        OverrideShader; // optional scene-wide
+		Ref<Shader>        NormalsShader;
+		Ref<Shader>        NormalsSkinnedShader;
 	};
 
 	class Renderer3D
@@ -31,7 +34,13 @@ namespace Hominem {
 		static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
 		static void ClearOverrideShader() { s_Data->OverrideShader.reset(); }
 
+		// Debug normal visualization — toggle with N key
+		static void SetDrawNormals(bool enabled) { s_DrawNormals = enabled; }
+		static bool GetDrawNormals()             { return s_DrawNormals; }
+		static void SetNormalLength(float len)   { s_NormalLength = len; }
+
 		static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
+		static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform);
 
 		static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
 
@@ -45,6 +54,8 @@ namespace Hominem {
 		};
 
 		static Renderer3DStorage* s_Data;
-		static SceneData* s_Scene;
+		static SceneData*         s_Scene;
+		static bool               s_DrawNormals;
+		static float              s_NormalLength;
 	};
 }

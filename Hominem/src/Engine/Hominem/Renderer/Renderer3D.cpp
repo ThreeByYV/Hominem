@@ -5,8 +5,10 @@
 
 namespace Hominem {
 
-    Renderer3DStorage* Renderer3D::s_Data = nullptr;
-    Renderer3D::SceneData* Renderer3D::s_Scene = nullptr;
+    Renderer3DStorage*     Renderer3D::s_Data        = nullptr;
+    Renderer3D::SceneData* Renderer3D::s_Scene       = nullptr;
+    bool                   Renderer3D::s_DrawNormals  = false;
+    float                  Renderer3D::s_NormalLength = 0.1f;
 
     void Renderer3D::Init()
     {
@@ -18,8 +20,13 @@ namespace Hominem {
         s_Data->ShaderLibrary->Load("Resources/Shaders/basic.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/fog.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/skinning.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/static_mesh.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug_skinned.glsl");
 
-        s_Data->DefaultShader = s_Data->ShaderLibrary->Get("basic");
+        s_Data->DefaultShader        = s_Data->ShaderLibrary->Get("basic");
+        s_Data->NormalsShader        = s_Data->ShaderLibrary->Get("normals_debug");
+        s_Data->NormalsSkinnedShader = s_Data->ShaderLibrary->Get("normals_debug_skinned");
     }
 
     void Renderer3D::Shutdown()
@@ -56,6 +63,38 @@ namespace Hominem {
         shader->SetFloat3("gCameraWorldPos", s_Scene->CameraWorldPos);
 
         mesh.Render(shader);
+
+        if (s_DrawNormals && s_Data->NormalsSkinnedShader)
+        {
+            // SSBOs 4 & 5 (skinned pos/norm) are still bound from DispatchSkinning
+            s_Data->NormalsSkinnedShader->Bind();
+            s_Data->NormalsSkinnedShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+            s_Data->NormalsSkinnedShader->SetMat4("u_Model", transform);
+            s_Data->NormalsSkinnedShader->SetFloat("u_NormalLength", s_NormalLength);
+            s_Data->NormalsSkinnedShader->SetFloat3("u_CameraWorldPos", s_Scene->CameraWorldPos);
+            mesh.Render(s_Data->NormalsSkinnedShader);
+        }
+    }
+
+    void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
+    {
+        auto shader = s_Data->OverrideShader
+            ? s_Data->OverrideShader
+            : s_Data->ShaderLibrary->Get("static_mesh");
+        HMN_CORE_ASSERT(shader, "Renderer3D: static_mesh shader not loaded");
+
+        shader->Bind();
+        shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+        mesh.Draw(shader, transform);
+
+        if (s_DrawNormals && s_Data->NormalsShader)
+        {
+            s_Data->NormalsShader->Bind();
+            s_Data->NormalsShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+            s_Data->NormalsShader->SetFloat("u_NormalLength", s_NormalLength);
+            s_Data->NormalsShader->SetFloat3("u_CameraWorldPos", s_Scene->CameraWorldPos);
+            mesh.Draw(s_Data->NormalsShader, transform);
+        }
     }
 
     void Renderer3D::Draw(const MeshRendererComponent& rc, const glm::mat4& transform)
