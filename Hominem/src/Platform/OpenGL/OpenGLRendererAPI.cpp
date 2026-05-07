@@ -2,6 +2,8 @@
 #include "OpenGLRendererAPI.h"
 
 #include <glad/glad.h>
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -17,6 +19,7 @@ namespace Hominem {
 
 	void OpenGLRendererAPI::SetClearColor(const glm::vec4& color)
 	{
+		ASSERT_RENDER_THREAD();
 		glClearColor(color.r, color.g, color.b, color.a);
 	}
 
@@ -27,6 +30,7 @@ namespace Hominem {
 
 	void OpenGLRendererAPI::Clear()
 	{
+		ASSERT_RENDER_THREAD();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 

@@ -8,6 +8,7 @@
 #include "Hominem/ImGui/ImGuiLayer.h"
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Audio/AudioSystem.h"
+#include "Hominem/Renderer/RenderThread.h"
 
 
 namespace Hominem {
@@ -63,10 +64,11 @@ namespace Hominem {
         };
         std::vector<PendingTransition> m_PendingTransitions;
 
-        AudioSystem m_AudioSystem;
+        AudioSystem  m_AudioSystem;
+        RenderThread m_RenderThread;
 
     private:
-        static Application* s_Instance; //Application is a singleton
+        static Application* s_Instance;
 
     };
 }

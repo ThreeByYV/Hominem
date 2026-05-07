@@ -1,6 +1,8 @@
 ﻿#include "hmnpch.h"
 #include "OpenGLBuffer.h"
-#include <glad/glad.h>	
+#include <glad/glad.h>
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -10,6 +12,7 @@ namespace Hominem {
 
 	OpenGLVertexBuffer::OpenGLVertexBuffer(float* vertices, uint32_t size)
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateBuffers(1, &m_RendererID);
 		glBindBuffer(GL_ARRAY_BUFFER, m_RendererID);
 		glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
@@ -17,6 +20,7 @@ namespace Hominem {
 
 	OpenGLVertexBuffer::OpenGLVertexBuffer(uint32_t size)
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateBuffers(1, &m_RendererID);
 		glBindBuffer(GL_ARRAY_BUFFER, m_RendererID);
 		glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW); // nullptr = empty buffer
@@ -40,6 +44,7 @@ namespace Hominem {
 
 	OpenGLVertexBuffer::~OpenGLVertexBuffer()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteBuffers(1, &m_RendererID);
 	}
 
@@ -49,6 +54,7 @@ namespace Hominem {
 	OpenGLIndexBuffer::OpenGLIndexBuffer(uint32_t* indices, uint32_t count)
 		:m_Count(count)
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateBuffers(1, &m_RendererID);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_RendererID);
 
@@ -68,6 +74,7 @@ namespace Hominem {
 
 	OpenGLIndexBuffer::~OpenGLIndexBuffer()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteBuffers(1, &m_RendererID);
 	}
 }

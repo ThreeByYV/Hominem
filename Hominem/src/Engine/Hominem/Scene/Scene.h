@@ -4,6 +4,7 @@
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Scene/SceneCamera.h"
 #include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Renderer/RenderFrame.h"
 
 #include <vector>
 
@@ -27,11 +28,10 @@ namespace Hominem {
 			return ref;
 		}
 
-		/// Step physics (if set) then update all actors.
 		void OnUpdate(Timestep ts);
 
-		/// Render all actors (2D pass then 3D pass).
-		void OnDraw();
+		/// Collect draw commands from all actors into frame — no GL calls.
+		void BuildRenderFrame(RenderFrame& frame);
 
 		/// Resize the scene camera's viewport.
 		void OnViewportResize(uint32_t width, uint32_t height);

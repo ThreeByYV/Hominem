@@ -1,6 +1,8 @@
 #include "hmnpch.h"
 #include "OpenGLVertexArray.h"
 #include <glad/glad.h>
+#include "Hominem/Renderer/RenderThread.h"
+#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -29,6 +31,7 @@ namespace Hominem {
 
 	OpenGLVertexArray::OpenGLVertexArray()
 	{
+		ASSERT_RENDER_THREAD();
 		glCreateVertexArrays(1, &m_RendererID);
 	}
 
@@ -78,8 +81,9 @@ namespace Hominem {
 		m_IndexBuffer = indexBuffer;
 	}
 
-	OpenGLVertexArray::~OpenGLVertexArray() 
+	OpenGLVertexArray::~OpenGLVertexArray()
 	{
+		ASSERT_RENDER_THREAD();
 		glDeleteVertexArrays(1, &m_RendererID);
 	}
 }

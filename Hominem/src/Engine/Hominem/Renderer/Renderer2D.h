@@ -74,8 +74,10 @@ namespace Hominem {
 		static void Init();
 		static void Shutdown();
 
-		static void BeginScene(OrthographicCamera& camera); //todo remove
+		static void BeginScene(OrthographicCamera& camera);
 		static void BeginScene(Camera& camera, const glm::mat4& transform);
+		/// Used by RenderThread — takes a pre-computed view-projection matrix.
+		static void BeginScene(const glm::mat4& viewProjection);
 		
 		template<typename CameraType>
 		static void BeginScene(const CameraType& camera)
@@ -114,13 +116,13 @@ namespace Hominem {
 
 		static void DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color);
 
-	private:
-		static Renderer2DStorage* s_Data;
-
-	private:
+		/// Called by RenderThread to submit a quad into the current batch.
 		static void PushQuad(const glm::mat4& transform, const glm::vec4& color,
 		                     const glm::vec2& uvMin, const glm::vec2& uvMax,
 		                     const Ref<Texture2D>& texture);
+
+	private:
+		static Renderer2DStorage* s_Data;
 
 	};
 }

@@ -18,7 +18,9 @@ namespace Hominem {
 		glfwMakeContextCurrent(m_WindowHandle);
 		int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 		HMN_CORE_ASSERT(status, "Failed to initialize Glad!");
-
+		// Context stays current so the caller (WindowsWindow::Init) can call
+		// SetVSync immediately after. Application::Run releases it before the
+		// render thread starts.
 	}
 
 	void OpenGLContext::SwapBuffers()

@@ -1,7 +1,5 @@
 #include "hmnpch.h"
 #include "Scene.h"
-#include "Hominem/Renderer/Renderer2D.h"
-#include "Hominem/Renderer/Renderer3D.h"
 
 namespace Hominem {
 
@@ -17,23 +15,22 @@ namespace Hominem {
 			actor->OnUpdate(ts);
 	}
 
-	void Scene::OnDraw()
+	void Scene::BuildRenderFrame(RenderFrame& frame)
 	{
 		if (m_ViewportWidth == 0 || m_ViewportHeight == 0)
 			return;
 
-		// Build camera matrices from the stored viewport size.
-		// OnViewportResize keeps m_Camera in sync; no GL calls needed here.
 		glm::mat4 cameraTransform = glm::translate(glm::mat4(1.f), m_CameraPosition);
 		glm::mat4 viewProjection  = m_Camera.GetProjectionMatrix() * glm::inverse(cameraTransform);
 
-		Renderer2D::BeginScene(m_Camera, cameraTransform);
-		for (auto& actor : m_Actors) actor->OnDraw2D();
-		Renderer2D::EndScene();
+		frame.viewProjection2D = viewProjection;
+		frame.viewProjection3D = viewProjection;
+		frame.cameraWorldPos   = m_CameraPosition;
+		frame.viewportWidth    = m_ViewportWidth;
+		frame.viewportHeight   = m_ViewportHeight;
 
-		Renderer3D::BeginScene(viewProjection, m_CameraPosition);
-		for (auto& actor : m_Actors) actor->OnDraw3D();
-		Renderer3D::EndScene();
+		for (auto& actor : m_Actors)
+			actor->OnBuildRenderFrame(frame);
 	}
 
 	void Scene::OnViewportResize(uint32_t width, uint32_t height)

@@ -26,10 +26,10 @@ namespace Hominem {
 			Color    = color;
 		}
 
-		void OnDraw2D() override
+		void OnBuildRenderFrame(RenderFrame& frame) override
 		{
-			if (FontRef && !Text.empty())
-				Renderer2D::DrawString(Text, FontRef, GetTransform(), Color);
+			if (!FontRef || Text.empty()) return;
+			frame.texts.push_back({ Text, FontRef, GetTransform(), Color });
 		}
 
 		std::string  Text;

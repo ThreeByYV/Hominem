@@ -8,6 +8,7 @@
 
 namespace Hominem {
 
+	struct RenderFrame;
 	class Scene;
 
 	class Actor
@@ -15,17 +16,11 @@ namespace Hominem {
 	public:
 		virtual ~Actor() = default;
 
-		/// Called once after the actor is added to the scene and m_Scene is set.
 		virtual void OnCreate()  {}
-
-		/// Called every frame before drawing.
 		virtual void OnUpdate(Timestep ts) {}
 
-		/// Called every frame during the Renderer2D pass (sprites, text, etc.).
-		virtual void OnDraw2D() {}
-
-		/// Called every frame during the Renderer3D pass (skinned meshes, etc.).
-		virtual void OnDraw3D() {}
+		/// Push draw commands into the frame — no GL calls allowed here.
+		virtual void OnBuildRenderFrame(RenderFrame& frame) {}
 
 		/// Called when the actor is removed from the scene.
 		virtual void OnDestroy() {}
