@@ -6,7 +6,10 @@
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
-#include "Hominem/Scene/Actors/SpriteActor.h"
+#include "Hominem/Renderer/Renderer3D.h"
+#include "Game/FactoryLevel.h"
+
+#include <imgui.h>
 
 using namespace Hominem;
 
@@ -18,24 +21,13 @@ GameLayer::GameLayer()
 void GameLayer::OnAttach()
 {
 	m_ActiveScene = CreateRef<Scene>();
-
-	auto& window = Application::Get().GetWindow();
-	m_ActiveScene->GetCamera().SetOrthographic(2.0f, -1.f, 1.f);
-	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
-
-	m_ActiveScene->SpawnActor<SpriteActor>(
-		glm::vec3{ 0.f, 0.f, -0.5f },
-		glm::vec3{ 2.7f, 2.f, 1.f },
-		Texture2D::Create("Resources/Textures/gamebg.png"));
-
-	m_ActiveScene->SpawnActor<SpriteActor>(
-		glm::vec3{ 0.f, -0.5f, 0.f },
-		glm::vec3{ 0.6f, 0.6f, 1.f },
-		Texture2D::Create("Resources/Textures/mujun.png"));
+	m_GameMode    = CreateScope<FactoryLevel>();
+	m_GameMode->OnEnter(*m_ActiveScene);
 }
 
 void GameLayer::OnDetach()
 {
+	m_GameMode->OnExit();
 }
 
 void GameLayer::OnUpdate(Timestep ts)
@@ -46,10 +38,18 @@ void GameLayer::OnUpdate(Timestep ts)
 		return;
 	}
 
-	RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
+	RenderCommand::SetClearColor({ 0.1f, 0.1f, 0.1f, 1 });
 	RenderCommand::Clear();
 	m_ActiveScene->OnUpdate(ts);
+	m_GameMode->OnUpdate(ts);
 	m_ActiveScene->OnDraw();
+}
+
+void GameLayer::OnImGuiRender()
+{
+	ImGui::Begin("Settings");
+	m_GameMode->OnImGuiRender();
+	ImGui::End();
 }
 
 bool GameLayer::OnWindowResize(WindowResizeEvent& e)
@@ -63,4 +63,17 @@ void GameLayer::OnEvent(Event& e)
 {
 	EventDispatcher dispatcher(e);
 	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(GameLayer::OnWindowResize));
+	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnKeyPressed));
+	m_GameMode->OnEvent(e);
+}
+
+bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
+{
+	if (e.GetRepeatCount() > 0)
+		return false;
+
+	if (e.GetKeyCode() == HMN_KEY_N)
+		Renderer3D::SetDrawNormals(!Renderer3D::GetDrawNormals());
+
+	return false;
 }
