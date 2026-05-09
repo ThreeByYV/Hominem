@@ -134,6 +134,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/json
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/Box2D/include
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/tracy/public
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/meshoptimizer/src
 )
 
 set(COMMON_DEFINES
@@ -144,6 +145,8 @@ set(COMMON_DEFINES
     $<$<CONFIG:Release>:HMN_RELEASE;NDEBUG;TRACY_ENABLE;TRACY_NO_SYSTEM_TRACING>
     $<$<CONFIG:Dist>:HMN_DIST;NDEBUG>
 )
+
+add_subdirectory(Hominem/vendor/meshoptimizer)
 
 add_library(stb_image STATIC Hominem/vendor/stb_image/stb_image.cpp)
 target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
@@ -174,7 +177,7 @@ target_precompile_headers(Hominem PRIVATE
 target_compile_definitions(Hominem PRIVATE ${COMMON_DEFINES})
 
 target_link_libraries(Hominem PUBLIC
-    glfw Glad ImGui stb_image msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32
+    glfw Glad ImGui stb_image msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer
 )
 
 if(MSVC)

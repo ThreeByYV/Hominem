@@ -22,11 +22,14 @@ namespace Hominem {
 		virtual void Clear() = 0;
 
 		virtual void DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray) = 0;
+		virtual void DrawIndexedLines(const std::shared_ptr<VertexArray>& vertexArray, uint32_t indexCount) = 0;
+
+		virtual void SetDepthTestEnabled(bool enabled) = 0;
 
 		// PVP / indirect batch drawing
 		virtual void BindEmptyVAO()                       = 0;
 		virtual void UnbindVAO()                          = 0;
-		virtual void DrawArraysIndirect(uint32_t offset)  = 0; // byte offset into bound DrawIndirectBuffer
+		virtual void DrawArraysIndirect(uint32_t offset)  = 0;
 
 		inline static API GetAPI() { return s_API; }
 	private:

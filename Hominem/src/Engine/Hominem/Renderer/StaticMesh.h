@@ -19,7 +19,8 @@ public:
 	bool LoadFromFile(const std::string& path);
 	void Draw(const Ref<Shader>& shader, const glm::mat4& transform);
 
-	bool IsLoaded() const { return m_VAO != 0; }
+	// True once geometry is on GPU — false until first Draw() on the render thread.
+	bool IsLoaded() const { return m_VAO != 0 || !m_PendingVerts.empty(); }
 
 	glm::vec3 GetAABBMin() const { return m_AABBMin; }
 	glm::vec3 GetAABBMax() const { return m_AABBMax; }
@@ -42,6 +43,9 @@ private:
 
 	bool LoadBinary(const std::string& binPath);
 	bool LoadAssimp(const std::string& path);
+	static void OptimizeGeometry(std::vector<StaticVertex>& verts,
+	                              std::vector<uint32_t>&     indices,
+	                              std::vector<DrawGroup>&    groups);
 	void WriteBinary(const std::string& binPath,
 	                 const std::vector<StaticVertex>& verts,
 	                 const std::vector<uint32_t>&     indices,
@@ -55,6 +59,10 @@ private:
 	std::vector<DrawGroup> m_DrawGroups;
 	glm::vec3              m_AABBMin{ 0.f };
 	glm::vec3              m_AABBMax{ 0.f };
+
+	// CPU-side geometry held until first Draw() on the render thread.
+	std::vector<StaticVertex> m_PendingVerts;
+	std::vector<uint32_t>     m_PendingIndices;
 };
 
 }

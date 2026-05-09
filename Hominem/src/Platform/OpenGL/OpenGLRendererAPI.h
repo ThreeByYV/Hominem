@@ -15,6 +15,9 @@ namespace Hominem {
 		void Clear() override;
 
 		void DrawIndexed(const Ref<VertexArray>& vertexArray) override;
+		void DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount) override;
+
+		void SetDepthTestEnabled(bool enabled) override;
 
 		void BindEmptyVAO()                      override;
 		void UnbindVAO()                         override;

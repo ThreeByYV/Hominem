@@ -2,24 +2,41 @@
 #include "OpenGLRendererAPI.h"
 
 #include <glad/glad.h>
-#include "Hominem/Renderer/RenderThread.h"
-#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
 	void OpenGLRendererAPI::Init()
 	{
+#ifdef HMN_DEBUG
+		glEnable(GL_DEBUG_OUTPUT);
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // fires on the same thread as the bad call, before it returns
+
+		glDebugMessageCallback([](GLenum source, GLenum type, GLuint id,
+		                          GLenum severity, GLsizei, const GLchar* message,
+		                          const void*)
+		{
+			if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+
+			if (type == GL_DEBUG_TYPE_ERROR)
+			{
+				HMN_CORE_ERROR("OpenGL error (src={:#x} type={:#x} id={}): {}", source, type, id, message);
+				HMN_CORE_ASSERT(false, "OpenGL error — see log above");
+			}
+			else
+			{
+				HMN_CORE_WARN("OpenGL warning (src={:#x} type={:#x} id={}): {}", source, type, id, message);
+			}
+		}, nullptr);
+#endif
+
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
 		glEnable(GL_DEPTH_TEST);
-
 		glCreateVertexArrays(1, &m_EmptyVAO);
 	}
 
 	void OpenGLRendererAPI::SetClearColor(const glm::vec4& color)
 	{
-		ASSERT_RENDER_THREAD();
 		glClearColor(color.r, color.g, color.b, color.a);
 	}
 
@@ -30,13 +47,23 @@ namespace Hominem {
 
 	void OpenGLRendererAPI::Clear()
 	{
-		ASSERT_RENDER_THREAD();
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
 	void OpenGLRendererAPI::DrawIndexed(const Ref<VertexArray>& vertexArray)
 	{
 		glDrawElements(GL_TRIANGLES, vertexArray->GetIndexBuffer()->GetCount(), GL_UNSIGNED_INT, nullptr);
+	}
+
+	void OpenGLRendererAPI::DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount)
+	{
+		glDrawElements(GL_LINES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, nullptr);
+	}
+
+	void OpenGLRendererAPI::SetDepthTestEnabled(bool enabled)
+	{
+		if (enabled) glEnable(GL_DEPTH_TEST);
+		else         glDisable(GL_DEPTH_TEST);
 	}
 
 	void OpenGLRendererAPI::BindEmptyVAO()

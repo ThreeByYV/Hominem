@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Scene.h"
+#include "Hominem/Renderer/Frustum.h"
 
 namespace Hominem {
 
@@ -20,12 +21,13 @@ namespace Hominem {
 		if (m_ViewportWidth == 0 || m_ViewportHeight == 0)
 			return;
 
-		glm::mat4 cameraTransform = glm::translate(glm::mat4(1.f), m_CameraPosition);
-		glm::mat4 viewProjection  = m_Camera.GetProjectionMatrix() * glm::inverse(cameraTransform);
+		glm::mat4 view            = glm::lookAt(m_CameraPosition, m_CameraPosition + m_CameraFront, glm::vec3(0.f, 1.f, 0.f));
+		glm::mat4 viewProjection  = m_Camera.GetProjectionMatrix() * view;
 
 		frame.viewProjection2D = viewProjection;
 		frame.viewProjection3D = viewProjection;
 		frame.cameraWorldPos   = m_CameraPosition;
+		frame.frustum3D        = Frustum::FromViewProjection(viewProjection);
 		frame.viewportWidth    = m_ViewportWidth;
 		frame.viewportHeight   = m_ViewportHeight;
 
