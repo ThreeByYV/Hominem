@@ -4,8 +4,6 @@
 #include <glad/glad.h>
 #include "Hominem/Renderer/RenderThread.h"
 
-#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
-
 namespace Hominem {
 
 	// CPU-only — no GL. Caller must call SetData() before first Bind().
@@ -47,19 +45,30 @@ namespace Hominem {
 		size_t bytes = (size_t)width * height * channels;
 		m_PendingPixels.assign(data, data + bytes);
 		stbi_image_free(data);
+
+		RenderThread::QueueUpload([this] { UploadToGPU(); });
+	}
+
+	static GLenum WrapToGL(TextureWrap w)
+	{
+		switch (w)
+		{
+			case TextureWrap::ClampToEdge:    return GL_CLAMP_TO_EDGE;
+			case TextureWrap::MirroredRepeat: return GL_MIRRORED_REPEAT;
+			default:                          return GL_REPEAT;
+		}
 	}
 
 	void OpenGLTexture2D::UploadToGPU() const
 	{
-		ASSERT_RENDER_THREAD();
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
 		glTextureStorage2D(m_RendererID, m_MipLevels, m_InternalFormat, m_Width, m_Height);
 
 		GLenum minFilter = (m_MipLevels > 1) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
 		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, minFilter);
 		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, WrapToGL(m_WrapS));
+		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, WrapToGL(m_WrapT));
 
 		if (!m_PendingPixels.empty())
 		{
@@ -74,27 +83,25 @@ namespace Hominem {
 	}
 
 
-	static GLenum WrapToGL(TextureWrap w)
-	{
-		switch (w)
-		{
-			case TextureWrap::ClampToEdge:    return GL_CLAMP_TO_EDGE;
-			case TextureWrap::MirroredRepeat: return GL_MIRRORED_REPEAT;
-			default:                          return GL_REPEAT;
-		}
-	}
-
 	void OpenGLTexture2D::SetWrapS(TextureWrap wrap)
 	{
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, WrapToGL(wrap));
+		m_WrapS = wrap;
+		if (m_RendererID)
+			RenderThread::QueueUpload([this, gl = WrapToGL(wrap)] {
+				glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, gl);
+			});
 	}
 
 	void OpenGLTexture2D::SetWrapT(TextureWrap wrap)
 	{
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, WrapToGL(wrap));
+		m_WrapT = wrap;
+		if (m_RendererID)
+			RenderThread::QueueUpload([this, gl = WrapToGL(wrap)] {
+				glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, gl);
+			});
 	}
 
-	void OpenGLTexture2D::SetData(void* data, uint32_t size)
+	void OpenGLTexture2D::SetData(const void* data, uint32_t size)
 	{
 		uint32_t bytesPerPixel;
 
@@ -120,22 +127,30 @@ namespace Hominem {
 
 		HMN_CORE_ASSERT(size == expectedSize, "Data must be enough to fill the entire texture!");
 
+		const auto* bytes = static_cast<const uint8_t*>(data);
+		bool firstQueue = m_PendingPixels.empty() && m_RendererID == 0;
+		m_PendingPixels.assign(bytes, bytes + size);
+
 		if (m_RendererID == 0)
 		{
-			// GPU not yet created — store for lazy upload on first Bind().
-			m_PendingPixels.assign(static_cast<uint8_t*>(data),
-			                       static_cast<uint8_t*>(data) + size);
+			// If m_PendingPixels was already non-empty, UploadToGPU() is already queued
+			// and will pick up the updated pixels. Only queue on the first SetData call.
+			if (firstQueue)
+				RenderThread::QueueUpload([this] { UploadToGPU(); });
 		}
 		else
 		{
-			glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, m_DataFormat, GL_UNSIGNED_BYTE, data);
+			RenderThread::QueueUpload([this] {
+				glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height,
+				                    m_DataFormat, GL_UNSIGNED_BYTE, m_PendingPixels.data());
+				m_PendingPixels.clear();
+				m_PendingPixels.shrink_to_fit();
+			});
 		}
 	}
 
 	void OpenGLTexture2D::Bind(uint32_t slot) const
 	{
-		if (!m_PendingPixels.empty())
-			UploadToGPU();
 		glBindTextureUnit(slot, m_RendererID);
 	}
 
@@ -149,7 +164,6 @@ namespace Hominem {
 	{
 		if (m_RendererID)
 		{
-			ASSERT_RENDER_THREAD();
 			glDeleteTextures(1, &m_RendererID);
 		}
 		// If m_RendererID == 0 the texture was never uploaded (destroyed before
