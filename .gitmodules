@@ -31,3 +31,6 @@
 [submodule "Hominem/vendor/tracy"]
 	path = Hominem/vendor/tracy
 	url = https://github.com/wolfpld/tracy
+[submodule "Hominem/vendor/meshoptimizer"]
+	path = Hominem/vendor/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer.git
