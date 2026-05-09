@@ -24,8 +24,8 @@ private:
 
 	WorldConfig m_Config;
 
-	Player*             m_Player        = nullptr; // non-owning; owned by Scene
-	NarrativeTextActor* m_NarrativeText = nullptr; // non-owning; owned by Scene
+	Player*             m_Player        = nullptr;
+	NarrativeTextActor* m_NarrativeText = nullptr;
 
 	Hominem::Ref<Hominem::CinematicCameraController> m_CinematicCamera;
 
