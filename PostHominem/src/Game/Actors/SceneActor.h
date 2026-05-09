@@ -19,10 +19,10 @@ public:
 			HMN_CORE_ERROR("SceneActor: failed to load '{}'", m_MeshPath);
 	}
 
-	void OnDraw3D() override
+	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override
 	{
 		if (!m_Mesh || !m_Mesh->IsLoaded()) return;
-		Hominem::Renderer3D::DrawStaticMesh(*m_Mesh, GetTransform());
+		frame.staticMeshes.push_back({ m_Mesh, GetTransform() });
 	}
 
 	Hominem::StaticMesh* GetMesh() const { return m_Mesh.get(); }

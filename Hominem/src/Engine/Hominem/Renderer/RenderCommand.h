@@ -32,6 +32,16 @@ namespace Hominem {
 			s_RendererAPI->DrawIndexed(vertexArray);
 		}
 
+		inline static void DrawIndexedLines(const std::shared_ptr<VertexArray>& vertexArray, uint32_t indexCount)
+		{
+			s_RendererAPI->DrawIndexedLines(vertexArray, indexCount);
+		}
+
+		inline static void SetDepthTestEnabled(bool enabled)
+		{
+			s_RendererAPI->SetDepthTestEnabled(enabled);
+		}
+
 		inline static void BindEmptyVAO()
 		{
 			s_RendererAPI->BindEmptyVAO();

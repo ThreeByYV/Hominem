@@ -28,6 +28,7 @@ namespace Hominem {
 			return ref;
 		}
 
+		/// Step physics (if set) then update all actors.
 		void OnUpdate(Timestep ts);
 
 		/// Collect draw commands from all actors into frame — no GL calls.
@@ -43,6 +44,7 @@ namespace Hominem {
 		SceneCamera&       GetCamera()         { return m_Camera; }
 		const SceneCamera& GetCamera() const   { return m_Camera; }
 		glm::vec3&         GetCameraPosition() { return m_CameraPosition; }
+		glm::vec3&         GetCameraFront()    { return m_CameraFront; }
 
 		void               SetPhysicsWorld(Ref<PhysicsWorld> world) { m_PhysicsWorld = world; }
 		Ref<PhysicsWorld>  GetPhysicsWorld() const                  { return m_PhysicsWorld; }
@@ -52,6 +54,7 @@ namespace Hominem {
 
 		SceneCamera m_Camera;
 		glm::vec3   m_CameraPosition{ 0.f };
+		glm::vec3   m_CameraFront{ 0.f, 0.f, -1.f }; // default: looking down -Z
 		uint32_t    m_ViewportWidth  = 0;
 		uint32_t    m_ViewportHeight = 0;
 

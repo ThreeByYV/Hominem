@@ -40,7 +40,7 @@ struct FloorConfig
 
 struct PhysicsConfig
 {
-	glm::vec3 Gravity = { 0.0f, -9.8f, 0.0f };
+	glm::vec3 Gravity = { 0.0f, -9.81f, 0.0f }; // m/s² — matches 1 unit = 1 metre
 	FloorConfig Floor;
 };
 
@@ -52,11 +52,21 @@ struct CameraConfig
 	float OrthoFar  = 10.0f;
 };
 
+struct SceneConfig
+{
+	std::string MeshPath = "Resources/Textures/source/factory.fbx";
+	glm::vec3   Position = {  0.f,  0.f,  -8.f };
+	glm::vec3   Rotation = {  0.f,  0.f,   0.f }; // degrees, applied as XYZ Euler
+	glm::vec3   Scale    = {  1.f,  1.f,   1.f };
+};
+
 struct WorldConfig
 {
 	PlayerConfig  Player;
 	PhysicsConfig Physics;
 	CameraConfig  Camera;
+	SceneConfig   Scene;
 
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
+	static bool SaveToFile(const std::string& path, const WorldConfig& in);
 };

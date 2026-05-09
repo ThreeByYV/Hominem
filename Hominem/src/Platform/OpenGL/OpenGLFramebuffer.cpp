@@ -1,8 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLFramebuffer.h"
 #include <glad/glad.h>
-#include "Hominem/Renderer/RenderThread.h"
-#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -14,7 +12,6 @@ namespace Hominem {
 
 	void OpenGLFramebuffer::Invalidate()
 	{
-		ASSERT_RENDER_THREAD();
 		glCreateFramebuffers(1, &m_RendererID);
 		glBindFramebuffer(GL_FRAMEBUFFER, m_RendererID);
 		
@@ -68,7 +65,6 @@ namespace Hominem {
 
 	OpenGLFramebuffer::~OpenGLFramebuffer()
 	{
-		ASSERT_RENDER_THREAD();
 		glDeleteFramebuffers(1, &m_RendererID);
 	}
 

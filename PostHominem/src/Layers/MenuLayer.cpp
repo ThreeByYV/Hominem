@@ -53,7 +53,7 @@ void MenuLayer::OnUpdate(Timestep ts)
 {
 	if (Input::IsKeyPressed(HMN_KEY_2))
 	{
-		TransitionTo<GameLayer>();
+		TransitionTo<SandboxLayer>();
 		return;
 	}
 
