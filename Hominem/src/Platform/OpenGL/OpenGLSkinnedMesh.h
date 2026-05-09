@@ -92,6 +92,10 @@ namespace Hominem {
 		void ExtractSubmesh(const aiMesh* pMesh, uint32_t submeshIndex);
 		bool LoadMaterials(const aiScene* pScene, const std::string& filepath);
 
+		// Unit scale correction — scales translation column of every bone matrix to match
+		// vertex positions that were already converted from file units to metres.
+		void ApplyUnitScale(std::vector<glm::mat4>& transforms) const;
+
 		// GL handles
 		uint32_t m_VAO                  = 0;
 		uint32_t m_Buffers[NUM_BUFFERS] = { 0 };
@@ -113,6 +117,8 @@ namespace Hominem {
 
 		Skeleton   m_Skeleton;
 		Ref<Shader> m_Shader;
+
+		float                         m_ScaleToMetres  = 1.0f;
 
 		Assimp::Importer              m_Importer;
 		const aiScene*                m_pScene = nullptr;

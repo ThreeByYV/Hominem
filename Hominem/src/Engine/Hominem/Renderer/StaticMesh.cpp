@@ -1,10 +1,12 @@
 #include "hmnpch.h"
 #include "StaticMesh.h"
+#include "RenderThread.h"
 
 #include <glad/glad.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <meshoptimizer.h>
 
 #include <fstream>
 #include <filesystem>
@@ -12,8 +14,21 @@
 
 namespace Hominem
 {
+    // Returns a human-readable size string in meters, cm, and feet+inches.
+    // e.g. 1.727 → "1.73 m / 172.7 cm / 5'8\""
+    static std::string FormatSize(float meters)
+    {
+        int   totalInches = static_cast<int>(std::round(meters * 39.3701f));
+        int   feet        = totalInches / 12;
+        int   inches      = totalInches % 12;
+        char  buf[64];
+        std::snprintf(buf, sizeof(buf), "%.2f m / %.1f cm / %d'%d\"",
+                      meters, meters * 100.f, feet, inches);
+        return buf;
+    }
+
     static constexpr uint32_t k_CacheMagic   = 0x48534D53u; // "SMSH"
-    static constexpr uint32_t k_CacheVersion = 2u;          // v2: colour fallback paths
+    static constexpr uint32_t k_CacheVersion = 3u;          // v3: meshoptimizer pipeline
 
     constexpr unsigned int k_AssimpFlags =
             aiProcess_Triangulate |
@@ -137,9 +152,20 @@ namespace Hominem
             m_AABBMax = glm::max(m_AABBMax, v.Position);
         }
 
-        Upload(verts, indices);
-        HMN_CORE_INFO("StaticMesh: cache loaded — {}v {}i {}groups",
-                      hdr.vertCount, hdr.idxCount, hdr.groupCount);
+        m_PendingVerts   = verts;
+        m_PendingIndices = indices;
+        {
+            glm::vec3 size = m_AABBMax - m_AABBMin;
+            HMN_CORE_INFO("StaticMesh: cache loaded — {}v {}i {}groups",
+                          hdr.vertCount, hdr.idxCount, hdr.groupCount);
+            HMN_CORE_INFO("StaticMesh: size  W:{} H:{} D:{}",
+                          FormatSize(size.x), FormatSize(size.y), FormatSize(size.z));
+        }
+        RenderThread::QueueUpload([this] {
+            Upload(m_PendingVerts, m_PendingIndices);
+            m_PendingVerts  = {};
+            m_PendingIndices = {};
+        });
         return true;
     }
 
@@ -163,6 +189,20 @@ namespace Hominem
             totalVerts += scene->mMeshes[i]->mNumVertices;
             totalIndices += scene->mMeshes[i]->mNumFaces * 3;
         }
+
+        // --- detect unit scale ---
+        // FBX stores UnitScaleFactor in scene metadata (Blender default = 1.0 → cm).
+        // Multiply by 0.01 to convert cm → metres so 1 engine unit = 1 metre.
+        // glTF is always metres (no metadata key), OBJ has no standard → both default 1.0.
+        float scaleToMetres = 1.0f;
+        if (scene->mMetaData)
+        {
+            double unitScale = 1.0;
+            if (scene->mMetaData->Get("UnitScaleFactor", unitScale))
+                scaleToMetres = static_cast<float>(unitScale) * 0.01f;
+        }
+        HMN_CORE_INFO("StaticMesh: unit scale {:.4f} (1 file unit = {:.4f} m)",
+                      scaleToMetres, scaleToMetres);
 
         std::vector<StaticVertex> verts;
         std::vector<uint32_t> indices;
@@ -193,7 +233,11 @@ namespace Hominem
                 const auto &p = mesh->mVertices[v];
                 const auto &n = mesh->mNormals ? mesh->mNormals[v] : kZero;
                 const auto &u = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0][v] : kZero;
-                verts.push_back({{p.x, p.y, p.z}, {n.x, n.y, n.z}, {u.x, u.y}});
+                verts.push_back({
+                    { p.x * scaleToMetres, p.y * scaleToMetres, p.z * scaleToMetres },
+                    { n.x, n.y, n.z },
+                    { u.x, u.y }
+                });
             }
 
             for (uint32_t f = 0; f < mesh->mNumFaces; f++)
@@ -330,6 +374,8 @@ namespace Hominem
             groupTexPaths.push_back(texPath);
         }
 
+        OptimizeGeometry(verts, indices, m_DrawGroups);
+
         m_AABBMin = glm::vec3(FLT_MAX);
         m_AABBMax = glm::vec3(-FLT_MAX);
         for (const auto &v: verts)
@@ -337,13 +383,90 @@ namespace Hominem
             m_AABBMin = glm::min(m_AABBMin, v.Position);
             m_AABBMax = glm::max(m_AABBMax, v.Position);
         }
-        HMN_CORE_INFO("StaticMesh: '{}' — {}v {}i {}groups", path, verts.size(), indices.size(), rawSubs.size());
-        HMN_CORE_INFO("StaticMesh: AABB min({:.1f},{:.1f},{:.1f}) max({:.1f},{:.1f},{:.1f})",
-                      m_AABBMin.x, m_AABBMin.y, m_AABBMin.z, m_AABBMax.x, m_AABBMax.y, m_AABBMax.z);
+        {
+            glm::vec3 size = m_AABBMax - m_AABBMin;
+            HMN_CORE_INFO("StaticMesh: '{}' — {}v {}i {}groups", path, verts.size(), indices.size(), rawSubs.size());
+            HMN_CORE_INFO("StaticMesh: size  W:{} H:{} D:{}",
+                          FormatSize(size.x), FormatSize(size.y), FormatSize(size.z));
+        }
 
         WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupTexPaths);
-        Upload(verts, indices);
+        m_PendingVerts   = verts;
+        m_PendingIndices = indices;
+        RenderThread::QueueUpload([this] {
+            Upload(m_PendingVerts, m_PendingIndices);
+            m_PendingVerts  = {};
+            m_PendingIndices = {};
+        });
         return true;
+    }
+
+    void StaticMesh::OptimizeGeometry(std::vector<StaticVertex>& verts,
+                                      std::vector<uint32_t>&     indices,
+                                      std::vector<DrawGroup>&    groups)
+    {
+        std::vector<StaticVertex> newVerts;
+        std::vector<uint32_t>     newIndices;
+        newVerts.reserve(verts.size());
+        newIndices.reserve(indices.size());
+
+        for (auto& group : groups)
+        {
+            const uint32_t localIdxCount  = group.IndexCount;
+            const uint32_t localIdxOffset = group.IndexByteOffset / sizeof(uint32_t);
+            const int32_t  baseVertex     = group.BaseVertex;
+
+            // Find how many vertices this group actually uses
+            uint32_t maxIdx = 0;
+            for (uint32_t i = localIdxOffset; i < localIdxOffset + localIdxCount; i++)
+                maxIdx = std::max(maxIdx, indices[i]);
+            const uint32_t localVertCount = maxIdx + 1;
+
+            const StaticVertex* srcVerts   = &verts[baseVertex];
+            const uint32_t*     srcIndices = &indices[localIdxOffset];
+
+            // 1. Generate vertex remap — deduplicates identical vertices
+            std::vector<uint32_t> remap{localVertCount};
+            size_t uniqueVertCount = meshopt_generateVertexRemap(
+                remap.data(),
+                srcIndices,   localIdxCount,
+                srcVerts,     localVertCount, sizeof(StaticVertex));
+
+            std::vector<uint32_t>     optIndices(localIdxCount);
+            std::vector<StaticVertex> optVerts(uniqueVertCount);
+
+            meshopt_remapIndexBuffer (optIndices.data(), srcIndices, localIdxCount, remap.data());
+            meshopt_remapVertexBuffer(optVerts.data(),   srcVerts,   localVertCount, sizeof(StaticVertex), remap.data());
+
+            // 2. Vertex cache optimisation (reduces GPU vertex shader invocations)
+            meshopt_optimizeVertexCache(optIndices.data(), optIndices.data(),
+                                        localIdxCount, uniqueVertCount);
+
+            // 3. Overdraw optimisation (reduces pixel shader invocations from overdraw)
+            meshopt_optimizeOverdraw(optIndices.data(), optIndices.data(), localIdxCount,
+                                     &optVerts[0].Position.x, uniqueVertCount,
+                                     sizeof(StaticVertex), 1.05f);
+
+            // 4. Vertex fetch optimisation — reorders vertices to match index access order,
+            //    minimising cache misses when the GPU fetches vertex data.
+            //    Also generates a smaller vertex buffer when vertices are unused after simplify.
+            meshopt_optimizeVertexFetch(optVerts.data(), optIndices.data(), localIdxCount,
+                                        optVerts.data(), uniqueVertCount, sizeof(StaticVertex));
+
+            // Update group to point at the new packed location
+            group.BaseVertex      = static_cast<int32_t>(newVerts.size());
+            group.IndexByteOffset = static_cast<uint32_t>(newIndices.size() * sizeof(uint32_t));
+            group.IndexCount      = localIdxCount;
+
+            newVerts.insert  (newVerts.end(),   optVerts.begin(),   optVerts.end());
+            newIndices.insert(newIndices.end(), optIndices.begin(), optIndices.end());
+        }
+
+        HMN_CORE_INFO("StaticMesh: meshopt {} -> {}v, {} -> {}i",
+                      verts.size(), newVerts.size(), indices.size(), newIndices.size());
+
+        verts   = std::move(newVerts);
+        indices = std::move(newIndices);
     }
 
     void StaticMesh::WriteBinary(const std::string &binPath,

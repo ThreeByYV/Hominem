@@ -73,8 +73,28 @@ namespace Hominem {
 		glfwMakeContextCurrent(nullptr);
 	}
 
+	void RenderThread::QueueUpload(std::function<void()> task)
+	{
+		std::lock_guard lock(s_UploadMutex);
+		s_UploadQueue.push_back(std::move(task));
+	}
+
 	void RenderThread::ExecuteFrame(const RenderFrame& frame)
 	{
+		// Drain pending GPU uploads — swap to avoid holding the lock while executing.
+		{
+			std::vector<std::function<void()>> uploads;
+			{
+				std::lock_guard lock(s_UploadMutex);
+				uploads.swap(s_UploadQueue);
+			}
+
+			for (auto& task : uploads)
+			{
+				task();
+			}
+		}
+
 		RenderCommand::SetClearColor(frame.clearColor);
 		RenderCommand::Clear();
 
@@ -82,13 +102,23 @@ namespace Hominem {
 		// inside BeginScene/EndScene so shader+VP state set by BeginScene is still live
 		// when DrawString runs. Depth test disabled so Z value controls draw-order only.
 		RenderCommand::SetDepthTestEnabled(false);
+
 		Renderer2D::BeginScene(frame.viewProjection2D);
+
 		for (const auto& q : frame.quads)
+		{
 			Renderer2D::PushQuad(q.transform, q.color, q.uvMin, q.uvMax, q.texture);
+		}
+
 		Renderer2D::Flush(); // draw quads (backgrounds, sprites) first
+
 		for (const auto& t : frame.texts)
+		{
 			Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
+		}
+
 		Renderer2D::EndScene(); // cleanup — Flush is a no-op here since batch is empty
+
 		RenderCommand::SetDepthTestEnabled(true);
 
 		// 3D pass — frustum culling was already applied on the main thread so every
@@ -96,7 +126,9 @@ namespace Hominem {
 		Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos);
 
 		for (const auto& sm : frame.staticMeshes)
+		{
 			Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+		}
 
 		for (const auto& m : frame.meshes)
 		{

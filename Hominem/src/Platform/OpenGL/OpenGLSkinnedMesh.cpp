@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLSkinnedMesh.h"
+#include "Hominem/Renderer/RenderThread.h"
 
 #include <glad/glad.h>
 #include <assimp/postprocess.h>
@@ -47,9 +48,7 @@ namespace Hominem {
 
 	bool OpenGLSkinnedMesh::LoadFromFile(const std::string& filepath)
 	{
-		ReleaseGPUResources();
-		CreateGPUBuffers();
-
+		// CPU-only — no GL calls. GPU init queued to run on the render thread.
 		m_AdditionalImporters.clear();
 		m_AdditionalScenes.clear();
 
@@ -58,27 +57,33 @@ namespace Hominem {
 		if (!m_pScene)
 		{
 			HMN_CORE_ERROR("SkinnedMesh: failed to load '{}': {}", filepath, m_Importer.GetErrorString());
-			glBindVertexArray(0);
 			return false;
 		}
 
 		if (m_pScene->mNumMeshes == 0)
 		{
 			HMN_CORE_ERROR("SkinnedMesh: '{}' contains 0 meshes", filepath);
-			glBindVertexArray(0);
 			return false;
 		}
+
+		// Detect unit scale from FBX metadata (same logic as StaticMesh).
+		m_ScaleToMetres = 1.0f;
+		if (m_pScene->mMetaData)
+		{
+			double unitScale = 1.0;
+			if (m_pScene->mMetaData->Get("UnitScaleFactor", unitScale))
+				m_ScaleToMetres = static_cast<float>(unitScale) * 0.01f;
+		}
+		HMN_CORE_INFO("SkinnedMesh: unit scale {:.4f} (1 file unit = {:.4f} m)",
+			m_ScaleToMetres, m_ScaleToMetres);
 
 		bool success = ParseScene(m_pScene, filepath);
 
 		if (!success)
 		{
 			HMN_CORE_ERROR("SkinnedMesh: ParseScene failed for '{}'", filepath);
-			glBindVertexArray(0);
 			return false;
 		}
-
-		UploadToGPU();
 
 		HMN_CORE_INFO("SkinnedMesh: '{}' — {}anims {}submesh {}bones {}verts {}idx",
 			filepath,
@@ -86,7 +91,10 @@ namespace Hominem {
 			m_Skeleton.GetNumBones(),
 			m_Geometry.Positions.size(), m_Geometry.Indices.size());
 
-		glBindVertexArray(0);
+		RenderThread::QueueUpload([this] {
+			CreateGPUBuffers();
+			UploadToGPU();
+		});
 		return success;
 	}
 
@@ -157,6 +165,7 @@ namespace Hominem {
 
 	void OpenGLSkinnedMesh::Render(const Ref<Shader>& shader)
 	{
+		if (!m_VAO) return;
 		Ref<Shader> active = shader ? shader : m_Shader;
 		HMN_CORE_ASSERT(active, "SkinnedMesh::Render called without a shader");
 
@@ -242,7 +251,7 @@ namespace Hominem {
 
 	void OpenGLSkinnedMesh::DispatchSkinning(const std::vector<glm::mat4>& bones)
 	{
-		if (!m_ComputeShader || bones.empty()) return;
+		if (!m_VAO || !m_ComputeShader || bones.empty()) return;
 
 		glNamedBufferSubData(m_BoneSSBO, 0, sizeof(glm::mat4) * bones.size(), bones.data());
 
@@ -260,21 +269,39 @@ namespace Hominem {
 		m_ComputeShader->Dispatch(groups); // Dispatch() issues GL_SHADER_STORAGE_BARRIER_BIT — vertex shader reads are safe after this.
 	}
 
+	// Bone matrices are computed in the file's unit space (e.g. cm for Blender FBX).
+	// Vertex positions were already scaled to metres in ExtractSubmesh, so the translation
+	// column of each bone matrix must match. Rotation/scale are unitless — only column 3
+	// (the translation) needs to change: S * M * S_inv scales just the translation by s.
+	void OpenGLSkinnedMesh::ApplyUnitScale(std::vector<glm::mat4>& transforms) const
+	{
+		if (m_ScaleToMetres == 1.0f) return;
+		for (auto& m : transforms)
+		{
+			m[3][0] *= m_ScaleToMetres;
+			m[3][1] *= m_ScaleToMetres;
+			m[3][2] *= m_ScaleToMetres;
+		}
+	}
+
 	void OpenGLSkinnedMesh::GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransforms(timeSeconds, transforms, disableRootMotion);
+		ApplyUnitScale(transforms);
 	}
 
 	void OpenGLSkinnedMesh::GetBoneTransformsBlended(float timeSeconds, std::vector<glm::mat4>& transforms,
 		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransformsBlended(timeSeconds, transforms, startAnimIndex, endAnimIndex, blendFactor, disableRootMotion);
+		ApplyUnitScale(transforms);
 	}
 
 	void OpenGLSkinnedMesh::GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
 		std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransformsBlendedN(samples, transforms, disableRootMotion);
+		ApplyUnitScale(transforms);
 	}
 
 	bool OpenGLSkinnedMesh::ParseScene(const aiScene* pScene, const std::string& filepath)
@@ -332,7 +359,7 @@ namespace Hominem {
 			const aiVector3D& normal = pMesh->mNormals ? pMesh->mNormals[i] : zero;
 			const aiVector3D& uv     = pMesh->HasTextureCoords(0) ? pMesh->mTextureCoords[0][i] : zero;
 
-			m_Geometry.Positions.emplace_back(pos.x, pos.y, pos.z);
+			m_Geometry.Positions.emplace_back(pos.x * m_ScaleToMetres, pos.y * m_ScaleToMetres, pos.z * m_ScaleToMetres);
 			m_Geometry.Normals.emplace_back(normal.x, normal.y, normal.z);
 			m_Geometry.TexCoords.emplace_back(uv.x, uv.y);
 		}

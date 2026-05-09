@@ -17,7 +17,7 @@ namespace Hominem {
 		uint32_t GetWidth() const override { return m_Width; }
 		uint32_t GetHeight() const override { return m_Height; }
 
-		void SetData(void* data, uint32_t size) override;
+		void SetData(const void* data, uint32_t size) override;
 		void Bind(uint32_t slot) const override;
 		void SetWrapS(TextureWrap wrap) override;
 		void SetWrapT(TextureWrap wrap) override;
@@ -25,16 +25,18 @@ namespace Hominem {
 		static void UnbindAll();
 
 	private:
-		void UploadToGPU() const; // called lazily from Bind() on the render thread
+		void UploadToGPU() const; // called from the RenderThread upload queue
 
 		std::string m_Path;
 		uint32_t m_Width = 0, m_Height = 0;
 		mutable uint32_t m_RendererID = 0;
 		GLenum m_InternalFormat = 0, m_DataFormat = 0;
 
-		// CPU pixel data held until first Bind() on the render thread
+		// CPU-side state held until first Bind() on the render thread
 		mutable std::vector<uint8_t> m_PendingPixels;
-		mutable int m_MipLevels = 1;
+		mutable int         m_MipLevels = 1;
+		mutable TextureWrap m_WrapS     = TextureWrap::Repeat;
+		mutable TextureWrap m_WrapT     = TextureWrap::Repeat;
 	};
 }
 
