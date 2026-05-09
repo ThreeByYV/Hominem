@@ -48,10 +48,6 @@ namespace Hominem {
 		s_ThreadId = std::this_thread::get_id();
 		glfwMakeContextCurrent(m_Window);
 
-		// First-frame: create font atlas texture on the render thread where the GL
-		// context lives. After this call it becomes a no-op every subsequent frame.
-		ImGui_ImplOpenGL3_NewFrame();
-
 		while (true)
 		{
 			RenderFrame frame;
@@ -82,27 +78,38 @@ namespace Hominem {
 		RenderCommand::SetClearColor(frame.clearColor);
 		RenderCommand::Clear();
 
-		// 2D pass
+		// 2D pass — Flush() draws quads, then DrawString draws text on top. Both stay
+		// inside BeginScene/EndScene so shader+VP state set by BeginScene is still live
+		// when DrawString runs. Depth test disabled so Z value controls draw-order only.
+		RenderCommand::SetDepthTestEnabled(false);
 		Renderer2D::BeginScene(frame.viewProjection2D);
 		for (const auto& q : frame.quads)
 			Renderer2D::PushQuad(q.transform, q.color, q.uvMin, q.uvMax, q.texture);
+		Renderer2D::Flush(); // draw quads (backgrounds, sprites) first
 		for (const auto& t : frame.texts)
 			Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
-		Renderer2D::EndScene();
+		Renderer2D::EndScene(); // cleanup — Flush is a no-op here since batch is empty
+		RenderCommand::SetDepthTestEnabled(true);
 
-		// 3D pass — skinning dispatch happens here, not in OnUpdate, so GPU compute
-		// overlaps with the 2D pass above on drivers that support async compute.
+		// 3D pass — frustum culling was already applied on the main thread so every
+		// entry in staticMeshes and meshes is guaranteed visible.
 		Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos);
+
+		for (const auto& sm : frame.staticMeshes)
+			Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+
 		for (const auto& m : frame.meshes)
 		{
 			m.mesh->DispatchSkinning(m.bones);
 			Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
 		}
+
 		Renderer3D::EndScene();
 
 		// ImGui — draw data built on main thread, submitted to GL here.
 		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		if (ImDrawData* drawData = ImGui::GetDrawData())
+			ImGui_ImplOpenGL3_RenderDrawData(drawData);
 	}
 
 }

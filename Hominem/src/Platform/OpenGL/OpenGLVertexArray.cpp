@@ -1,8 +1,7 @@
 #include "hmnpch.h"
 #include "OpenGLVertexArray.h"
+#include "OpenGLBuffer.h"
 #include <glad/glad.h>
-#include "Hominem/Renderer/RenderThread.h"
-#define ASSERT_RENDER_THREAD() Hominem::RenderThread::AssertRenderThread(__func__)
 
 namespace Hominem {
 
@@ -23,15 +22,12 @@ namespace Hominem {
 			case ShaderDataType::Bool:      return GL_BOOL;
 		}
 
-		HMN_CORE_ASSERT(false, "Unknown ShaderDataType on convert to OpenGL Base!");
+		HMN_CORE_ASSERT(false, "Unknown ShaderDataType!");
 		return 0;
 	}
 
-
-
 	OpenGLVertexArray::OpenGLVertexArray()
 	{
-		ASSERT_RENDER_THREAD();
 		glCreateVertexArrays(1, &m_RendererID);
 	}
 
@@ -47,43 +43,38 @@ namespace Hominem {
 
 	void OpenGLVertexArray::AddVertexBuffer(const Ref<VertexBuffer>& vertexBuffer)
 	{
-		HMN_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex Buffer has no layout!");
+		HMN_CORE_ASSERT(!vertexBuffer->GetLayout().GetElements().empty(), "Vertex Buffer has no layout!");
 
-		glBindVertexArray(m_RendererID);
-		vertexBuffer->Bind();
+		const auto& layout     = vertexBuffer->GetLayout();
+		const uint32_t binding = static_cast<uint32_t>(m_VertexBuffers.size());
+		const uint32_t vboID   = static_cast<OpenGLVertexBuffer*>(vertexBuffer.get())->GetRendererID();
 
-		uint32_t index = 0;
-		const auto& layout = vertexBuffer->GetLayout();
+		glVertexArrayVertexBuffer(m_RendererID, binding, vboID, 0, layout.GetStride());
 
 		for (const auto& element : layout)
 		{
-			glEnableVertexAttribArray(index);
-
-			glVertexAttribPointer(index,
+			glEnableVertexArrayAttrib(m_RendererID, m_AttribIndex);
+			glVertexArrayAttribFormat(m_RendererID, m_AttribIndex,
 				element.GetComponentCount(),
 				ShaderDataTypeToOpenGLBaseType(element.Type),
 				element.Normalized ? GL_TRUE : GL_FALSE,
-				layout.GetStride(),
-				(const void*)element.Offset);
-
-			index++;
+				element.Offset);
+			glVertexArrayAttribBinding(m_RendererID, m_AttribIndex, binding);
+			m_AttribIndex++;
 		}
 
 		m_VertexBuffers.push_back(vertexBuffer);
-
 	}
 
 	void OpenGLVertexArray::SetIndexBuffer(const Ref<IndexBuffer>& indexBuffer)
 	{
-		glBindVertexArray(m_RendererID); //binding a VAO, then a IBO associates that IBO under that VAO in OpenGL
-		indexBuffer->Bind();  
-
+		const uint32_t iboID = static_cast<OpenGLIndexBuffer*>(indexBuffer.get())->GetRendererID();
+		glVertexArrayElementBuffer(m_RendererID, iboID);
 		m_IndexBuffer = indexBuffer;
 	}
 
 	OpenGLVertexArray::~OpenGLVertexArray()
 	{
-		ASSERT_RENDER_THREAD();
 		glDeleteVertexArrays(1, &m_RendererID);
 	}
 }
