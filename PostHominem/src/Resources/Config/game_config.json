@@ -1,7 +1,7 @@
 {
   "player": {
     "movement": {
-      "speed": 5.0,
+      "speed": 1.0,
       "mass": 10.0
     },
     "spawn": {
@@ -34,7 +34,7 @@
   "scene": {
     "mesh_path": "Resources/Textures/source/factory.fbx",
     "position": { "x": 0.0, "y": 0.0, "z": 0.0 },
-    "rotation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "rotation": { "x": 0.0, "y": -90.0, "z": 0.0 },
     "scale":    { "x": 1.0, "y": 1.0, "z": 1.0 }
   }
 }

@@ -17,16 +17,24 @@ namespace Hominem {
 		~Scene();
 
 		/// Construct a T, insert it into the scene, call OnCreate(), and return a ref.
+		/// If a world transform has been set via SetWorldTransform, the actor's
+		/// Position is transformed into world space automatically.
 		template<typename T, typename... Args>
 		T& SpawnActor(Args&&... args)
 		{
-			auto actor   = CreateScope<T>(std::forward<Args>(args)...);
+			auto actor     = CreateScope<T>(std::forward<Args>(args)...);
 			actor->m_Scene = this;
+			actor->Position = glm::vec3(m_WorldTransform * glm::vec4(actor->Position, 1.f));
 			T& ref = *actor;
 			m_Actors.push_back(std::move(actor));
 			ref.OnCreate();
 			return ref;
 		}
+
+		/// Set a world-space transform for this scene. All actors spawned after this
+		/// call will have their Position automatically transformed to world space,
+		/// so actors can be authored in scene-local coordinates.
+		void SetWorldTransform(const glm::mat4& transform) { m_WorldTransform = transform; }
 
 		/// Step physics (if set) then update all actors.
 		void OnUpdate(Timestep ts);
@@ -59,6 +67,7 @@ namespace Hominem {
 		uint32_t    m_ViewportHeight = 0;
 
 		Ref<PhysicsWorld> m_PhysicsWorld;
+		glm::mat4         m_WorldTransform{ 1.f };
 	};
 
 }

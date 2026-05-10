@@ -426,7 +426,7 @@ namespace Hominem
             const uint32_t*     srcIndices = &indices[localIdxOffset];
 
             // 1. Generate vertex remap — deduplicates identical vertices
-            std::vector<uint32_t> remap{localVertCount};
+            std::vector<uint32_t> remap(localVertCount);
             size_t uniqueVertCount = meshopt_generateVertexRemap(
                 remap.data(),
                 srcIndices,   localIdxCount,

@@ -9,13 +9,12 @@
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
-#include "Hominem/Core/MouseButtonCodes.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/RenderThread.h"
 #include "Hominem/Scene/SceneCamera.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Events/ApplicationEvent.h"
-#include "Hominem/Events/MouseEvent.h"
 
 #include <imgui.h>
 
@@ -35,17 +34,13 @@ public:
 		scene.SetPhysicsWorld(CreateRef<PhysicsWorld>(m_Config.Physics.Gravity));
 
 		auto& window = Application::Get().GetWindow();
-		m_Aspect = (float)window.GetWidth() / (float)window.GetHeight();
-
-		m_Camera    = &scene.GetCamera();
-		m_CameraPos = &scene.GetCameraPosition();
+		m_Aspect      = (float)window.GetWidth() / (float)window.GetHeight();
+		m_Camera      = &scene.GetCamera();
+		m_CameraPos   = &scene.GetCameraPosition();
 		m_CameraFront = &scene.GetCameraFront();
 
-		m_Camera->SetPerspective(glm::radians(m_Fov), m_Aspect, 0.1f, 1000.f);
 		scene.OnViewportResize(window.GetWidth(), window.GetHeight());
-
-		*m_CameraPos   = { 0.f, 2.f, 15.f };
-		*m_CameraFront = ComputeFront();
+		*m_CameraFront = { 0.f, 0.f, -1.f }; // always look at -Z
 
 		const auto& sc = m_Config.Scene;
 		m_Scene3D = &scene.SpawnActor<SceneActor>(sc.MeshPath);
@@ -53,8 +48,74 @@ public:
 		m_Scene3D->Rotation = glm::radians(sc.Rotation);
 		m_Scene3D->Scale    = sc.Scale;
 
+		// Compute world AABB to find factory floor and size.
+		if (m_Scene3D->GetMesh())
+		{
+			glm::vec3 lMin = m_Scene3D->GetMesh()->GetAABBMin();
+			glm::vec3 lMax = m_Scene3D->GetMesh()->GetAABBMax();
+			glm::mat4 tx   = m_Scene3D->GetTransform();
+
+			glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
+			for (int i = 0; i < 8; i++)
+			{
+				glm::vec3 c = glm::vec3(tx * glm::vec4(
+					(i & 1) ? lMax.x : lMin.x,
+					(i & 2) ? lMax.y : lMin.y,
+					(i & 4) ? lMax.z : lMin.z, 1.f));
+				wMin = glm::min(wMin, c);
+				wMax = glm::max(wMax, c);
+			}
+
+			glm::vec3 size = wMax - wMin;
+			m_FactoryFloorY  = wMin.y;
+			m_FactoryCenterY = (wMin.y + wMax.y) * 0.5f;
+
+			// Perspective camera: FOV chosen so factory height fits with 10% margin.
+			// dist = half_height / tan(half_fov)
+			constexpr float k_FOVDeg  = 60.f;
+			float halfFovRad          = glm::radians(k_FOVDeg * 0.5f);
+			float dist                = (size.y * 0.5f * 1.1f) / glm::tan(halfFovRad);
+			float cz                  = wMax.z + dist;
+			m_Camera->SetPerspective(k_FOVDeg, m_Aspect, 0.1f, dist + size.z + 100.f);
+
+			// Camera starts centered on the factory.
+			float factoryCenterX = (wMin.x + wMax.x) * 0.5f;
+			m_CameraZ            = cz;
+			*m_CameraPos         = { factoryCenterX, m_FactoryCenterY, cz };
+
+			// Scene origin = factory bottom-left: (0,0,0) in actor space = floor, left, back.
+			scene.SetWorldTransform(glm::translate(glm::mat4(1.f), wMin));
+
+			// Factory AABB min can include sub-floor geometry (plants, cables).
+			// Raise the reference 0.5m to approximate the actual walkable surface.
+			constexpr float k_FloorLift = 0.5f;
+			m_FactoryFloorY += k_FloorLift;
+			m_Config.Physics.Floor.Position.y =
+				wMin.y - m_Config.Physics.Floor.Scale.y * 0.5f;
+
+			// Player: left edge (X=0), feet at floor, front face of factory (Z=size.z).
+			const auto& col = m_Config.Player.Collider;
+			float floorY    = col.Extents.y + glm::abs(col.Offset.y);
+
+			PlayerConfig pc   = m_Config.Player;
+			pc.Spawn.Position = { 0.f, floorY, size.z - 0.01f };
+			m_Player = &scene.SpawnActor<Player>(pc);
+		}
+		else
+		{
+			m_CameraZ = 10.f;
+			m_Camera->SetPerspective(60.f, m_Aspect, 0.1f, 1000.f);
+			m_Player = &scene.SpawnActor<Player>(m_Config.Player);
+		}
+
 		scene.SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
-		m_Player = &scene.SpawnActor<Player>(m_Config.Player);
+
+		// Scale character to 5'9". Adjust k_NativeHeightCm to measured Blender height.
+		if (m_Player)
+		{
+			constexpr float k_NativeHeightCm = 350.0f;
+			m_Player->Scale = glm::vec3(Hominem::FeetInches(5, 9.f) / k_NativeHeightCm * 0.5f);
+		}
 	}
 
 	void OnExit() override
@@ -72,92 +133,37 @@ public:
 
 		if (Input::IsKeyPressed(HMN_KEY_R))
 		{
-			Renderer2D::GetShaderLibrary()->ReloadAll();
-			Renderer3D::GetShaderLibrary()->ReloadAll();
-			if (m_Player) m_Player->ReloadShader();
+			RenderThread::QueueUpload([] {
+				Renderer2D::GetShaderLibrary()->ReloadAll();
+				Renderer3D::GetShaderLibrary()->ReloadAll();
+			});
 		}
 
-		if (!m_CameraPos || !m_CameraFront) return;
-
-		float dt = (float)ts;
-
-		// --- LMB drag to look ---
-		float mouseX = Input::GetMouseX();
-		float mouseY = Input::GetMouseY();
-
-		if (Input::IsMouseButtonPressed(HMN_MOUSE_BUTTON_LEFT))
+		// Smooth camera follow — track player X only; Y and Z locked.
+		if (m_Player && m_CameraPos)
 		{
-			if (!m_FirstMouse)
-			{
-				float dx = (mouseX - m_LastMouseX) * m_Sensitivity;
-				float dy = (m_LastMouseY - mouseY) * m_Sensitivity;
-				m_Yaw   += dx;
-				m_Pitch  = glm::clamp(m_Pitch + dy, -89.f, 89.f);
-				*m_CameraFront = ComputeFront();
-			}
-			m_FirstMouse = false;
+			float smooth   = glm::clamp(m_Config.Camera.Smoothing * (float)ts * 60.f, 0.f, 1.f);
+			m_CameraPos->x = glm::mix(m_CameraPos->x, m_Player->Position.x, smooth);
+			m_CameraPos->y = m_FactoryCenterY;
+			m_CameraPos->z = m_CameraZ;
 		}
-		else
-		{
-			m_FirstMouse = true;
-		}
-
-		m_LastMouseX = mouseX;
-		m_LastMouseY = mouseY;
-
-		// --- WASD fly movement with exponential acceleration ---
-		glm::vec3 front = *m_CameraFront;
-		glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.f, 1.f, 0.f)));
-		glm::vec3 up    = glm::vec3(0.f, 1.f, 0.f);
-
-		bool w = Input::IsKeyPressed(HMN_KEY_W);
-		bool s = Input::IsKeyPressed(HMN_KEY_S);
-		bool a = Input::IsKeyPressed(HMN_KEY_A);
-		bool d = Input::IsKeyPressed(HMN_KEY_D);
-		bool q = Input::IsKeyPressed(HMN_KEY_Q);
-		bool e = Input::IsKeyPressed(HMN_KEY_E);
-
-		if (w || s || a || d || q || e)
-		{
-			// Exponential ramp-up while keys are held, capped at 20x base speed
-			m_CurrentSpeed = glm::min(m_CurrentSpeed * (1.f + 2.5f * dt), m_MoveSpeed * 20.f);
-		}
-		else
-		{
-			m_CurrentSpeed = m_MoveSpeed; // instant reset when keys released
-		}
-
-		float speed = m_CurrentSpeed * dt;
-		if (w) *m_CameraPos += front * speed;
-		if (s) *m_CameraPos -= front * speed;
-		if (a) *m_CameraPos -= right * speed;
-		if (d) *m_CameraPos += right * speed;
-		if (e) *m_CameraPos += up    * speed;
-		if (q) *m_CameraPos -= up    * speed;
 	}
 
 	void OnImGuiRender() override
 	{
-		ImGui::Text("Fly Camera  |  RMB + WASD/QE to move  |  Scroll = FOV");
-
-		if (ImGui::SliderFloat("FOV",        &m_Fov,       10.f, 120.f) && m_Camera)
-			m_Camera->SetPerspective(glm::radians(m_Fov), m_Aspect, 0.1f, 1000.f);
-		ImGui::SliderFloat("Move Speed",     &m_MoveSpeed, 0.5f,  50.f);
-		ImGui::SliderFloat("Look Sensitivity",&m_Sensitivity, 0.01f, 1.f);
-
-		if (m_CameraPos)
-			ImGui::DragFloat3("Position", &m_CameraPos->x, 0.1f);
+		float fovDeg = m_Camera->GetPerspectiveFOV();
+		if (ImGui::SliderFloat("FOV", &fovDeg, 20.f, 120.f) && m_Camera)
+			m_Camera->SetPerspectiveFOV(fovDeg);
 
 		if (m_Scene3D)
 		{
 			ImGui::Separator();
 			ImGui::Text("Factory Scene");
-
 			glm::vec3 rotDeg = glm::degrees(m_Scene3D->Rotation);
 			ImGui::DragFloat3("Position##scene", &m_Scene3D->Position.x, 0.1f);
 			if (ImGui::DragFloat3("Rotation##scene", &rotDeg.x, 0.5f))
 				m_Scene3D->Rotation = glm::radians(rotDeg);
-			ImGui::DragFloat3("Scale##scene", &m_Scene3D->Scale.x, 0.01f, 0.001f, 100.f);
+			ImGui::DragFloat3("Scale##scene",    &m_Scene3D->Scale.x,    0.01f, 0.001f, 100.f);
 
 			if (ImGui::Button("Save Scene Transform"))
 			{
@@ -175,34 +181,16 @@ public:
 	{
 		Hominem::EventDispatcher dispatcher(e);
 
-		dispatcher.Dispatch<Hominem::MouseScrolledEvent>([this](Hominem::MouseScrolledEvent& e)
-		{
-			m_Fov -= e.GetYOffset() * 2.f;
-			m_Fov  = glm::clamp(m_Fov, 10.f, 120.f);
-			if (m_Camera)
-				m_Camera->SetPerspective(glm::radians(m_Fov), m_Aspect, 0.1f, 1000.f);
-			return false;
-		});
-
 		dispatcher.Dispatch<Hominem::WindowResizeEvent>([this](Hominem::WindowResizeEvent& e)
 		{
 			m_Aspect = (float)e.GetWidth() / (float)e.GetHeight();
 			if (m_Camera)
-				m_Camera->SetPerspective(glm::radians(m_Fov), m_Aspect, 0.1f, 1000.f);
+				m_Camera->SetPerspective(m_Camera->GetPerspectiveFOV(), m_Aspect, 0.1f, 1000.f);
 			return false;
 		});
 	}
 
 private:
-	glm::vec3 ComputeFront() const
-	{
-		return glm::normalize(glm::vec3{
-			cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch)),
-			sin(glm::radians(m_Pitch)),
-			sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch))
-		});
-	}
-
 	WorldConfig m_Config;
 
 	Player*     m_Player  = nullptr;
@@ -212,17 +200,8 @@ private:
 	glm::vec3*            m_CameraPos   = nullptr;
 	glm::vec3*            m_CameraFront = nullptr;
 
-	// Perspective
-	float m_Fov    = 60.f;
-	float m_Aspect = 1.f;
-
-	// Fly camera state
-	float m_Yaw          = -90.f;
-	float m_Pitch        =   0.f;
-	float m_MoveSpeed    =   5.f;
-	float m_CurrentSpeed =   5.f; // ramps up exponentially while key held
-	float m_Sensitivity  =   0.03f;
-	float m_LastMouseX   =   0.f;
-	float m_LastMouseY   =   0.f;
-	bool  m_FirstMouse   = true;
+	float m_CameraZ        = 10.f;
+	float m_Aspect         = 1.f;
+	float m_FactoryFloorY  = 0.f;
+	float m_FactoryCenterY = 0.f;
 };
