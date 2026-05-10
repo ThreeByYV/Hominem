@@ -9,24 +9,56 @@ namespace Hominem {
 	{
 #ifdef HMN_DEBUG
 		glEnable(GL_DEBUG_OUTPUT);
-		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // fires on the same thread as the bad call, before it returns
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // callback fires on the offending thread before the call returns — allows stack traces in debugger
 
 		glDebugMessageCallback([](GLenum source, GLenum type, GLuint id,
 		                          GLenum severity, GLsizei, const GLchar* message,
 		                          const void*)
 		{
+			// Suppress noisy NVIDIA driver bookkeeping messages that carry no actionable info
+			if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
 			if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
 
-			if (type == GL_DEBUG_TYPE_ERROR)
+			auto srcStr = [source]() -> const char* {
+				switch (source) {
+					case GL_DEBUG_SOURCE_API:             return "API";
+					case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   return "WindowSystem";
+					case GL_DEBUG_SOURCE_SHADER_COMPILER: return "ShaderCompiler";
+					case GL_DEBUG_SOURCE_THIRD_PARTY:     return "ThirdParty";
+					case GL_DEBUG_SOURCE_APPLICATION:     return "App";
+					default:                              return "Other";
+				}
+			}();
+
+			auto typeStr = [type]() -> const char* {
+				switch (type) {
+					case GL_DEBUG_TYPE_ERROR:               return "Error";
+					case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "Deprecated";
+					case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  return "UndefinedBehaviour";
+					case GL_DEBUG_TYPE_PORTABILITY:         return "Portability";
+					case GL_DEBUG_TYPE_PERFORMANCE:         return "Performance";
+					case GL_DEBUG_TYPE_MARKER:              return "Marker";
+					default:                                return "Other";
+				}
+			}();
+
+			switch (severity)
 			{
-				HMN_CORE_ERROR("OpenGL error (src={:#x} type={:#x} id={}): {}", source, type, id, message);
-				HMN_CORE_ASSERT(false, "OpenGL error — see log above");
-			}
-			else
-			{
-				HMN_CORE_WARN("OpenGL warning (src={:#x} type={:#x} id={}): {}", source, type, id, message);
+				case GL_DEBUG_SEVERITY_HIGH:
+					HMN_CORE_ERROR("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					HMN_CORE_ASSERT(false, "OpenGL high-severity error — see log above");
+					break;
+				case GL_DEBUG_SEVERITY_MEDIUM:
+					HMN_CORE_WARN("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					break;
+				case GL_DEBUG_SEVERITY_LOW:
+					HMN_CORE_INFO("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					break;
 			}
 		}, nullptr);
+
+		// Silence low-value performance hints globally; re-enable per-investigation if needed
+		glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PERFORMANCE, GL_DEBUG_SEVERITY_LOW, 0, nullptr, GL_FALSE);
 #endif
 
 		glEnable(GL_BLEND);
