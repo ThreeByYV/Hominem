@@ -98,6 +98,12 @@ namespace Hominem {
 		else         glDisable(GL_DEPTH_TEST);
 	}
 
+	void OpenGLRendererAPI::SetScissorEnabled(bool enabled)
+	{
+		if (enabled) glEnable(GL_SCISSOR_TEST);
+		else         glDisable(GL_SCISSOR_TEST);
+	}
+
 	void OpenGLRendererAPI::BindEmptyVAO()
 	{
 		glBindVertexArray(m_EmptyVAO);

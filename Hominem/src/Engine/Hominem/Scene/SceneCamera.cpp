@@ -33,6 +33,7 @@ namespace Hominem {
 	//remember you need to set the viewport size, BEFORE rendering for resizing
 	void SceneCamera::SetViewportSize(uint32_t width, uint32_t height)
 	{
+		if (width == 0 || height == 0) return;
 		m_AspectRatio = (float)width / (float)height;
 		RecalculateProjection();
 	}
@@ -41,6 +42,7 @@ namespace Hominem {
 	{
 		if (m_ProjectionType == ProjectionType::Perspective)
 		{
+			if (m_AspectRatio <= 0.f) return;
 			m_ProjectionMatrix = glm::perspective(glm::radians(m_PerspectiveFOV), m_AspectRatio,
 				m_PerspectiveNear, m_PerspectiveFar);
 		}

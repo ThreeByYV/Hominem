@@ -25,6 +25,7 @@ namespace Hominem {
 		virtual void DrawIndexedLines(const std::shared_ptr<VertexArray>& vertexArray, uint32_t indexCount) = 0;
 
 		virtual void SetDepthTestEnabled(bool enabled) = 0;
+		virtual void SetScissorEnabled(bool enabled)   = 0;
 
 		// PVP / indirect batch drawing
 		virtual void BindEmptyVAO()                       = 0;
