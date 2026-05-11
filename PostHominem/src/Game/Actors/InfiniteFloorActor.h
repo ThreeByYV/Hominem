@@ -86,7 +86,7 @@ private:
 
 		auto mat = world->CreateMaterial(m_Cfg.StaticFriction, m_Cfg.DynamicFriction, 0.f);
 		Hominem::BoxColliderSpec col;
-		col.HalfExtents = { m_SegW * 0.5f, m_SegH * 0.5f, 0.f };
+		col.HalfExtents = { m_SegW * 0.5f, m_SegH * 0.5f, m_SegW * 0.5f };
 		body->AttachCollider(world->CreateBoxCollider(col, mat));
 
 		Segment seg{ centerX, body };

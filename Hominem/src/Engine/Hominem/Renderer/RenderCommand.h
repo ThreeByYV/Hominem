@@ -42,6 +42,11 @@ namespace Hominem {
 			s_RendererAPI->SetDepthTestEnabled(enabled);
 		}
 
+		inline static void SetScissorEnabled(bool enabled)
+		{
+			s_RendererAPI->SetScissorEnabled(enabled);
+		}
+
 		inline static void BindEmptyVAO()
 		{
 			s_RendererAPI->BindEmptyVAO();

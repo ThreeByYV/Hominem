@@ -64,11 +64,16 @@ void Player::OnCreate()
 		return;
 	}
 
+	HMN_CORE_INFO("Player::OnCreate  position({:.2f},{:.2f},{:.2f})", Position.x, Position.y, Position.z);
+
 	RigidbodySpec rbSpec;
-	rbSpec.Type          = RigidbodyType::Dynamic;
-	rbSpec.Position      = Position;
-	rbSpec.LockRotationZ = true;
-	rbSpec.Mass          = m_Config.Movement.Mass;
+	rbSpec.Type             = RigidbodyType::Dynamic;
+	rbSpec.Position         = Position;
+	rbSpec.LockRotationX    = true;
+	rbSpec.LockRotationY    = true;
+	rbSpec.LockRotationZ    = true;
+	rbSpec.LockTranslationZ = true;
+	rbSpec.Mass             = m_Config.Movement.Mass;
 	m_Body = world->CreateRigidbody(rbSpec);
 	m_Body->SetGravityEnabled(true);
 
@@ -78,7 +83,7 @@ void Player::OnCreate()
 		0.f);
 
 	BoxColliderSpec colSpec;
-	colSpec.HalfExtents = { m_Config.Collider.Extents.x, m_Config.Collider.Extents.y, 0.f };
+	colSpec.HalfExtents = { m_Config.Collider.Extents.x, m_Config.Collider.Extents.y, 10.f };
 	colSpec.Offset      = { m_Config.Collider.Offset.x,  m_Config.Collider.Offset.y,  0.f };
 
 	m_Collider = world->CreateBoxCollider(colSpec, material);
@@ -115,6 +120,15 @@ void Player::OnUpdate(Timestep ts)
 	}
 
 	if (!m_Body) return;
+
+	m_DebugLogTimer += ts;
+	if (m_DebugLogTimer < 3.f && static_cast<int>(m_DebugLogTimer / 0.5f) != m_DebugLogCount)
+	{
+		m_DebugLogCount = static_cast<int>(m_DebugLogTimer / 0.5f);
+		HMN_CORE_INFO("Player pos ({:.2f},{:.2f},{:.2f})  vel ({:.2f},{:.2f},{:.2f})",
+			Position.x, Position.y, Position.z,
+			m_Body->GetLinearVelocity().x, m_Body->GetLinearVelocity().y, m_Body->GetLinearVelocity().z);
+	}
 
 	bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
 	bool pressingD = Input::IsKeyPressed(HMN_KEY_D);

@@ -24,6 +24,19 @@ public:
 	void OnImGuiRender();
 	void ReloadShader();
 
+	glm::vec3 GetVelocity() const { return m_Body ? m_Body->GetLinearVelocity() : glm::vec3(0.f); }
+	bool      IsMoving()    const { return m_State == State::Running; }
+
+	void SetPosition(const glm::vec3& pos)
+	{
+		Position = pos;
+		if (m_Body)
+		{
+			m_Body->SetPosition(pos);
+			m_Body->SetLinearVelocity(glm::vec3(0.f));
+		}
+	}
+
 private:
 	PlayerConfig m_Config;
 
@@ -41,6 +54,9 @@ private:
 	uint32_t                                   m_ActiveAnim        = 0; // target animation index
 
 	Hominem::Ref<Hominem::Rigidbody>   m_Body;
+
+	float m_DebugLogTimer = 0.f;
+	int   m_DebugLogCount = -1;
 	Hominem::Ref<Hominem::BoxCollider> m_Collider;
 
 	enum class State { Idle = 0, Running };

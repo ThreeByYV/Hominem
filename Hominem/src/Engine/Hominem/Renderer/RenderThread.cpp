@@ -95,6 +95,13 @@ namespace Hominem {
 			}
 		}
 
+		// Reset scissor/viewport — ImGui leaves glScissor set to its last window rect,
+		// which would clip both glClear and 3D rendering to that region next frame.
+		if (frame.viewportWidth > 0 && frame.viewportHeight > 0)
+			RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+
+		RenderCommand::SetScissorEnabled(false);
+
 		RenderCommand::SetClearColor(frame.clearColor);
 		RenderCommand::Clear();
 

@@ -33,7 +33,7 @@ void GameLayer::OnDetach()
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	if (Input::IsKeyPressed(HMN_KEY_1))
+	if (!ImGui::GetIO().WantCaptureKeyboard && Input::IsKeyPressed(HMN_KEY_1))
 	{
 		TransitionTo<MenuLayer>();
 		return;
@@ -52,6 +52,7 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 void GameLayer::OnImGuiRender()
 {
+	if (!m_ShowDebugUI) return;
 	ImGui::Begin("Settings");
 	m_GameMode->OnImGuiRender();
 	ImGui::End();
@@ -76,6 +77,9 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 {
 	if (e.GetRepeatCount() > 0)
 		return false;
+
+	if (e.GetKeyCode() == HMN_KEY_TAB)
+		m_ShowDebugUI = !m_ShowDebugUI;
 
 	if (e.GetKeyCode() == HMN_KEY_N)
 		Renderer3D::SetDrawNormals(!Renderer3D::GetDrawNormals());
