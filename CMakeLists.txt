@@ -205,6 +205,11 @@ target_link_libraries(PostHominem PRIVATE Hominem)
 
 if(MSVC)
     target_compile_options(PostHominem PRIVATE /utf-8 /FS /MP)
+
+# In Debug builds, hot-reload reads directly from the source resources folder.
+target_compile_definitions(PostHominem PRIVATE
+    $<$<CONFIG:Debug>:HMN_SOURCE_RESOURCES_PATH="${CMAKE_SOURCE_DIR}/PostHominem/src/Resources">
+)
     target_link_options(PostHominem PRIVATE
         $<$<CONFIG:Debug>:/NODEFAULTLIB:LIBCMTD;/DEBUG:FASTLINK>
     )
@@ -214,4 +219,13 @@ add_custom_command(TARGET PostHominem POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/PostHominem/src/Resources"
         "$<TARGET_FILE_DIR:PostHominem>/Resources"
+)
+
+# Standalone target to sync Resources without a full rebuild.
+# Run via: cmake --build cmake-build-debug --target sync-resources
+add_custom_target(sync-resources
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/PostHominem/src/Resources"
+        "${CMAKE_BINARY_DIR}/Resources"
+    COMMENT "Syncing Resources to build directory"
 )
