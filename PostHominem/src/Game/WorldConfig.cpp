@@ -38,6 +38,8 @@ namespace nlohmann {
 		j.at("movement").get_to(c.Movement);
 		j.at("spawn").get_to(c.Spawn);
 		j.at("collider").get_to(c.Collider);
+		if (j.contains("scale"))  c.Scale = j.at("scale").get<float>();
+		if (j.contains("rest_y")) c.RestY = j.at("rest_y").get<float>();
 	}
 
 	static void from_json(const json& j, FloorConfig& c)
@@ -56,10 +58,18 @@ namespace nlohmann {
 
 	static void from_json(const json& j, CameraConfig& c)
 	{
-		j.at("smoothing").get_to(c.Smoothing);
-		j.at("ortho_size").get_to(c.OrthoSize);
-		j.at("ortho_near").get_to(c.OrthoNear);
-		j.at("ortho_far").get_to(c.OrthoFar);
+		if (j.contains("smoothing"))       c.Smoothing     = j.at("smoothing").get<float>();
+		if (j.contains("ortho_size"))      c.OrthoSize     = j.at("ortho_size").get<float>();
+		if (j.contains("ortho_near"))      c.OrthoNear     = j.at("ortho_near").get<float>();
+		if (j.contains("ortho_far"))       c.OrthoFar      = j.at("ortho_far").get<float>();
+		if (j.contains("visible_height"))  c.VisibleHeight = j.at("visible_height").get<float>();
+		if (j.contains("player_screen_y")) c.PlayerScreenY = j.at("player_screen_y").get<float>();
+		if (j.contains("y_bias"))          c.YBias         = j.at("y_bias").get<float>();
+		if (j.contains("fov"))             c.FOVDeg        = j.at("fov").get<float>();
+		if (j.contains("x_speed"))         c.XSpeed        = j.at("x_speed").get<float>();
+		if (j.contains("y_speed"))         c.YSpeed        = j.at("y_speed").get<float>();
+		if (j.contains("lead_strength"))   c.LeadStrength  = j.at("lead_strength").get<float>();
+		if (j.contains("y_dead_zone"))     c.YDeadZone     = j.at("y_dead_zone").get<float>();
 	}
 
 	static void from_json(const json& j, SceneConfig& c)

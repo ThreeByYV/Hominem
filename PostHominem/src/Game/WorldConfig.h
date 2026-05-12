@@ -28,6 +28,8 @@ struct PlayerConfig
 	PlayerMovementConfig Movement;
 	PlayerSpawnConfig    Spawn;
 	PlayerColliderConfig Collider;
+	float                Scale  = 0.0002f;
+	float                RestY  = 0.06f;   // world-space Y the player body rests at
 };
 
 struct FloorConfig
@@ -46,10 +48,20 @@ struct PhysicsConfig
 
 struct CameraConfig
 {
-	float Smoothing = 0.15f;
-	float OrthoSize = 10.0f;
-	float OrthoNear = -10.0f;
-	float OrthoFar  = 10.0f;
+	float Smoothing     = 0.15f;
+	// Orthographic (used by PlayLevel / cinematic camera)
+	float OrthoSize     = 10.0f;
+	float OrthoNear     = -10.0f;
+	float OrthoFar      = 10.0f;
+	// SideScrollerCamera (used by FactoryLevel)
+	float VisibleHeight = 2.0f;
+	float PlayerScreenY = 0.25f;
+	float YBias         = 0.28f;
+	float FOVDeg        = 30.f;
+	float XSpeed        = 0.12f;
+	float YSpeed        = 0.05f;
+	float LeadStrength  = 0.45f;
+	float YDeadZone     = 0.15f;
 };
 
 struct SceneConfig

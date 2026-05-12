@@ -168,7 +168,7 @@ void Player::OnUpdate(Timestep ts)
 
 void Player::OnBuildRenderFrame(RenderFrame& frame)
 {
-	if (!m_Mesh) return;
+	if (!m_Mesh) { HMN_CORE_WARN("Player: m_Mesh is null, not rendering"); return; }
 	MeshDraw draw;
 	draw.mesh      = m_Mesh;
 	draw.transform = GetTransform();

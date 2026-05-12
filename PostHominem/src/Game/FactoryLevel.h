@@ -33,8 +33,8 @@ public:
 
 		scene.SetPhysicsWorld(CreateRef<PhysicsWorld>(m_Config.Physics.Gravity));
 
-		auto& window  = Application::Get().GetWindow();
-		float aspect  = (float)window.GetWidth() / (float)window.GetHeight();
+		auto& window = Application::Get().GetWindow();
+		m_Aspect     = (float)window.GetWidth() / (float)window.GetHeight();
 		scene.OnViewportResize(window.GetWidth(), window.GetHeight());
 
 		const auto& sc = m_Config.Scene;
@@ -67,9 +67,7 @@ public:
 			scene.SetWorldTransform(glm::translate(glm::mat4(1.f), wMin));
 
 			// ── Player spawn & floor ─────────────────────────────────────────────
-			// k_PlayerRestY: desired world-space Y of the player's body when standing.
-			// The physics floor is derived from this so the player always rests here.
-			constexpr float k_PlayerRestY = 0.06f;
+			const float k_PlayerRestY = m_Config.Player.RestY;
 
 			const auto& col  = m_Config.Player.Collider;
 			float floorTop   = k_PlayerRestY - glm::abs(col.Offset.y) - col.Extents.y;
@@ -86,20 +84,20 @@ public:
 
 			// ── Camera ───────────────────────────────────────────────────────────
 			SideScrollerCamera::Config camCfg;
-			camCfg.VisibleHeight = 2.0f;
-			camCfg.PlayerScreenY = 0.25f;
-			camCfg.YBias         = 0.280f;
-			camCfg.FOVDeg        = 30.f;
-			camCfg.XSpeed        = 0.12f;
-			camCfg.YSpeed        = 0.05f;
-			camCfg.LeadStrength  = 0.45f;
-			camCfg.YDeadZone     = 0.15f;
+			camCfg.VisibleHeight = m_Config.Camera.VisibleHeight;
+			camCfg.PlayerScreenY = m_Config.Camera.PlayerScreenY;
+			camCfg.YBias         = m_Config.Camera.YBias;
+			camCfg.FOVDeg        = m_Config.Camera.FOVDeg;
+			camCfg.XSpeed        = m_Config.Camera.XSpeed;
+			camCfg.YSpeed        = m_Config.Camera.YSpeed;
+			camCfg.LeadStrength  = m_Config.Camera.LeadStrength;
+			camCfg.YDeadZone     = m_Config.Camera.YDeadZone;
 
 			float cz = m_Camera.ComputeCameraZ(wMax.z);
 			m_Camera.Init(scene.GetCamera(),
 			              scene.GetCameraPosition(),
 			              scene.GetCameraFront(),
-			              aspect, cz, playerWorldY, camCfg);
+			              m_Aspect, cz, playerWorldY, camCfg);
 			m_Camera.SetTarget(m_Player);
 			scene.GetCameraPosition().x = spawnX;
 		}
@@ -110,7 +108,7 @@ public:
 			m_Camera.Init(scene.GetCamera(),
 			              scene.GetCameraPosition(),
 			              scene.GetCameraFront(),
-			              aspect, 10.f, 0.f, camCfg);
+			              m_Aspect, 10.f, 0.f, camCfg);
 			m_Player = &scene.SpawnActor<Player>(m_Config.Player);
 			m_Camera.SetTarget(m_Player);
 		}
@@ -118,7 +116,7 @@ public:
 		scene.SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
 
 		if (m_Player)
-			m_Player->Scale = glm::vec3(0.0025f);
+			m_Player->Scale = glm::vec3(m_Config.Player.Scale);
 	}
 
 	void OnExit() override
@@ -133,6 +131,29 @@ public:
 
 		if (Input::IsKeyPressed(HMN_KEY_R))
 		{
+			// Reload config and re-apply hot-reloadable values.
+#ifdef HMN_SOURCE_RESOURCES_PATH
+			constexpr const char* k_ConfigPath = HMN_SOURCE_RESOURCES_PATH "/Config/game_config.json";
+#else
+			constexpr const char* k_ConfigPath = "Resources/Config/game_config.json";
+#endif
+			WorldConfig newCfg;
+			if (WorldConfig::LoadFromFile(k_ConfigPath, newCfg))
+			{
+				HMN_CORE_INFO("Config reloaded — player scale={:.6f}", newCfg.Player.Scale);
+				m_Config = newCfg;
+				auto& cam        = m_Camera.GetConfig();
+				cam.VisibleHeight = newCfg.Camera.VisibleHeight;
+				cam.PlayerScreenY = newCfg.Camera.PlayerScreenY;
+				cam.YBias         = newCfg.Camera.YBias;
+				cam.FOVDeg        = newCfg.Camera.FOVDeg;
+				cam.XSpeed        = newCfg.Camera.XSpeed;
+				cam.YSpeed        = newCfg.Camera.YSpeed;
+				cam.LeadStrength  = newCfg.Camera.LeadStrength;
+				cam.YDeadZone     = newCfg.Camera.YDeadZone;
+				m_Camera.OnWindowResize(m_Aspect); // reapply projection with new FOV
+				if (m_Player) m_Player->Reload(newCfg.Player);
+			}
 			RenderThread::QueueUpload([] {
 				Renderer2D::GetShaderLibrary()->ReloadAll();
 				Renderer3D::GetShaderLibrary()->ReloadAll();
@@ -173,13 +194,15 @@ public:
 		dispatcher.Dispatch<Hominem::WindowResizeEvent>([this](Hominem::WindowResizeEvent& e)
 		{
 			if (e.GetWidth() == 0 || e.GetHeight() == 0) return false;
-			m_Camera.OnWindowResize((float)e.GetWidth() / (float)e.GetHeight());
+			m_Aspect = (float)e.GetWidth() / (float)e.GetHeight();
+			m_Camera.OnWindowResize(m_Aspect);
 			return false;
 		});
 	}
 
 private:
 	WorldConfig        m_Config;
+	float              m_Aspect  = 1.f;
 	SideScrollerCamera m_Camera;
 	Player*            m_Player  = nullptr;
 	SceneActor*        m_Scene3D = nullptr;

@@ -1,10 +1,11 @@
 {
   "player": {
     "movement": {
-      "speed": 1.0,
+      "speed": 1.8,
       "mass": 10.0
     },
     "spawn": {
+      "_note": "changing position requires level restart — affects physics spawn",
       "position": { "x": 0.0, "y": 1.0, "z": 3.0 },
       "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
     },
@@ -13,7 +14,10 @@
       "offset": { "x": 0.0, "y": -0.75, "z": 0.0 },
       "static_friction": 0.5,
       "dynamic_friction": 0.5
-    }
+    },
+    "scale": 0.002,
+    "rest_y": 0.06,
+    "_note_rest_y": "changing rest_y requires level restart — affects physics floor position"
   },
   "physics": {
     "gravity": { "x": 0.0, "y": -9.81, "z": 0.0 },
@@ -25,11 +29,15 @@
     }
   },
   "camera": {
-    "controller_speed": 5.0,
     "smoothing": 0.15,
-    "ortho_size": 10.0,
-    "ortho_near": -10.0,
-    "ortho_far": 10.0
+    "visible_height": 2.0,
+    "player_screen_y": 0.25,
+    "y_bias": 0.28,
+    "fov": 30.0,
+    "x_speed": 0.12,
+    "y_speed": 0.05,
+    "lead_strength": 0.45,
+    "y_dead_zone": 0.15
   },
   "scene": {
     "mesh_path": "Resources/Textures/source/factory.fbx",
