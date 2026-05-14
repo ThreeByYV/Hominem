@@ -7,6 +7,7 @@
 #include "Hominem/Renderer/RenderFrame.h"
 
 #include <vector>
+#include <concepts>
 
 namespace Hominem {
 
@@ -20,6 +21,7 @@ namespace Hominem {
 		/// If a world transform has been set via SetWorldTransform, the actor's
 		/// Position is transformed into world space automatically.
 		template<typename T, typename... Args>
+		requires std::derived_from<T, Actor>
 		T& SpawnActor(Args&&... args)
 		{
 			auto actor     = CreateScope<T>(std::forward<Args>(args)...);
