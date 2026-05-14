@@ -111,7 +111,10 @@ namespace Hominem {
 			m_ImGuiLayer->End();
 
 			// Collect draw commands — pure data, no GL.
+			// Wire the write arena so actors can bump-allocate bone matrices.
 			RenderFrame frame;
+			frame.arena    = &m_RenderThread.GetWriteArena();
+			frame.arenaIdx = m_RenderThread.GetWriteArenaIdx();
 			if (!m_Minimized)
 			{
 				for (auto& layer : m_LayerStack)

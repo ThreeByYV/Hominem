@@ -39,6 +39,8 @@ namespace Hominem {
 
 		m_Frame    = std::move(frame);
 		m_Consumed = false;
+		// Flip write arena — next frame's main-thread writes go into the other slot.
+		m_WriteArenaIdx ^= 1;
 		lock.unlock();
 		m_ReadyCV.notify_one();
 	}
@@ -61,6 +63,12 @@ namespace Hominem {
 			}
 
 			ExecuteFrame(frame);
+
+			// Reset this frame's arena — render thread is done with it.
+			// Main thread may now write into it again (it's the current write slot
+			// after the flip that happened in Submit).
+			if (frame.arena)
+				frame.arena->Reset();
 
 			// Notify main AFTER ImGui draw data is consumed — if we notify earlier
 			// the main thread can call ImGui::Render() while we're still reading

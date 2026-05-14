@@ -249,7 +249,7 @@ namespace Hominem {
 		m_ComputeShader.reset();
 	}
 
-	void OpenGLSkinnedMesh::DispatchSkinning(const std::vector<glm::mat4>& bones)
+	void OpenGLSkinnedMesh::DispatchSkinning(std::span<const glm::mat4> bones)
 	{
 		if (!m_VAO || !m_ComputeShader || bones.empty()) return;
 

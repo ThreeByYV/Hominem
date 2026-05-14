@@ -17,7 +17,7 @@ namespace Hominem {
 		bool LoadAdditionalAnimation(const std::string& filepath) override;
 
 		void Render(const Ref<Shader>& shader) override;
-		void DispatchSkinning(const std::vector<glm::mat4>& bones) override;
+		void DispatchSkinning(std::span<const glm::mat4> bones) override;
 
 		void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms,
 			bool disableRootMotion = false) override;
