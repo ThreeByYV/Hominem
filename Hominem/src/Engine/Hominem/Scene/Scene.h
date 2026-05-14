@@ -22,6 +22,7 @@ namespace Hominem {
 		/// Position is transformed into world space automatically.
 		template<typename T, typename... Args>
 		requires std::derived_from<T, Actor>
+		// T must derive from Actor — did you forget to inherit from Actor?
 		T& SpawnActor(Args&&... args)
 		{
 			auto actor     = CreateScope<T>(std::forward<Args>(args)...);
