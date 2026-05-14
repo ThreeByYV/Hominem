@@ -26,7 +26,8 @@ namespace Hominem {
 		void (*destroy)(void*) = nullptr;
 
 		template<typename F>
-		requires (sizeof(F) <= sizeof(storage)) && std::invocable<F>
+		requires std::invocable<F> && (sizeof(F) <= sizeof(storage))
+		// Capture too large? Reduce captures or store a pointer instead of a value.
 		Job(F&& f)
 		{
 			new(storage) F(std::forward<F>(f));
