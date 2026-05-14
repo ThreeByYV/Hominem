@@ -7,6 +7,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <type_traits>
+#include <concepts>
 #include <cstring>
 
 #include "Queue.h"
@@ -25,10 +26,9 @@ namespace Hominem {
 		void (*destroy)(void*) = nullptr;
 
 		template<typename F>
+		requires (sizeof(F) <= sizeof(storage)) && std::invocable<F>
 		Job(F&& f)
 		{
-			static_assert(sizeof(F) <= sizeof(storage),
-				"Job capture exceeds 56-byte inline buffer — reduce capture size or capture a pointer.");
 			new(storage) F(std::forward<F>(f));
 			invoke  = [](void* p){ (*static_cast<F*>(p))(); };
 			destroy = [](void* p){ static_cast<F*>(p)->~F(); };
