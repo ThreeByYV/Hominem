@@ -65,10 +65,22 @@ namespace Hominem {
 			ExecuteFrame(frame);
 
 			// Reset this frame's arena — render thread is done with it.
-			// Main thread may now write into it again (it's the current write slot
-			// after the flip that happened in Submit).
 			if (frame.arena)
 				frame.arena->Reset();
+
+			// Clear draw lists but preserve vector capacity so next frame
+			// push_backs don't reallocate.
+			frame.quads.clear();
+			frame.meshes.clear();
+			frame.staticMeshes.clear();
+			frame.texts.clear();
+
+			// Return the emptied frame (with its capacity) to m_Frame so the
+			// main thread inherits the pre-sized backing storage next Submit.
+			{
+				std::lock_guard lock(m_Mutex);
+				m_Frame = std::move(frame);
+			}
 
 			// Notify main AFTER ImGui draw data is consumed — if we notify earlier
 			// the main thread can call ImGui::Render() while we're still reading
