@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include <array>
+#include <span>
 #include <string>
 #include <fstream>
 #include <sstream>

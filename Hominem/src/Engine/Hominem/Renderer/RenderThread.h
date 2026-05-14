@@ -48,6 +48,11 @@ namespace Hominem {
 		 */
 		static void QueueUpload(std::function<void()> task);
 
+		/// Returns the arena the main thread should write into this frame.
+		/// Called by Application before OnBuildRenderFrame.
+		FrameArena& GetWriteArena() { return m_Arenas[m_WriteArenaIdx]; }
+		uint8_t     GetWriteArenaIdx() const { return m_WriteArenaIdx; }
+
 	private:
 		void ThreadFunc();
 		void ExecuteFrame(const RenderFrame& frame);
@@ -63,6 +68,11 @@ namespace Hominem {
 		std::mutex              m_Mutex;
 		std::condition_variable m_ReadyCV;
 		std::condition_variable m_ConsumedCV;
+
+		// Double-buffered arenas: main writes into arenas[m_WriteArenaIdx],
+		// render thread reads from the other. Flipped each Submit().
+		FrameArena m_Arenas[2];
+		uint8_t    m_WriteArenaIdx = 0;
 
 		inline static std::vector<std::function<void()>> s_UploadQueue;
 		inline static std::mutex                         s_UploadMutex;

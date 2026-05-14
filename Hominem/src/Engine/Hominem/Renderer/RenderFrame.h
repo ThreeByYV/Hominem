@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <span>
 #include <string>
 #include <glm/glm.hpp>
 
@@ -9,13 +10,10 @@
 #include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Renderer/StaticMesh.h"
 #include "Hominem/Renderer/Frustum.h"
+#include "Hominem/Renderer/FrameArena.h"
 
 namespace Hominem {
 
-	/**
-	 * All 2D sprite/quad data for one frame — no GL types, safe to build on any thread.
-	 * UV defaults to full texture. Null texture = white.
-	 */
 	struct QuadDraw
 	{
 		glm::mat4      transform { 1.f };
@@ -25,9 +23,6 @@ namespace Hominem {
 		Ref<Texture2D> texture;
 	};
 
-	/**
-	 * Text draw command — render thread calls Renderer2D::DrawString with these fields.
-	 */
 	struct TextDraw
 	{
 		std::string text;
@@ -37,21 +32,16 @@ namespace Hominem {
 	};
 
 	/**
-	 * Skinned mesh draw — render thread calls DispatchSkinning then DrawSkinnedMesh.
-	 * Ref<SkinnedMesh> keeps the mesh alive even if the owning actor is destroyed
-	 * between Submit() and ExecuteFrame() during a layer transition.
+	 * Skinned mesh draw. bones is a span into the frame arena — no heap alloc.
+	 * Allocate with: frame.AllocBones(count), write transforms, store span here.
 	 */
 	struct MeshDraw
 	{
-		Ref<SkinnedMesh>       mesh;
-		glm::mat4              transform { 1.f };
-		std::vector<glm::mat4> bones;
+		Ref<SkinnedMesh>        mesh;
+		glm::mat4               transform { 1.f };
+		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
 	};
 
-	/**
-	 * Static mesh draw — frustum culling already applied on main thread so every
-	 * entry here is guaranteed visible and needs a draw call.
-	 */
 	struct StaticMeshDraw
 	{
 		Ref<StaticMesh> mesh;
@@ -60,8 +50,10 @@ namespace Hominem {
 
 	/**
 	 * Plain-data snapshot of everything one frame needs to render.
-	 * Built on the main thread, consumed by the render thread — no GL calls during build.
+	 * Built on the main thread, consumed by the render thread.
 	 *
+	 * arena / arenaIdx are set by RenderThread before OnBuildRenderFrame runs.
+	 * Use AllocBones() to bump-allocate bone matrices into the arena.
 	 */
 	struct RenderFrame
 	{
@@ -70,7 +62,7 @@ namespace Hominem {
 		glm::mat4 viewProjection2D {};
 		glm::mat4 viewProjection3D {};
 		glm::vec3 cameraWorldPos   {};
-		Frustum   frustum3D        {};  // extracted from viewProjection3D — used for culling
+		Frustum   frustum3D        {};
 
 		uint32_t  viewportWidth  = 0;
 		uint32_t  viewportHeight = 0;
@@ -78,7 +70,19 @@ namespace Hominem {
 		std::vector<QuadDraw>       quads;
 		std::vector<TextDraw>       texts;
 		std::vector<MeshDraw>       meshes;
-		std::vector<StaticMeshDraw> staticMeshes; // pre-culled by main thread
+		std::vector<StaticMeshDraw> staticMeshes;
+
+		// Arena backing — set by RenderThread, not owned by this frame.
+		FrameArena* arena    = nullptr;
+		uint8_t     arenaIdx = 0;
+
+		// Allocate count bone matrices from the arena and return a span.
+		std::span<glm::mat4> AllocBones(size_t count)
+		{
+			if (!arena || count == 0) return {};
+			glm::mat4* ptr = arena->Alloc<glm::mat4>(count);
+			return { ptr, count };
+		}
 	};
 
 }

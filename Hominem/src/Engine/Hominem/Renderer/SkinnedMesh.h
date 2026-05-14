@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <span>
 #include <string>
 
 #include <glm/glm.hpp>
@@ -22,7 +23,7 @@ namespace Hominem {
 		virtual void Render(const Ref<Shader>& shader) = 0;
 
 		/// Upload bone matrices and dispatch GPU skinning compute shader.
-		virtual void DispatchSkinning(const std::vector<glm::mat4>& bones) = 0;
+		virtual void DispatchSkinning(std::span<const glm::mat4> bones) = 0;
 
 		virtual void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms,
 			bool disableRootMotion = false) = 0;

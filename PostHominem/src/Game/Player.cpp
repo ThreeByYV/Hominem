@@ -169,10 +169,15 @@ void Player::OnUpdate(Timestep ts)
 void Player::OnBuildRenderFrame(RenderFrame& frame)
 {
 	if (!m_Mesh) { HMN_CORE_WARN("Player: m_Mesh is null, not rendering"); return; }
+
 	MeshDraw draw;
 	draw.mesh      = m_Mesh;
 	draw.transform = GetTransform();
-	draw.bones     = m_BoneCache;
+
+	// Bump-allocate bone matrices into the frame arena — zero heap alloc.
+	draw.bones = frame.AllocBones(m_BoneCache.size());
+	std::copy(m_BoneCache.begin(), m_BoneCache.end(), draw.bones.begin());
+
 	frame.meshes.push_back(std::move(draw));
 }
 
