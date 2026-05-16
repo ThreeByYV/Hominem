@@ -65,6 +65,7 @@ namespace Hominem {
         HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
         s_Scene->ViewProjection = viewProj;
         s_Scene->CameraWorldPos = cameraWorldPos;
+        s_Scene->BoundShader    = nullptr; // reset state cache each frame
     }
 
     void Renderer3D::EndScene()
@@ -101,8 +102,13 @@ namespace Hominem {
         auto shader = s_Data->OverrideShader ? s_Data->OverrideShader : s_Data->StaticMeshShader;
         HMN_CORE_ASSERT(shader, "Renderer3D: static_mesh shader not loaded");
 
-        shader->Bind();
-        shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+        // Only bind + set VP uniform if shader changed — state cache avoids redundant GL calls.
+        if (shader.get() != s_Scene->BoundShader)
+        {
+            shader->Bind();
+            shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+            s_Scene->BoundShader = shader.get();
+        }
         mesh.Draw(shader, transform);
 
         if (s_DrawNormals && s_Data->NormalsShader)

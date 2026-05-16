@@ -14,7 +14,57 @@ namespace Hominem {
 	void RenderThread::Start(GLFWwindow* window)
 	{
 		m_Window = window;
+		SetupPasses();
 		m_Thread = std::thread(&RenderThread::ThreadFunc, this);
+	}
+
+	void RenderThread::SetupPasses()
+	{
+		m_RenderGraph.CreateRenderTarget("hdr", FramebufferFormat::RGBA16F);
+
+		m_RenderGraph.AddPass("scene", [](RenderGraph& graph, const RenderFrame& frame)
+		{
+			auto hdr = graph.GetFBO("hdr");
+			hdr->Bind();
+
+			RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+			RenderCommand::SetScissorEnabled(false);
+			RenderCommand::SetClearColor(frame.clearColor);
+			RenderCommand::Clear();
+
+			if (frame.viewportWidth == 0 || frame.viewportHeight == 0)
+			{
+				hdr->Unbind();
+				return;
+			}
+
+			RenderCommand::SetDepthTestEnabled(false);
+			Renderer2D::BeginScene(frame.viewProjection2D);
+			for (const auto& q : frame.quads)
+				Renderer2D::PushQuad(q.transform, q.color, q.uvMin, q.uvMax, q.texture);
+			Renderer2D::Flush();
+			for (const auto& t : frame.texts)
+				Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
+			Renderer2D::EndScene();
+
+			RenderCommand::SetDepthTestEnabled(true);
+			Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos);
+			for (const auto& sm : frame.staticMeshes)
+				Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+			for (const auto& m : frame.meshes)
+			{
+				m.mesh->DispatchSkinning(m.bones);
+				Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
+			}
+			Renderer3D::EndScene();
+
+			hdr->Unbind();
+		});
+
+		m_RenderGraph.AddPass("present", [](RenderGraph& graph, const RenderFrame& frame)
+		{
+			graph.GetFBO("hdr")->BlitToDefault(frame.viewportWidth, frame.viewportHeight);
+		});
 	}
 
 	void RenderThread::Stop()
@@ -64,28 +114,17 @@ namespace Hominem {
 
 			ExecuteFrame(frame);
 
-			// Reset this frame's arena — render thread is done with it.
 			if (frame.arena)
 				frame.arena->Reset();
-
-			// Clear draw lists but preserve vector capacity so next frame
-			// push_backs don't reallocate.
-			frame.quads.clear();
-			frame.meshes.clear();
-			frame.staticMeshes.clear();
-			frame.texts.clear();
-
-			// Return the emptied frame (with its capacity) to m_Frame so the
-			// main thread inherits the pre-sized backing storage next Submit.
-			{
-				std::lock_guard lock(m_Mutex);
-				m_Frame = std::move(frame);
-			}
 
 			// Notify main AFTER ImGui draw data is consumed — if we notify earlier
 			// the main thread can call ImGui::Render() while we're still reading
 			// GetDrawData(), corrupting the heap (0xC0000005).
 			m_ConsumedCV.notify_one();
+
+			// frame destructs here — no return-to-pool. Application builds a fresh
+			// RenderFrame each iteration so returning capacity provides no benefit,
+			// and the return-to-m_Frame write races with main's Submit.
 
 			glfwSwapBuffers(m_Window);
 		}
@@ -93,7 +132,7 @@ namespace Hominem {
 		glfwMakeContextCurrent(nullptr);
 	}
 
-	void RenderThread::QueueUpload(std::function<void()> task)
+	void RenderThread::QueueUpload(Job task)
 	{
 		std::lock_guard lock(s_UploadMutex);
 		s_UploadQueue.push_back(std::move(task));
@@ -103,69 +142,18 @@ namespace Hominem {
 	{
 		// Drain pending GPU uploads — swap to avoid holding the lock while executing.
 		{
-			std::vector<std::function<void()>> uploads;
+			std::vector<Job> uploads;
 			{
 				std::lock_guard lock(s_UploadMutex);
 				uploads.swap(s_UploadQueue);
 			}
-
 			for (auto& task : uploads)
-			{
 				task();
-			}
 		}
 
-		// Reset scissor/viewport — ImGui leaves glScissor set to its last window rect,
-		// which would clip both glClear and 3D rendering to that region next frame.
-		if (frame.viewportWidth > 0 && frame.viewportHeight > 0)
-			RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+		m_RenderGraph.Execute(frame);
 
-		RenderCommand::SetScissorEnabled(false);
-
-		RenderCommand::SetClearColor(frame.clearColor);
-		RenderCommand::Clear();
-
-		// 2D pass — Flush() draws quads, then DrawString draws text on top. Both stay
-		// inside BeginScene/EndScene so shader+VP state set by BeginScene is still live
-		// when DrawString runs. Depth test disabled so Z value controls draw-order only.
-		RenderCommand::SetDepthTestEnabled(false);
-
-		Renderer2D::BeginScene(frame.viewProjection2D);
-
-		for (const auto& q : frame.quads)
-		{
-			Renderer2D::PushQuad(q.transform, q.color, q.uvMin, q.uvMax, q.texture);
-		}
-
-		Renderer2D::Flush(); // draw quads (backgrounds, sprites) first
-
-		for (const auto& t : frame.texts)
-		{
-			Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
-		}
-
-		Renderer2D::EndScene(); // cleanup — Flush is a no-op here since batch is empty
-
-		RenderCommand::SetDepthTestEnabled(true);
-
-		// 3D pass — frustum culling was already applied on the main thread so every
-		// entry in staticMeshes and meshes is guaranteed visible.
-		Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos);
-
-		for (const auto& sm : frame.staticMeshes)
-		{
-			Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
-		}
-
-		for (const auto& m : frame.meshes)
-		{
-			m.mesh->DispatchSkinning(m.bones);
-			Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
-		}
-
-		Renderer3D::EndScene();
-
-		// ImGui — draw data built on main thread, submitted to GL here.
+		// ImGui renders to the default RGBA8 FBO after the blit.
 		ImGui_ImplOpenGL3_NewFrame();
 		if (ImDrawData* drawData = ImGui::GetDrawData())
 			ImGui_ImplOpenGL3_RenderDrawData(drawData);

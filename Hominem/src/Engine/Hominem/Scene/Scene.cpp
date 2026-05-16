@@ -18,6 +18,9 @@ namespace Hominem {
 
 	void Scene::BuildRenderFrame(RenderFrame& frame)
 	{
+		frame.viewportWidth  = m_ViewportWidth;
+		frame.viewportHeight = m_ViewportHeight;
+
 		if (m_ViewportWidth == 0 || m_ViewportHeight == 0)
 			return;
 
@@ -28,11 +31,16 @@ namespace Hominem {
 		frame.viewProjection3D = viewProjection;
 		frame.cameraWorldPos   = m_CameraPosition;
 		frame.frustum3D        = Frustum::FromViewProjection(viewProjection);
-		frame.viewportWidth    = m_ViewportWidth;
-		frame.viewportHeight   = m_ViewportHeight;
 
 		for (auto& actor : m_Actors)
 			actor->OnBuildRenderFrame(frame);
+
+		// Sort static meshes by key: groups same shader + same mesh together,
+		// minimising redundant shader/texture binds on the render thread.
+		std::sort(frame.staticMeshes.begin(), frame.staticMeshes.end(),
+			[](const StaticMeshDraw& a, const StaticMeshDraw& b) {
+				return a.sortKey < b.sortKey;
+			});
 	}
 
 	void Scene::OnViewportResize(uint32_t width, uint32_t height)

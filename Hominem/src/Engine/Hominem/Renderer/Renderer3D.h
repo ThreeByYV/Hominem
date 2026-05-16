@@ -62,6 +62,7 @@ namespace Hominem {
 		{
 			glm::mat4 ViewProjection{};
 			glm::vec3 CameraWorldPos{};
+			Shader*   BoundShader = nullptr; // state cache — skip redundant Bind()
 		};
 
 		static Renderer3DStorage* s_Data;

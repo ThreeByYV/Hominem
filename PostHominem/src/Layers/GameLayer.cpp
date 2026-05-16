@@ -22,6 +22,10 @@ void GameLayer::OnAttach()
 {
 	m_ActiveScene = CreateRef<Scene>();
 	m_GameMode    = CreateScope<FactoryLevel>();
+
+	auto& window = Application::Get().GetWindow();
+	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
+
 	m_GameMode->OnEnter(*m_ActiveScene);
 }
 

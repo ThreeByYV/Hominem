@@ -23,6 +23,8 @@ namespace Hominem {
 		void BindEmptyVAO()                      override;
 		void UnbindVAO()                         override;
 		void DrawArraysIndirect(uint32_t offset) override;
+		void DrawFullscreenTriangle()                        override;
+		void BindTexture(uint32_t slot, uint32_t id)         override;
 
 	private:
 		uint32_t m_EmptyVAO = 0;

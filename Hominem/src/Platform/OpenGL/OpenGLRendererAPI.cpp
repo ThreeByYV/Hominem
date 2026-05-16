@@ -18,6 +18,10 @@ namespace Hominem {
 			// Suppress noisy NVIDIA driver bookkeeping messages that carry no actionable info
 			if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
 			if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
+			// id=2 (API_ID_RECOMPILE_FRAGMENT_SHADER): NVIDIA compiles a format-specific
+			// shader variant when the output FBO format changes (e.g. RGBA16F → RGBA8).
+			// One-time cost per shader/format pair — not actionable.
+			if (id == 2) return;
 
 			auto srcStr = [source]() -> const char* {
 				switch (source) {
@@ -117,6 +121,17 @@ namespace Hominem {
 	void OpenGLRendererAPI::DrawArraysIndirect(uint32_t offset)
 	{
 		glDrawArraysIndirect(GL_TRIANGLES, reinterpret_cast<const void*>(static_cast<uintptr_t>(offset)));
+	}
+
+	void OpenGLRendererAPI::DrawFullscreenTriangle()
+	{
+		glBindVertexArray(m_EmptyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+
+	void OpenGLRendererAPI::BindTexture(uint32_t slot, uint32_t id)
+	{
+		glBindTextureUnit(slot, id);
 	}
 
 }

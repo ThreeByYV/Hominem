@@ -22,7 +22,8 @@ public:
 	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override
 	{
 		if (!m_Mesh || !m_Mesh->IsLoaded()) return;
-		frame.staticMeshes.push_back({ m_Mesh, GetTransform() });
+		uint64_t key = reinterpret_cast<uint64_t>(m_Mesh.get());
+		frame.staticMeshes.push_back({ m_Mesh, GetTransform(), key });
 	}
 
 	Hominem::StaticMesh* GetMesh() const { return m_Mesh.get(); }
