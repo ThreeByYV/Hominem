@@ -153,7 +153,7 @@ target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
 set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
 target_compile_options(stb_image PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
-file(GLOB_RECURSE ENGINE_SOURCES
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
     "Hominem/src/Engine/*.cpp"
     "Hominem/src/Engine/*.h"
     "Hominem/src/Platform/*.cpp"
@@ -184,7 +184,7 @@ if(MSVC)
     target_compile_options(Hominem PRIVATE /utf-8 /FS /MP)
 endif()
 
-file(GLOB_RECURSE GAME_SOURCES
+file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
     "PostHominem/src/*.cpp"
     "PostHominem/src/*.h"
 )

@@ -46,6 +46,7 @@ namespace Hominem {
 	{
 		Ref<StaticMesh> mesh;
 		glm::mat4       transform { 1.f };
+		uint64_t        sortKey   = 0;    // (shaderID << 32 | meshID) — set at submit time
 	};
 
 	/**
