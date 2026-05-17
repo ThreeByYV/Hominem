@@ -8,6 +8,7 @@
 
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Shader.h"
+#include "Hominem/Renderer/Material.h"
 #include "Skeleton.h"
 
 namespace Hominem {
@@ -33,7 +34,6 @@ namespace Hominem {
 			float blendFactor, bool disableRootMotion = false) = 0;
 
 		/// Blend any number of loaded animations by weight.
-		/// Each sample carries its own playback time so clips can run independently.
 		virtual void GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
 			std::vector<glm::mat4>& transforms, bool disableRootMotion = false) = 0;
 
@@ -50,7 +50,13 @@ namespace Hominem {
 		virtual Skeleton&       GetSkeleton()       = 0;
 		virtual const Skeleton& GetSkeleton() const = 0;
 
+		const Material& GetMaterial() const              { return m_Material; }
+		void            SetMaterial(const Material& mat) { m_Material = mat; }
+
 		static Ref<SkinnedMesh> Create();
+
+	protected:
+		Material m_Material;
 	};
 
 }

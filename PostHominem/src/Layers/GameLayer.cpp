@@ -50,6 +50,7 @@ void GameLayer::OnUpdate(Timestep ts)
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
 	frame.clearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+	frame.light      = m_Light;
 	if (m_ActiveScene)
 		m_ActiveScene->BuildRenderFrame(frame);
 }
@@ -58,6 +59,13 @@ void GameLayer::OnImGuiRender()
 {
 	if (!m_ShowDebugUI) return;
 	ImGui::Begin("Settings");
+	if (ImGui::CollapsingHeader("Lighting"))
+	{
+		ImGui::SliderFloat("Ambient",  &m_Light.AmbientIntensity, 0.f, 1.f);
+		ImGui::SliderFloat("Diffuse",  &m_Light.DiffuseIntensity, 0.f, 2.f);
+		ImGui::ColorEdit3("Color",     &m_Light.Color.x);
+		ImGui::SliderFloat3("Direction", &m_Light.Direction.x, -1.f, 1.f);
+	}
 	m_GameMode->OnImGuiRender();
 	ImGui::End();
 }

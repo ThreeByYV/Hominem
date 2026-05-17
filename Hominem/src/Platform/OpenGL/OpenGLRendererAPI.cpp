@@ -18,10 +18,7 @@ namespace Hominem {
 			// Suppress noisy NVIDIA driver bookkeeping messages that carry no actionable info
 			if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
 			if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
-			// id=2 (API_ID_RECOMPILE_FRAGMENT_SHADER): NVIDIA compiles a format-specific
-			// shader variant when the output FBO format changes (e.g. RGBA16F → RGBA8).
-			// One-time cost per shader/format pair — not actionable.
-			if (id == 2) return;
+			if (id == 2) return; // API_ID_RECOMPILE_FRAGMENT_SHADER — one-time per format pair
 
 			auto srcStr = [source]() -> const char* {
 				switch (source) {
@@ -46,17 +43,39 @@ namespace Hominem {
 				}
 			}();
 
+			// Map the id to a GL error enum name when the driver passes one as the message ID
+			auto glErrName = [id]() -> const char* {
+				switch (id) {
+					case 0x0500: return "GL_INVALID_ENUM";
+					case 0x0501: return "GL_INVALID_VALUE";
+					case 0x0502: return "GL_INVALID_OPERATION";
+					case 0x0503: return "GL_STACK_OVERFLOW";
+					case 0x0504: return "GL_STACK_UNDERFLOW";
+					case 0x0505: return "GL_OUT_OF_MEMORY";
+					case 0x0506: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+				case 0x0507: return "GL_CONTEXT_LOST";
+					default:     return nullptr;
+				}
+			}();
+
+			// Build a single id string so all severity branches share one format.
+			char idBuf[64];
+			if (glErrName)
+				snprintf(idBuf, sizeof(idBuf), "%u (%s)", id, glErrName);
+			else
+				snprintf(idBuf, sizeof(idBuf), "%u", id);
+
 			switch (severity)
 			{
 				case GL_DEBUG_SEVERITY_HIGH:
-					HMN_CORE_ERROR("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					HMN_CORE_ERROR("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
 					HMN_CORE_ASSERT(false, "OpenGL high-severity error — see log above");
 					break;
 				case GL_DEBUG_SEVERITY_MEDIUM:
-					HMN_CORE_WARN("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					HMN_CORE_WARN("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
 					break;
 				case GL_DEBUG_SEVERITY_LOW:
-					HMN_CORE_INFO("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, id, message);
+					HMN_CORE_INFO("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
 					break;
 			}
 		}, nullptr);

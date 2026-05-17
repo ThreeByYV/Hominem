@@ -9,34 +9,64 @@ layout(location = 1) in vec2 a_TexCoord;
 uniform mat4 u_ViewProjection;
 uniform mat4 u_Model;
 
-out vec2 TexCoord0;
-out vec3 Normal0;
+out vec3 v_WorldPos;
+out vec3 v_Normal;
+out vec2 v_TexCoord;
 
 void main()
 {
-    gl_Position = u_ViewProjection * u_Model * u_SkinnedPos[gl_VertexID];
-    TexCoord0   = a_TexCoord;
-    Normal0     = mat3(transpose(inverse(u_Model))) * u_SkinnedNorm[gl_VertexID].xyz;
+    vec4 worldPos = u_Model * u_SkinnedPos[gl_VertexID];
+    v_WorldPos    = worldPos.xyz;
+    v_Normal      = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
+    v_TexCoord    = a_TexCoord;
+    gl_Position   = u_ViewProjection * worldPos;
 }
 
 #type fragment
 #version 460 core
 
-layout(location = 0) out vec4 color;
+layout(location = 0) out vec4 FragColor;
 
-in vec2 TexCoord0;
-in vec3 Normal0;
+in vec3 v_WorldPos;
+in vec3 v_Normal;
+in vec2 v_TexCoord;
 
 uniform sampler2D u_Texture;
 
+uniform vec3  u_LightDirection;
+uniform vec3  u_LightColor;
+uniform float u_AmbientIntensity;
+uniform float u_DiffuseIntensity;
+uniform vec3  u_CameraWorldPos;
+
+// Material
+uniform vec3  u_MatAmbientColor;
+uniform vec3  u_MatDiffuseColor;
+uniform vec3  u_MatSpecularColor;
+uniform float u_MatSpecIntensity;
+uniform float u_MatShininess;
+
 void main()
 {
-    vec4 texColor = texture(u_Texture, TexCoord0);
-    if (length(texColor.rgb) < 0.1)
+    vec4 texColor = texture(u_Texture, v_TexCoord);
+    // Skinned meshes may not have an alpha channel — fall back to a neutral colour
+    // rather than discarding, which would make the mesh invisible.
+    if (dot(texColor.rgb, texColor.rgb) < 0.001)
         texColor = vec4(0.8, 0.6, 0.4, 1.0);
 
-    vec3 lightDir  = normalize(vec3(0.5, 1.0, 0.3));
-    float lighting = 0.3 + 0.7 * max(dot(normalize(Normal0), lightDir), 0.0);
+    vec3 N = normalize(v_Normal);
+    vec3 L = normalize(-u_LightDirection);
+    vec3 V = normalize(u_CameraWorldPos - v_WorldPos);
 
-    color = vec4(texColor.rgb * lighting, 1.0);
+    vec3 ambient  = u_LightColor * u_AmbientIntensity * u_MatAmbientColor;
+
+    float NdotL   = max(dot(N, L), 0.0);
+    vec3  diffuse = u_LightColor * u_DiffuseIntensity * NdotL * u_MatDiffuseColor;
+
+    vec3  H       = normalize(L + V);
+    float NdotH   = max(dot(N, H), 0.0);
+    vec3  specular = u_LightColor * u_MatSpecIntensity * pow(NdotH, u_MatShininess) * u_MatSpecularColor;
+
+    vec3 light = ambient + diffuse + specular;
+    FragColor  = vec4(texColor.rgb * light, texColor.a);
 }

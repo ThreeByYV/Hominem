@@ -4,6 +4,7 @@
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Scene/Scene.h"
+#include "Hominem/Renderer/RenderFrame.h"
 #include "Game/Level.h"
 
 class GameLayer : public Hominem::Layer
@@ -22,7 +23,8 @@ private:
 	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
 
-	Hominem::Ref<Hominem::Scene> m_ActiveScene;
-	Hominem::Scope<Level>        m_GameMode;
-	bool                         m_ShowDebugUI = false;
+	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
+	Hominem::Scope<Level>           m_GameMode;
+	bool                            m_ShowDebugUI = false;
+	Hominem::DirectionalLight m_Light;
 };

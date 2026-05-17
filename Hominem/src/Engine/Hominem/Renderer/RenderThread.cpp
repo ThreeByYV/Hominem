@@ -48,7 +48,7 @@ namespace Hominem {
 			Renderer2D::EndScene();
 
 			RenderCommand::SetDepthTestEnabled(true);
-			Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos);
+			Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos, frame.light);
 			for (const auto& sm : frame.staticMeshes)
 				Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
 			for (const auto& m : frame.meshes)
@@ -61,9 +61,42 @@ namespace Hominem {
 			hdr->Unbind();
 		});
 
-		m_RenderGraph.AddPass("present", [](RenderGraph& graph, const RenderFrame& frame)
+		// ImGui pass — renders into the HDR FBO so all shaders always target RGBA16F.
+		m_RenderGraph.AddPass("imgui", [this](RenderGraph& graph, const RenderFrame& /*frame*/)
 		{
-			graph.GetFBO("hdr")->BlitToDefault(frame.viewportWidth, frame.viewportHeight);
+			// Block until main has finished writing draw data for this frame.
+			{
+				std::unique_lock lock(m_ImGuiMutex);
+				m_ImGuiReadyCV.wait(lock, [this]{ return m_ImGuiReady || m_Shutdown; });
+				m_ImGuiReady = false;
+			}
+
+			graph.GetFBO("hdr")->Bind();
+			ImGui_ImplOpenGL3_NewFrame();
+			if (ImDrawData* drawData = ImGui::GetDrawData())
+				ImGui_ImplOpenGL3_RenderDrawData(drawData);
+			graph.GetFBO("hdr")->Unbind();
+
+			// Signal main that draw data is consumed — safe to write next frame.
+			{
+				std::lock_guard lock(m_ImGuiMutex);
+				m_ImGuiConsumed = true;
+			}
+			m_ImGuiConsumedCV.notify_one();
+		});
+
+		auto compositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
+		m_RenderGraph.AddPass("composite", [compositeShader](RenderGraph& graph, const RenderFrame& frame)
+		{
+			if (frame.viewportWidth > 0 && frame.viewportHeight > 0)
+				RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+			RenderCommand::SetDepthTestEnabled(false);
+			RenderCommand::SetScissorEnabled(false);
+			compositeShader->Bind();
+			compositeShader->SetInt("u_HDR", 0);
+			RenderCommand::BindTexture(0, graph.GetFBO("hdr")->GetColorAttachmentRendererID());
+			RenderCommand::DrawFullscreenTriangle();
+			RenderCommand::SetDepthTestEnabled(true);
 		});
 	}
 
@@ -77,6 +110,8 @@ namespace Hominem {
 		}
 		m_ReadyCV.notify_one();
 		m_ConsumedCV.notify_all();
+		m_ImGuiReadyCV.notify_all();
+		m_ImGuiConsumedCV.notify_all();
 		m_Thread.join();
 	}
 
@@ -132,6 +167,22 @@ namespace Hominem {
 		glfwMakeContextCurrent(nullptr);
 	}
 
+	void RenderThread::WaitImGuiConsumed()
+	{
+		std::unique_lock lock(m_ImGuiMutex);
+		m_ImGuiConsumedCV.wait(lock, [this]{ return m_ImGuiConsumed || m_Shutdown; });
+	}
+
+	void RenderThread::SignalImGuiReady()
+	{
+		{
+			std::lock_guard lock(m_ImGuiMutex);
+			m_ImGuiReady    = true;
+			m_ImGuiConsumed = false;
+		}
+		m_ImGuiReadyCV.notify_one();
+	}
+
 	void RenderThread::QueueUpload(Job task)
 	{
 		std::lock_guard lock(s_UploadMutex);
@@ -152,11 +203,6 @@ namespace Hominem {
 		}
 
 		m_RenderGraph.Execute(frame);
-
-		// ImGui renders to the default RGBA8 FBO after the blit.
-		ImGui_ImplOpenGL3_NewFrame();
-		if (ImDrawData* drawData = ImGui::GetDrawData())
-			ImGui_ImplOpenGL3_RenderDrawData(drawData);
 	}
 
 }

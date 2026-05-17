@@ -8,15 +8,17 @@ layout(location = 2) in vec2 a_TexCoord;
 uniform mat4 u_ViewProjection;
 uniform mat4 u_Model;
 
-out vec2 v_TexCoord;
+out vec3 v_WorldPos;
 out vec3 v_Normal;
+out vec2 v_TexCoord;
 
 void main()
 {
-	vec4 worldPos = u_Model * vec4(a_Position, 1.0);
-	v_TexCoord    = a_TexCoord;
-	v_Normal      = normalize(mat3(u_Model) * a_Normal);
-	gl_Position   = u_ViewProjection * worldPos;
+    vec4 worldPos = u_Model * vec4(a_Position, 1.0);
+    v_WorldPos    = worldPos.xyz;
+    v_Normal      = normalize(mat3(u_Model) * a_Normal);
+    v_TexCoord    = a_TexCoord;
+    gl_Position   = u_ViewProjection * worldPos;
 }
 
 #type fragment
@@ -24,38 +26,45 @@ void main()
 
 layout(location = 0) out vec4 FragColor;
 
-in vec2 v_TexCoord;
+in vec3 v_WorldPos;
 in vec3 v_Normal;
+in vec2 v_TexCoord;
 
 uniform sampler2D u_Texture;
 
+// Light
+uniform vec3  u_LightDirection;
+uniform vec3  u_LightColor;
+uniform float u_AmbientIntensity;
+uniform float u_DiffuseIntensity;
+
+// Material
+uniform vec3  u_MatAmbientColor;
+uniform vec3  u_MatDiffuseColor;
+uniform vec3  u_MatSpecularColor;
+uniform float u_MatSpecIntensity;
+uniform float u_MatShininess;
+
+uniform vec3  u_CameraWorldPos;
+
 void main()
 {
-	vec4 texColor = texture(u_Texture, v_TexCoord);
-	if (texColor.a < 0.1) discard;
+    vec4 texColor = texture(u_Texture, v_TexCoord);
+    if (texColor.a < 0.1) discard;
 
-	vec3 N = normalize(v_Normal);
+    vec3 N = normalize(v_Normal);
+    vec3 L = normalize(-u_LightDirection);
+    vec3 V = normalize(u_CameraWorldPos - v_WorldPos);
 
-	// Hemisphere ambient — sky above, warm ground bounce below
-	vec3 sky    = vec3(0.45, 0.55, 0.75);
-	vec3 ground = vec3(0.25, 0.18, 0.12);
-	vec3 ambient = mix(ground, sky, N.y * 0.5 + 0.5) * 0.55;
+    vec3 ambient  = u_LightColor * u_AmbientIntensity * u_MatAmbientColor;
 
-	// Main sun (warm directional)
-	vec3  sunDir   = normalize(vec3(0.5, 1.0, 0.4));
-	float NdotS    = max(dot(N, sunDir), 0.0);
-	vec3  sun      = vec3(1.0, 0.93, 0.78) * NdotS * 0.85;
+    float NdotL   = max(dot(N, L), 0.0);
+    vec3  diffuse = u_LightColor * u_DiffuseIntensity * NdotL * u_MatDiffuseColor;
 
-	// Cool fill from opposite side — stops backs going pure black
-	vec3  fillDir  = normalize(vec3(-0.6, 0.1, -0.4));
-	float NdotF    = max(dot(N, fillDir), 0.0);
-	vec3  fill     = vec3(0.25, 0.35, 0.55) * NdotF * 0.25;
+    vec3  H       = normalize(L + V);
+    float NdotH   = max(dot(N, H), 0.0);
+    vec3  specular = u_LightColor * u_MatSpecIntensity * pow(NdotH, u_MatShininess) * u_MatSpecularColor;
 
-	vec3 light = ambient + sun + fill;
-
-	// Reinhard tone map + gamma
-	light = light / (light + vec3(1.0));
-	light = pow(light, vec3(1.0 / 2.2));
-
-	FragColor = vec4(texColor.rgb * light, texColor.a);
+    vec3 light = ambient + diffuse + specular;
+    FragColor  = vec4(texColor.rgb * light, texColor.a);
 }
