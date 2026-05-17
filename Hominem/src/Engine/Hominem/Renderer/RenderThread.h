@@ -48,6 +48,13 @@ namespace Hominem {
 		/// Safe to call from any thread. Captured data must remain valid until the next frame.
 		static void QueueUpload(Job task);
 
+		/// Call before building ImGui each frame — waits for the render thread to finish
+		/// reading the previous frame's draw data so main can safely overwrite it.
+		void WaitImGuiConsumed();
+
+		/// Call after ImGui::Render() — signals the render thread that draw data is ready to read.
+		void SignalImGuiReady();
+
 		/// Returns the arena the main thread should write into this frame.
 		FrameArena& GetWriteArena()          { return m_Arenas[m_WriteArenaIdx]; }
 
@@ -76,6 +83,13 @@ namespace Hominem {
 		// render thread reads from the other. Flipped each Submit().
 		FrameArena m_Arenas[2];
 		uint8_t    m_WriteArenaIdx = 0;
+
+		// ImGui draw-data handoff — main writes, render reads, one slot, no concurrent access.
+		std::mutex              m_ImGuiMutex;
+		std::condition_variable m_ImGuiReadyCV;    // render waits here for main to signal ready
+		std::condition_variable m_ImGuiConsumedCV; // main waits here for render to signal consumed
+		bool                    m_ImGuiReady    = false; // main wrote draw data, render hasn't read yet
+		bool                    m_ImGuiConsumed = true;  // render read draw data, main can write again
 
 		inline static std::vector<Job>  s_UploadQueue;
 		inline static std::mutex        s_UploadMutex;

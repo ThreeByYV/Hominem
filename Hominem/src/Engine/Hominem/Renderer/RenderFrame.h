@@ -42,6 +42,14 @@ namespace Hominem {
 		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
 	};
 
+	struct DirectionalLight
+	{
+		glm::vec3 Direction        = glm::normalize(glm::vec3(0.5f, -1.f, 0.4f));
+		glm::vec3 Color            = glm::vec3(1.f, 0.93f, 0.78f);
+		float     AmbientIntensity = 0.3f;
+		float     DiffuseIntensity = 0.9f;
+	};
+
 	struct StaticMeshDraw
 	{
 		Ref<StaticMesh> mesh;
@@ -58,7 +66,8 @@ namespace Hominem {
 	 */
 	struct RenderFrame
 	{
-		glm::vec4 clearColor       { 0.1f, 0.1f, 0.1f, 1.f };
+		glm::vec4        clearColor { 0.1f, 0.1f, 0.1f, 1.f };
+		DirectionalLight light;
 
 		glm::mat4 viewProjection2D {};
 		glm::mat4 viewProjection3D {};

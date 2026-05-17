@@ -104,11 +104,14 @@ namespace Hominem {
 					layer->OnUpdate(timestep);
 			}
 
-			// ImGui CPU side — builds draw lists, no GL calls after our ImGuiLayer split.
+			// Wait for render thread to finish reading the previous frame's draw data,
+			// then build this frame's ImGui and signal the render thread it can read.
+			m_RenderThread.WaitImGuiConsumed();
 			m_ImGuiLayer->Begin();
 			for (auto& layer : m_LayerStack)
 				layer->OnImGuiRender();
-			m_ImGuiLayer->End();
+			m_ImGuiLayer->End();       // ImGui::Render() — writes draw data
+			m_RenderThread.SignalImGuiReady();
 
 			// Collect draw commands — pure data, no GL.
 			// Wire the write arena so actors can bump-allocate bone matrices.

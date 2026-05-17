@@ -6,6 +6,7 @@
 #include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Renderer/StaticMesh.h"
 #include "Hominem/Renderer/Frustum.h"
+#include "Hominem/Renderer/RenderFrame.h"
 
 namespace Hominem {
 
@@ -21,6 +22,7 @@ namespace Hominem {
 		Ref<Shader>        DefaultShader;
 		Ref<Shader>        OverrideShader;        // optional scene-wide
 		Ref<Shader>        StaticMeshShader;
+		Ref<Shader>        SkinnedMeshShader;
 		Ref<Shader>        NormalsShader;
 		Ref<Shader>        NormalsSkinnedShader;
 		Ref<Shader>        DebugAABBShader;
@@ -35,7 +37,8 @@ namespace Hominem {
 		static void Init();
 		static void Shutdown();
 
-		static void BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos);
+		static void BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos,
+		                       const DirectionalLight& light = {});
 		static void EndScene();
 
 		static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
@@ -60,9 +63,10 @@ namespace Hominem {
 	private:
 		struct SceneData
 		{
-			glm::mat4 ViewProjection{};
-			glm::vec3 CameraWorldPos{};
-			Shader*   BoundShader = nullptr; // state cache — skip redundant Bind()
+			glm::mat4        ViewProjection{};
+			glm::vec3        CameraWorldPos{};
+			DirectionalLight Light;
+			Shader*          BoundShader = nullptr; // state cache — skip redundant Bind()
 		};
 
 		static Renderer3DStorage* s_Data;

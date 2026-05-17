@@ -25,9 +25,11 @@ namespace Hominem {
         s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug_skinned.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/debug_aabb.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/composite.glsl");
 
         s_Data->DefaultShader        = s_Data->ShaderLibrary->Get("basic");
         s_Data->StaticMeshShader     = s_Data->ShaderLibrary->Get("static_mesh");
+        s_Data->SkinnedMeshShader    = s_Data->ShaderLibrary->Get("skinning");
         s_Data->NormalsShader        = s_Data->ShaderLibrary->Get("normals_debug");
         s_Data->NormalsSkinnedShader = s_Data->ShaderLibrary->Get("normals_debug_skinned");
         s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
@@ -60,12 +62,14 @@ namespace Hominem {
         delete s_Data;  s_Data  = nullptr;
     }
 
-    void Renderer3D::BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos)
+    void Renderer3D::BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos,
+                                const DirectionalLight& light)
     {
         HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
         s_Scene->ViewProjection = viewProj;
         s_Scene->CameraWorldPos = cameraWorldPos;
-        s_Scene->BoundShader    = nullptr; // reset state cache each frame
+        s_Scene->Light          = light;
+        s_Scene->BoundShader    = nullptr;
     }
 
     void Renderer3D::EndScene()
@@ -76,13 +80,24 @@ namespace Hominem {
 
     void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     {
-        Ref<Shader> shader = SelectShader(mesh.GetShader(), s_Data->OverrideShader, s_Data->DefaultShader);
+        Ref<Shader> shader = SelectShader(mesh.GetShader(), s_Data->OverrideShader, s_Data->SkinnedMeshShader);
         HMN_CORE_ASSERT(shader, "Renderer3D has no shader to use");
 
+        const DirectionalLight& l = s_Scene->Light;
         shader->Bind();
-        shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
-        shader->SetMat4("u_Model", transform);
-        shader->SetFloat3("gCameraWorldPos", s_Scene->CameraWorldPos);
+        shader->SetMat4("u_ViewProjection",    s_Scene->ViewProjection);
+        shader->SetMat4("u_Model",             transform);
+        shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
+        shader->SetFloat3("u_LightDirection",  l.Direction);
+        shader->SetFloat3("u_LightColor",      l.Color);
+        shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
+        shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
+        const Material& mat = mesh.GetMaterial();
+        shader->SetFloat3("u_MatAmbientColor",  mat.AmbientColor);
+        shader->SetFloat3("u_MatDiffuseColor",  mat.DiffuseColor);
+        shader->SetFloat3("u_MatSpecularColor", mat.SpecularColor);
+        shader->SetFloat("u_MatSpecIntensity",  mat.SpecIntensity);
+        shader->SetFloat("u_MatShininess",      mat.Shininess);
 
         mesh.Render(shader);
 
@@ -105,10 +120,25 @@ namespace Hominem {
         // Only bind + set VP uniform if shader changed — state cache avoids redundant GL calls.
         if (shader.get() != s_Scene->BoundShader)
         {
+            const DirectionalLight& l = s_Scene->Light;
             shader->Bind();
-            shader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+            shader->SetMat4("u_ViewProjection",    s_Scene->ViewProjection);
+            shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
+            shader->SetFloat3("u_LightDirection",  l.Direction);
+            shader->SetFloat3("u_LightColor",      l.Color);
+            shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
+            shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
             s_Scene->BoundShader = shader.get();
         }
+
+        // Material — per-mesh, set every draw call.
+        const Material& mat = mesh.GetMaterial();
+        shader->SetFloat3("u_MatAmbientColor",  mat.AmbientColor);
+        shader->SetFloat3("u_MatDiffuseColor",  mat.DiffuseColor);
+        shader->SetFloat3("u_MatSpecularColor", mat.SpecularColor);
+        shader->SetFloat("u_MatSpecIntensity",  mat.SpecIntensity);
+        shader->SetFloat("u_MatShininess",      mat.Shininess);
+
         mesh.Draw(shader, transform);
 
         if (s_DrawNormals && s_Data->NormalsShader)

@@ -2,6 +2,7 @@
 
 #include "Shader.h"
 #include "Texture.h"
+#include "Material.h"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -24,6 +25,9 @@ public:
 
 	glm::vec3 GetAABBMin() const { return m_AABBMin; }
 	glm::vec3 GetAABBMax() const { return m_AABBMax; }
+
+	const Material& GetMaterial() const        { return m_Material; }
+	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
 private:
 	struct StaticVertex
@@ -53,6 +57,7 @@ private:
 	                 const std::vector<std::string>&  groupTexPaths);
 	void Upload(const std::vector<StaticVertex>& verts, const std::vector<uint32_t>& indices);
 
+	Material               m_Material;
 	uint32_t               m_VAO = 0;
 	uint32_t               m_VBO = 0;
 	uint32_t               m_IBO = 0;
