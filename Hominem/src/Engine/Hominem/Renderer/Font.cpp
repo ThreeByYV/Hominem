@@ -70,6 +70,7 @@ namespace Hominem {
         // Create texture to act as a spritesheet for all the alphabetical letters
         m_AtlasTexture = Texture2D::Create(bitmap.width, bitmap.height, TextureFormat::RGB8);
         m_AtlasTexture->SetData(bitmap.pixels, bitmap.width * bitmap.height * 3);
+        m_AtlasTexture->QueueUpload();
 
         msdfgen::destroyFont(font);
         msdfgen::deinitializeFreetype(ft);

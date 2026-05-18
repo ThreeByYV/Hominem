@@ -6,7 +6,7 @@ namespace Hominem {
 
 	// GPU-side shader storage buffer (SSBO).
 	// Mirrors the factory pattern of VertexBuffer/IndexBuffer.
-	class StorageBuffer
+	class StorageBuffer : public RefCounted
 	{
 	public:
 		virtual ~StorageBuffer() = default;
@@ -18,7 +18,7 @@ namespace Hominem {
 	};
 
 	// GPU-side draw-indirect buffer (GL_DRAW_INDIRECT_BUFFER).
-	class DrawIndirectBuffer
+	class DrawIndirectBuffer : public RefCounted
 	{
 	public:
 		virtual ~DrawIndirectBuffer() = default;

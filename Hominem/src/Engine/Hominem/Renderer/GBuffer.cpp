@@ -10,7 +10,7 @@ namespace Hominem {
 		switch (Renderer::GetAPI())
 		{
 			case RendererAPI::API::None:   HMN_CORE_ASSERT(false, "RendererAPI::None is not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return std::make_shared<OpenGLGBuffer>(width, height);
+			case RendererAPI::API::OpenGL: return CreateRef<OpenGLGBuffer>(width, height);
 		}
 
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");

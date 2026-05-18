@@ -10,7 +10,7 @@
 
 namespace Hominem {
 
-	class PhysicsWorld
+	class PhysicsWorld : public RefCounted
 	{
 	public:
 		PhysicsWorld(const glm::vec3& gravity = glm::vec3(0.0f, -9.8f, 0.0f));

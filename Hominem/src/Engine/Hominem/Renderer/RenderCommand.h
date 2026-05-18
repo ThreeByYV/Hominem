@@ -32,13 +32,13 @@ namespace Hominem {
 		}
 
 		/// Draws the indexed geometry in the given vertex array.
-		inline static void DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray)
+		inline static void DrawIndexed(const Ref<VertexArray>& vertexArray)
 		{
 			s_RendererAPI->DrawIndexed(vertexArray);
 		}
 
 		/// Draws indexCount indices from the given vertex array as GL_LINES.
-		inline static void DrawIndexedLines(const std::shared_ptr<VertexArray>& vertexArray, uint32_t indexCount)
+		inline static void DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount)
 		{
 			s_RendererAPI->DrawIndexedLines(vertexArray, indexCount);
 		}

@@ -23,10 +23,10 @@ namespace Hominem {
 		virtual void Clear() = 0;
 
 		/// Draws the indexed geometry in the given vertex array.
-		virtual void DrawIndexed(const std::shared_ptr<VertexArray>& vertexArray) = 0;
+		virtual void DrawIndexed(const Ref<VertexArray>& vertexArray) = 0;
 
 		/// Draws indexCount indices from the given vertex array as GL_LINES.
-		virtual void DrawIndexedLines(const std::shared_ptr<VertexArray>& vertexArray, uint32_t indexCount) = 0;
+		virtual void DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount) = 0;
 
 		/// Enables or disables the depth test.
 		virtual void SetDepthTestEnabled(bool enabled) = 0;

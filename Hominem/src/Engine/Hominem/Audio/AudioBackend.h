@@ -22,7 +22,7 @@ namespace Hominem {
 	/// Allows switching between different audio implementations (miniaudio, irrKlang, OpenAL, etc.)
 	/// without changing the AudioSystem high-level API
 	/// </summary>
-	class AudioBackend
+	class AudioBackend : public RefCounted
 	{
 	public:
 		virtual ~AudioBackend() = default;

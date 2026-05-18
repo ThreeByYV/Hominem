@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Hominem/Core/Core.h"
+
 namespace Hominem {
 
-	class GBuffer
+	class GBuffer : public RefCounted
 	{
 	public:
 		enum GBUFFER_TEXTURE_TYPE

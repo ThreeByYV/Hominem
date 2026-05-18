@@ -11,6 +11,7 @@ namespace Hominem {
 	public:
 		OpenGLTexture2D(uint32_t width, uint32_t height, TextureFormat format = TextureFormat::RGBA8);
 		OpenGLTexture2D(const std::string& path);
+		OpenGLTexture2D(const uint8_t* compressedData, uint32_t byteSize);
 
 		virtual ~OpenGLTexture2D();
 
@@ -24,8 +25,11 @@ namespace Hominem {
 
 		static void UnbindAll();
 
+		// Called by the factory after the intrusive ref is established.
+		void QueueUpload() override;
+
 	private:
-		void UploadToGPU() const; // called from the RenderThread upload queue
+		void UploadToGPU() const;
 
 		std::string m_Path;
 		uint32_t m_Width = 0, m_Height = 0;

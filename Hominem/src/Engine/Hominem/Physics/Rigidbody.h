@@ -10,7 +10,7 @@
 
 namespace Hominem {
 
-	class Rigidbody
+	class Rigidbody : public RefCounted
 	{
 	public:
 		Rigidbody(b2WorldId worldId, const RigidbodySpec& spec);

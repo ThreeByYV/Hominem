@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Hominem/Core/Core.h"
+
 namespace Hominem {
 
-	struct PhysicsMaterial
+	struct PhysicsMaterial : public RefCounted
 	{
 		float StaticFriction  = 0.5f;
 		float DynamicFriction = 0.5f;

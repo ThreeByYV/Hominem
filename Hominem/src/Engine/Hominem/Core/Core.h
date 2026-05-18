@@ -1,8 +1,8 @@
 #pragma once
 
-#include <memory>
+#include "Hominem/Core/Ref.h"
 
-#ifdef HMN_ENABLE_ASSERTS	
+#ifdef HMN_ENABLE_ASSERTS
 	#define HMN_ASSERT(x, ...) { if(!(x)) { HMN_ERROR("Assertion Failed: {0}", __VA_ARGS__); __debugbreak(); } }
 	#define HMN_CORE_ASSERT(x, ...) { if(!(x)) { HMN_CORE_ERROR("Assertion Failed: {0}", __VA_ARGS__); __debugbreak(); } }
 #else
@@ -12,22 +12,3 @@
 
 #define HMN_BIND_EVENT_FN(x) std::bind(&x, this, std::placeholders::_1)
 #define ARRAY_SIZE_IN_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
-
-namespace Hominem {
-
-	template<typename T>
-	using Scope = std::unique_ptr<T>;
-
-	template<typename T>
-	using Ref = std::shared_ptr<T>;
-
-	template<typename T, typename... Args>
-	constexpr Ref<T> CreateRef(Args&&... args) {
-		return std::make_shared<T>(std::forward<Args>(args)...);
-	}
-
-	template<typename T, typename... Args>
-	constexpr Scope<T> CreateScope(Args&&... args) {
-		return std::make_unique<T>(std::forward<Args>(args)...);
-	}
-}

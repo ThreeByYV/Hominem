@@ -32,7 +32,7 @@ namespace Hominem {
         bool HasTriggered = false;
     };
 
-    class CinematicCameraController
+    class CinematicCameraController : public RefCounted
     {
     public:
         explicit CinematicCameraController(float aspectRatio);

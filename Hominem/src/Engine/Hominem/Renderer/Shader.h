@@ -7,7 +7,7 @@
 
 namespace Hominem {
 
-	class Shader
+	class Shader : public RefCounted
 	{
 	public:
 		virtual ~Shader() = default;
@@ -36,7 +36,7 @@ namespace Hominem {
 	};
 
 	// Compute-only shader. Dispatched via Dispatch() rather than used in a draw call.
-	class ComputeShader
+	class ComputeShader : public RefCounted
 	{
 	public:
 		virtual ~ComputeShader() = default;
@@ -52,7 +52,7 @@ namespace Hominem {
 		static Ref<ComputeShader> Create(const std::string& filepath);
 	};
 
-	class ShaderLibrary
+	class ShaderLibrary : public RefCounted
 	{
 	public:
 		void Add(const Ref<Shader>& shader);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Hominem/Core/Core.h"
+
 namespace Hominem {
 
 	enum class FramebufferFormat { RGBA8, RGBA16F };
@@ -13,7 +15,7 @@ namespace Hominem {
 		bool              SwapChainTarget = false;
 	};
 
-	class Framebuffer
+	class Framebuffer : public RefCounted
 	{
 	public:
 		/// Binds this framebuffer as the active draw target.
