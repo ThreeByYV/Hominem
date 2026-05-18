@@ -20,10 +20,15 @@ namespace Hominem {
 
 	void RenderThread::SetupPasses()
 	{
-		m_RenderGraph.CreateRenderTarget("hdr", FramebufferFormat::RGBA16F);
+		m_RenderGraph.CreateRenderTarget("hdr",        FramebufferFormat::RGBA16F);
+		m_RenderGraph.CreateRenderTarget("bloom",      FramebufferFormat::RGBA16F, 0.25f);
+		m_RenderGraph.CreateRenderTarget("bloom_temp", FramebufferFormat::RGBA16F, 0.25f);
 
 		m_RenderGraph.AddPass("scene", [](RenderGraph& graph, const RenderFrame& frame)
 		{
+			if (frame.viewportWidth == 0 || frame.viewportHeight == 0)
+				return;
+
 			auto hdr = graph.GetFBO("hdr");
 			hdr->Bind();
 
@@ -31,12 +36,6 @@ namespace Hominem {
 			RenderCommand::SetScissorEnabled(false);
 			RenderCommand::SetClearColor(frame.clearColor);
 			RenderCommand::Clear();
-
-			if (frame.viewportWidth == 0 || frame.viewportHeight == 0)
-			{
-				hdr->Unbind();
-				return;
-			}
 
 			RenderCommand::SetDepthTestEnabled(false);
 			Renderer2D::BeginScene(frame.viewProjection2D);
@@ -85,16 +84,87 @@ namespace Hominem {
 			m_ImGuiConsumedCV.notify_one();
 		});
 
-		auto compositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
-		m_RenderGraph.AddPass("composite", [compositeShader](RenderGraph& graph, const RenderFrame& frame)
+		m_RenderGraph.AddPass("auto_exposure", [this](RenderGraph& graph, const RenderFrame& frame)
 		{
-			if (frame.viewportWidth > 0 && frame.viewportHeight > 0)
-				RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+			if (!frame.toneMappingEnabled) return; // skip when tone mapping is off
+			auto hdr = graph.GetFBO("hdr");
+			m_AutoExposure.Compute(hdr->GetColorAttachmentRendererID(),
+			                       frame.viewportWidth, frame.viewportHeight);
+		});
+
+		auto thresholdShader = Renderer3D::GetShaderLibrary()->Get("bloom_threshold");
+		m_RenderGraph.AddPass("bloom_threshold", [thresholdShader](RenderGraph& graph, const RenderFrame& frame)
+		{
+			if (!frame.bloomEnabled) return;
+			auto bloom = graph.GetFBO("bloom");
+			bloom->Bind();
+			auto& spec = bloom->GetSpecification();
+			RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
+			RenderCommand::SetClearColor({ 0.f, 0.f, 0.f, 1.f });
+			RenderCommand::Clear();
+			RenderCommand::SetDepthTestEnabled(false);
+			RenderCommand::SetScissorEnabled(false);
+			thresholdShader->Bind();
+			thresholdShader->SetInt("u_HDR", 0);
+			thresholdShader->SetFloat("u_Threshold", frame.bloomThreshold);
+			RenderCommand::BindTexture(0, graph.GetFBO("hdr")->GetColorAttachmentRendererID());
+			RenderCommand::DrawFullscreenTriangle();
+			bloom->Unbind();
+		});
+
+		auto blurShader = Renderer3D::GetShaderLibrary()->Get("bloom_blur");
+		m_RenderGraph.AddPass("bloom_blur_h", [blurShader](RenderGraph& graph, const RenderFrame& frame)
+		{
+			if (!frame.bloomEnabled) return;
+			auto dst = graph.GetFBO("bloom_temp");
+			dst->Bind();
+			auto& spec = dst->GetSpecification();
+			RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
+			RenderCommand::SetDepthTestEnabled(false);
+			RenderCommand::SetScissorEnabled(false);
+			blurShader->Bind();
+			blurShader->SetInt("u_Src", 0);
+			blurShader->SetInt("u_Horizontal", 1);
+			RenderCommand::BindTexture(0, graph.GetFBO("bloom")->GetColorAttachmentRendererID());
+			RenderCommand::DrawFullscreenTriangle();
+			dst->Unbind();
+		});
+
+		m_RenderGraph.AddPass("bloom_blur_v", [blurShader](RenderGraph& graph, const RenderFrame& frame)
+		{
+			if (!frame.bloomEnabled) return;
+			auto dst = graph.GetFBO("bloom");
+			dst->Bind();
+			auto& spec = dst->GetSpecification();
+			RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
+			RenderCommand::SetDepthTestEnabled(false);
+			RenderCommand::SetScissorEnabled(false);
+			blurShader->Bind();
+			blurShader->SetInt("u_Src", 0);
+			blurShader->SetInt("u_Horizontal", 0);
+			RenderCommand::BindTexture(0, graph.GetFBO("bloom_temp")->GetColorAttachmentRendererID());
+			RenderCommand::DrawFullscreenTriangle();
+			dst->Unbind();
+		});
+
+		auto compositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
+		m_RenderGraph.AddPass("composite", [compositeShader, this](RenderGraph& graph, const RenderFrame& frame)
+		{
+			if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
+			auto hdrFBO = graph.GetFBO("hdr");
+			if (!hdrFBO) return;
+			RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
 			RenderCommand::SetDepthTestEnabled(false);
 			RenderCommand::SetScissorEnabled(false);
 			compositeShader->Bind();
 			compositeShader->SetInt("u_HDR", 0);
-			RenderCommand::BindTexture(0, graph.GetFBO("hdr")->GetColorAttachmentRendererID());
+			compositeShader->SetInt("u_Bloom", 1);
+			compositeShader->SetFloat("u_Exposure",     m_AutoExposure.GetExposure());
+			compositeShader->SetFloat("u_BloomStrength", frame.bloomStrength);
+			compositeShader->SetInt("u_BloomEnabled",       frame.bloomEnabled       ? 1 : 0);
+			compositeShader->SetInt("u_ToneMappingEnabled", frame.toneMappingEnabled ? 1 : 0);
+			RenderCommand::BindTexture(0, hdrFBO->GetColorAttachmentRendererID());
+			RenderCommand::BindTexture(1, graph.GetFBO("bloom")->GetColorAttachmentRendererID());
 			RenderCommand::DrawFullscreenTriangle();
 			RenderCommand::SetDepthTestEnabled(true);
 		});
@@ -134,6 +204,8 @@ namespace Hominem {
 	{
 		s_ThreadId = std::this_thread::get_id();
 		glfwMakeContextCurrent(m_Window);
+
+		m_AutoExposure.Init(ComputeShader::Create("Resources/Shaders/luminance.comp"));
 
 		while (true)
 		{
