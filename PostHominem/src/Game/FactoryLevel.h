@@ -45,6 +45,8 @@ public:
 
 		if (m_Scene3D->GetMesh())
 		{
+			//todo: can we break up these aabb, player, etc commented sections into private helpers too much here in one func
+
 			// ── Factory world AABB ───────────────────────────────────────────────
 			glm::vec3 lMin = m_Scene3D->GetMesh()->GetAABBMin();
 			glm::vec3 lMax = m_Scene3D->GetMesh()->GetAABBMax();

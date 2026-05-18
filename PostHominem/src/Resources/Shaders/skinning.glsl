@@ -39,34 +39,71 @@ uniform float u_AmbientIntensity;
 uniform float u_DiffuseIntensity;
 uniform vec3  u_CameraWorldPos;
 
-// Material
-uniform vec3  u_MatAmbientColor;
-uniform vec3  u_MatDiffuseColor;
-uniform vec3  u_MatSpecularColor;
-uniform float u_MatSpecIntensity;
-uniform float u_MatShininess;
+// PBR material — uniform per mesh (no per-pixel maps for skinned meshes yet)
+uniform float u_Roughness;
+uniform float u_Metalness;
+
+const float PI = 3.14159265359;
+
+float ggxDistribution(float NdotH, float roughness)
+{
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float d  = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / max(PI * d * d, 0.0001);
+}
+
+float geomSchlickGGX(float NdotX, float roughness)
+{
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return NdotX / max(NdotX * (1.0 - k) + k, 0.0001);
+}
+
+float geomSmith(float NdotV, float NdotL, float roughness)
+{
+    return geomSchlickGGX(NdotV, roughness) * geomSchlickGGX(NdotL, roughness);
+}
+
+vec3 schlickFresnel(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
 
 void main()
 {
-    vec4 texColor = texture(u_Texture, v_TexCoord);
-    // Skinned meshes may not have an alpha channel — fall back to a neutral colour
-    // rather than discarding, which would make the mesh invisible.
-    if (dot(texColor.rgb, texColor.rgb) < 0.001)
-        texColor = vec4(0.8, 0.6, 0.4, 1.0);
+    vec4 texSample = texture(u_Texture, v_TexCoord);
+    vec3 albedo    = texSample.rgb;
+    if (dot(albedo, albedo) < 0.001)
+        albedo = vec3(0.8, 0.6, 0.4);
+
+    float roughness = clamp(u_Roughness, 0.05, 1.0);
+    float metalness = clamp(u_Metalness, 0.0,  1.0);
 
     vec3 N = normalize(v_Normal);
-    vec3 L = normalize(-u_LightDirection);
     vec3 V = normalize(u_CameraWorldPos - v_WorldPos);
+    vec3 L = normalize(-u_LightDirection);
+    vec3 H = normalize(V + L);
 
-    vec3 ambient  = u_LightColor * u_AmbientIntensity * u_MatAmbientColor;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotV = max(dot(N, V), 0.0);
+    float VdotH = max(dot(V, H), 0.0);
 
-    float NdotL   = max(dot(N, L), 0.0);
-    vec3  diffuse = u_LightColor * u_DiffuseIntensity * NdotL * u_MatDiffuseColor;
+    vec3 F0 = mix(vec3(0.04), albedo, metalness);
 
-    vec3  H       = normalize(L + V);
-    float NdotH   = max(dot(N, H), 0.0);
-    vec3  specular = u_LightColor * u_MatSpecIntensity * pow(NdotH, u_MatShininess) * u_MatSpecularColor;
+    float D = ggxDistribution(NdotH, roughness);
+    float G = geomSmith(NdotV, NdotL, roughness);
+    vec3  F = schlickFresnel(VdotH, F0);
 
-    vec3 light = ambient + diffuse + specular;
-    FragColor  = vec4(texColor.rgb * light, texColor.a);
+    vec3 specBRDF    = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
+    vec3 kD          = (1.0 - F) * (1.0 - metalness);
+    vec3 diffuseBRDF = kD * albedo / PI;
+
+    vec3 lightIntensity = u_LightColor * u_DiffuseIntensity;
+    vec3 ambient        = u_LightColor * u_AmbientIntensity * albedo;
+
+    vec3 color = ambient + (diffuseBRDF + specBRDF) * lightIntensity * NdotL;
+
+    FragColor = vec4(color, texSample.a);
 }

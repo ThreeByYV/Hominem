@@ -15,11 +15,32 @@ void main()
 #version 450 core
 
 uniform sampler2D u_HDR;
+uniform sampler2D u_Bloom;
+uniform float     u_Exposure;
+uniform float     u_BloomStrength;
+uniform int       u_BloomEnabled;
+uniform int       u_ToneMappingEnabled;
 
 in  vec2 v_UV;
 out vec4 FragColor;
 
 void main()
 {
-    FragColor = texture(u_HDR, v_UV);
+    vec3 hdr = texture(u_HDR, v_UV).rgb;
+
+    if (u_BloomEnabled != 0)
+        hdr += texture(u_Bloom, v_UV).rgb * u_BloomStrength;
+
+    vec3 result;
+    if (u_ToneMappingEnabled != 0)
+    {
+        vec3 mapped = hdr * u_Exposure;
+        result      = mapped / (mapped + vec3(1.0));
+    }
+    else
+    {
+        result = hdr;
+    }
+
+    FragColor = vec4(result, 1.0);
 }

@@ -49,8 +49,14 @@ void GameLayer::OnUpdate(Timestep ts)
 
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor = { 0.1f, 0.1f, 0.1f, 1.f };
-	frame.light      = m_Light;
+	frame.clearColor        = { 0.1f, 0.1f, 0.1f, 1.f };
+	frame.light             = m_Light;
+	frame.bloomEnabled       = m_BloomEnabled;
+	frame.toneMappingEnabled = m_ToneMappingEnabled;
+	frame.bloomStrength      = m_BloomStrength;
+	frame.bloomThreshold     = m_BloomThreshold;
+
+	//todo: why is in so many layers we have to this check, just make sure scene is there once from somewhere instead
 	if (m_ActiveScene)
 		m_ActiveScene->BuildRenderFrame(frame);
 }
@@ -61,10 +67,20 @@ void GameLayer::OnImGuiRender()
 	ImGui::Begin("Settings");
 	if (ImGui::CollapsingHeader("Lighting"))
 	{
-		ImGui::SliderFloat("Ambient",  &m_Light.AmbientIntensity, 0.f, 1.f);
-		ImGui::SliderFloat("Diffuse",  &m_Light.DiffuseIntensity, 0.f, 2.f);
-		ImGui::ColorEdit3("Color",     &m_Light.Color.x);
+		ImGui::SliderFloat("Ambient",    &m_Light.AmbientIntensity, 0.f, 1.f);
+		ImGui::SliderFloat("Diffuse",    &m_Light.DiffuseIntensity, 0.f, 20.f);
+		ImGui::ColorEdit3("Color",       &m_Light.Color.x);
 		ImGui::SliderFloat3("Direction", &m_Light.Direction.x, -1.f, 1.f);
+	}
+	if (ImGui::CollapsingHeader("Post Processing"))
+	{
+		ImGui::Checkbox("Bloom",         &m_BloomEnabled);
+		ImGui::Checkbox("Tone Mapping",  &m_ToneMappingEnabled);
+		if (m_BloomEnabled)
+		{
+			ImGui::SliderFloat("Bloom Strength",   &m_BloomStrength,  0.f, 3.f);
+			ImGui::SliderFloat("Bloom Threshold",  &m_BloomThreshold, 0.f, 2.f);
+		}
 	}
 	m_GameMode->OnImGuiRender();
 	ImGui::End();

@@ -26,5 +26,10 @@ private:
 	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
 	Hominem::Scope<Level>           m_GameMode;
 	bool                            m_ShowDebugUI = false;
-	Hominem::DirectionalLight m_Light;
+	Hominem::DirectionalLight       m_Light;
+
+	bool  m_BloomEnabled       = false;
+	bool  m_ToneMappingEnabled = false;
+	float m_BloomStrength      = 1.0f;
+	float m_BloomThreshold     = 0.8f;
 };

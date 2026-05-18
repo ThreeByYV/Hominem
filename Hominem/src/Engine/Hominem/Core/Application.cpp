@@ -104,9 +104,12 @@ namespace Hominem {
 					layer->OnUpdate(timestep);
 			}
 
+			//todo: I dont think i like how application knows this much abt render thread, imgui and signals for it, anything else can be done?
+
 			// Wait for render thread to finish reading the previous frame's draw data,
 			// then build this frame's ImGui and signal the render thread it can read.
 			m_RenderThread.WaitImGuiConsumed();
+
 			m_ImGuiLayer->Begin();
 			for (auto& layer : m_LayerStack)
 				layer->OnImGuiRender();

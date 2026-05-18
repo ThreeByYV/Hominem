@@ -188,7 +188,7 @@ namespace Hominem {
 			const auto& submesh = m_Geometry.Submeshes[i];
 
 			if (submesh.MaterialIndex < m_Materials.size() && m_Materials[submesh.MaterialIndex])
-				m_Materials[submesh.MaterialIndex]->Bind(GL_TEXTURE0);
+				m_Materials[submesh.MaterialIndex]->Bind(0);
 			else
 				glBindTexture(GL_TEXTURE_2D, 0);
 
