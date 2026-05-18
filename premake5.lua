@@ -14,17 +14,21 @@ IncludeDir = {}
 IncludeDir["GLFW"]           = "Hominem/vendor/GLFW/include"
 IncludeDir["Glad"]           = "Hominem/vendor/Glad/include"
 IncludeDir["ImGui"]          = "Hominem/vendor/imgui"
+IncludeDir["ImGuiBackends"]  = "Hominem/vendor/imgui/backends"
 IncludeDir["glm"]            = "Hominem/vendor/glm"
 IncludeDir["stb_image"]      = "Hominem/vendor/stb_image"
 IncludeDir["entt"]           = "Hominem/vendor/entt/include"
 IncludeDir["msdfgen"]        = "Hominem/vendor/msdf-atlas-gen/msdfgen"
+IncludeDir["msdfgen_inc"]    = "Hominem/vendor/msdf-atlas-gen/msdfgen/include"
 IncludeDir["msdf_atlas_gen"] = "Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen"
+IncludeDir["freetype"]       = "Hominem/vendor/msdf-atlas-gen/msdfgen/freetype/include"
 IncludeDir["miniaudio"]      = "Hominem/vendor/miniaudio"
 IncludeDir["assimp"]         = "Hominem/vendor/assimp/include"
 IncludeDir["assimp_build"]   = "Hominem/vendor/assimp/build/include"
 IncludeDir["json"]           = "Hominem/vendor/json"
 IncludeDir["Box2D"]          = "Hominem/vendor/Box2D/include"
 IncludeDir["tracy"]          = "Hominem/vendor/tracy/public"
+IncludeDir["meshoptimizer"]  = "Hominem/vendor/meshoptimizer/src"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -33,23 +37,28 @@ include "Hominem/vendor/msdf-atlas-gen"
 include "Hominem/vendor/assimp"
 include "Hominem/vendor/Box2D"
 include "Hominem/vendor/tracy"
+include "Hominem/vendor/meshoptimizer"
 
 VendorIncludes = {
     "Hominem/vendor/spdlog/include",
     "%{IncludeDir.GLFW}",
     "%{IncludeDir.Glad}",
     "%{IncludeDir.ImGui}",
+    "%{IncludeDir.ImGuiBackends}",
     "%{IncludeDir.glm}",
     "%{IncludeDir.stb_image}",
     "%{IncludeDir.entt}",
     "%{IncludeDir.msdfgen}",
+    "%{IncludeDir.msdfgen_inc}",
     "%{IncludeDir.msdf_atlas_gen}",
+    "%{IncludeDir.freetype}",
     "%{IncludeDir.miniaudio}",
     "%{IncludeDir.assimp}",
     "%{IncludeDir.assimp_build}",
     "%{IncludeDir.json}",
     "%{IncludeDir.Box2D}",
-    "%{IncludeDir.tracy}"
+    "%{IncludeDir.tracy}",
+    "%{IncludeDir.meshoptimizer}"
 }
 
 project "Hominem"
@@ -82,6 +91,11 @@ project "Hominem"
         "Hominem/vendor/glm/glm/**.inl"
     }
 
+    -- stb_image compiles as plain C without a PCH
+    filter "files:**/stb_image/**.cpp"
+        enablepch "Off"
+    filter {}
+
     defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
 
     includedirs
@@ -97,13 +111,13 @@ project "Hominem"
         defines { "HMN_PLATFORM_WINDOWS" }
 
     filter "configurations:Debug"
-        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
         symbols "on"
         editandcontinue "Off"
         runtime "Debug"
 
     filter "configurations:Release"
-        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
         optimize "on"
         runtime "Release"
 
@@ -130,7 +144,7 @@ project "PostHominem"
 
     postbuildcommands
     {
-        "{COPYDIR} %{wks.location}PostHominem/src/Resources %{cfg.targetdir}/Resources"
+        "{COPYDIR} %{prj.location}src/Resources %{cfg.targetdir}/Resources"
     }
 
     pchheader "hmnpch.h"
@@ -159,8 +173,11 @@ project "PostHominem"
         "Glad",
         "ImGui",
         "msdf-atlas-gen",
+        "msdfgen",
+        "freetype",
         "Box2D",
-        "Tracy"
+        "Tracy",
+        "meshoptimizer"
     }
 
     filter "files:**/imgui*.cpp"
@@ -173,7 +190,7 @@ project "PostHominem"
             removefiles { "Hominem/src/Game/**/MacOS/**" }
 
     filter "configurations:Debug"
-        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
         symbols "on"
         editandcontinue "Off"
         runtime "Debug"
@@ -185,7 +202,7 @@ project "PostHominem"
         links { "assimp-vc143-mtd", "zlibstaticd" }
 
     filter "configurations:Release"
-        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING"}
+        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
         optimize "on"
         runtime "Release"
         libdirs {

@@ -10,7 +10,7 @@
 
 namespace Hominem {
 
-class StaticMesh
+class StaticMesh : public RefCounted
 {
 public:
 	StaticMesh()  = default;
@@ -39,7 +39,8 @@ private:
 
 	struct DrawGroup
 	{
-		Ref<Texture2D> Texture;
+		Ref<Texture2D> Albedo;
+		Ref<Texture2D> MetalRoughness; // G = roughness, B = metalness
 		uint32_t       IndexByteOffset;
 		uint32_t       IndexCount;
 		int32_t        BaseVertex;
@@ -54,7 +55,8 @@ private:
 	                 const std::vector<StaticVertex>& verts,
 	                 const std::vector<uint32_t>&     indices,
 	                 const std::vector<DrawGroup>&    groups,
-	                 const std::vector<std::string>&  groupTexPaths);
+	                 const std::vector<std::string>&  groupAlbedoPaths,
+	                 const std::vector<std::string>&  groupMRPaths);
 	void Upload(const std::vector<StaticVertex>& verts, const std::vector<uint32_t>& indices);
 
 	Material               m_Material;

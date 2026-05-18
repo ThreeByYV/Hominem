@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Renderer2D.h"
+#include "Hominem/Core/Core.h"
 
 #include "VertexArray.h"
 #include "Shader.h"
@@ -33,7 +34,7 @@ namespace Hominem {
 	void Renderer2D::Init()
 	{
 		s_Data = new Renderer2DStorage();
-		s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
+		s_Data->ShaderLibrary = CreateRef<ShaderLibrary>();
 
 		s_Data->QuadBatch.reserve(Renderer2DStorage::MaxQuads);
 
@@ -71,6 +72,7 @@ namespace Hominem {
 		s_Data->WhiteTexture = Texture2D::Create(1, 1);
 		uint32_t white = 0xffffffff;
 		s_Data->WhiteTexture->SetData(&white, sizeof(uint32_t));
+		s_Data->WhiteTexture->QueueUpload();
 
 		s_Data->TextureShader = s_Data->ShaderLibrary->Load("Resources/Shaders/texture.glsl");
 		s_Data->DefaultShader = s_Data->ShaderLibrary->Get("texture");
@@ -142,12 +144,10 @@ namespace Hominem {
 		HMN_PROFILE_FUNCTION();
 		if (s_Data->QuadBatch.empty()) return;
 
-		// One upload for all quads this frame
 		s_Data->QuadSSBO->SetData(
 			s_Data->QuadBatch.data(),
 			static_cast<uint32_t>(sizeof(QuadSSBOData) * s_Data->QuadBatch.size()));
 
-		// Build one indirect command per texture group and upload in one call
 		std::vector<DrawArraysIndirectCommand> cmds;
 		cmds.reserve(s_Data->TextureGroups.size());
 		for (const auto& group : s_Data->TextureGroups)
@@ -167,10 +167,8 @@ namespace Hominem {
 
 		for (size_t i = 0; i < s_Data->TextureGroups.size(); i++)
 		{
-			(s_Data->TextureGroups[i].Texture
-				? s_Data->TextureGroups[i].Texture
-				: s_Data->WhiteTexture)->Bind();
-
+			auto& texRef = s_Data->TextureGroups[i].Texture;
+			(texRef ? texRef : s_Data->WhiteTexture)->Bind();
 			RenderCommand::DrawArraysIndirect(
 				static_cast<uint32_t>(i * sizeof(DrawArraysIndirectCommand)));
 		}

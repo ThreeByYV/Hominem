@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Hominem/Core/Core.h"
+
 namespace Hominem {
 
 	enum class TextureFormat
@@ -12,7 +14,7 @@ namespace Hominem {
 
 	enum class TextureWrap { Repeat, ClampToEdge, MirroredRepeat };
 	
-	class Texture
+	class Texture : public RefCounted
 	{
 	public:
 		virtual ~Texture() = default;
@@ -32,6 +34,10 @@ namespace Hominem {
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height);
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height, TextureFormat format);
 		static Ref<Texture2D> Create(const std::string& path);
+		/// Decodes a compressed image (PNG/JPG) from a memory blob.
+		static Ref<Texture2D> CreateFromMemory(const uint8_t* data, uint32_t byteSize);
+
+		virtual void QueueUpload() {}
 
 		virtual void SetWrapS(TextureWrap wrap) = 0;
 		virtual void SetWrapT(TextureWrap wrap) = 0;

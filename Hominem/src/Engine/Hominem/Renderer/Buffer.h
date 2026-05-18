@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Hominem/Core/Core.h"
+
 namespace Hominem {
 
 	enum class ShaderDataType
@@ -119,7 +121,7 @@ namespace Hominem {
 	};
 
 
-	class VertexBuffer
+	class VertexBuffer : public RefCounted
 	{
 	public:
 		virtual ~VertexBuffer() {}
@@ -132,7 +134,7 @@ namespace Hominem {
 		static Ref<VertexBuffer> Create(uint32_t size);
 	};
 
-	class IndexBuffer
+	class IndexBuffer : public RefCounted
 	{
 	public:
 		virtual ~IndexBuffer() {}

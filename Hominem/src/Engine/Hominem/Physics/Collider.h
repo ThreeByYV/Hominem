@@ -9,7 +9,7 @@
 namespace Hominem {
 
 	// Base collider — holds the spec and material until attached to a Rigidbody
-	class Collider
+	class Collider : public RefCounted
 	{
 	public:
 		virtual ~Collider() = default;

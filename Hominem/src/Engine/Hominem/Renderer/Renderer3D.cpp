@@ -16,7 +16,7 @@ namespace Hominem {
         s_Data  = new Renderer3DStorage();
         s_Scene = new SceneData();
 
-        s_Data->ShaderLibrary = std::make_shared<ShaderLibrary>();
+        s_Data->ShaderLibrary = CreateRef<ShaderLibrary>();
 
         s_Data->ShaderLibrary->Load("Resources/Shaders/basic.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/fog.glsl");
@@ -26,6 +26,8 @@ namespace Hominem {
         s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug_skinned.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/debug_aabb.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/composite.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_threshold.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_blur.glsl");
 
         s_Data->DefaultShader        = s_Data->ShaderLibrary->Get("basic");
         s_Data->StaticMeshShader     = s_Data->ShaderLibrary->Get("static_mesh");
@@ -93,11 +95,8 @@ namespace Hominem {
         shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
         shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
         const Material& mat = mesh.GetMaterial();
-        shader->SetFloat3("u_MatAmbientColor",  mat.AmbientColor);
-        shader->SetFloat3("u_MatDiffuseColor",  mat.DiffuseColor);
-        shader->SetFloat3("u_MatSpecularColor", mat.SpecularColor);
-        shader->SetFloat("u_MatSpecIntensity",  mat.SpecIntensity);
-        shader->SetFloat("u_MatShininess",      mat.Shininess);
+        shader->SetFloat("u_Roughness", mat.Roughness);
+        shader->SetFloat("u_Metalness", mat.Metalness);
 
         mesh.Render(shader);
 
@@ -133,11 +132,8 @@ namespace Hominem {
 
         // Material — per-mesh, set every draw call.
         const Material& mat = mesh.GetMaterial();
-        shader->SetFloat3("u_MatAmbientColor",  mat.AmbientColor);
-        shader->SetFloat3("u_MatDiffuseColor",  mat.DiffuseColor);
-        shader->SetFloat3("u_MatSpecularColor", mat.SpecularColor);
-        shader->SetFloat("u_MatSpecIntensity",  mat.SpecIntensity);
-        shader->SetFloat("u_MatShininess",      mat.Shininess);
+        shader->SetFloat("u_Roughness", mat.Roughness);
+        shader->SetFloat("u_Metalness", mat.Metalness);
 
         mesh.Draw(shader, transform);
 

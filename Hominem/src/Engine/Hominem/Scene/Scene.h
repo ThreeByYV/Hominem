@@ -11,7 +11,7 @@
 
 namespace Hominem {
 
-	class Scene
+	class Scene : public RefCounted
 	{
 	public:
 		Scene();

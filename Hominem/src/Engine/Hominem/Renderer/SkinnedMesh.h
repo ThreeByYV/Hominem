@@ -13,7 +13,7 @@
 
 namespace Hominem {
 
-	class SkinnedMesh
+	class SkinnedMesh : public RefCounted
 	{
 	public:
 		virtual ~SkinnedMesh() = default;

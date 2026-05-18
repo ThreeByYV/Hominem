@@ -28,7 +28,7 @@ namespace Hominem
     }
 
     static constexpr uint32_t k_CacheMagic   = 0x48534D53u; // "SMSH"
-    static constexpr uint32_t k_CacheVersion = 3u;          // v3: meshoptimizer pipeline
+    static constexpr uint32_t k_CacheVersion = 4u;          // v4: PBR — albedo + metalRoughness per group
 
     constexpr unsigned int k_AssimpFlags =
             aiProcess_Triangulate |
@@ -39,6 +39,7 @@ namespace Hominem
             aiProcess_PreTransformVertices; // bakes node hierarchy into vertex positions
 
     static Ref<Texture2D> s_WhiteTexture;
+    static Ref<Texture2D> s_DefaultMetalRoughness; // G=0.5 roughness, B=0 metalness
 
     static Ref<Texture2D> GetWhiteTexture()
     {
@@ -46,9 +47,25 @@ namespace Hominem
         {
             s_WhiteTexture = Texture2D::Create(1, 1, TextureFormat::RGBA8);
             uint32_t white = 0xFFFFFFFFu;
+
             s_WhiteTexture->SetData(&white, sizeof(white));
+            s_WhiteTexture->QueueUpload();
         }
         return s_WhiteTexture;
+    }
+
+    static Ref<Texture2D> GetDefaultMetalRoughness()
+    {
+        if (!s_DefaultMetalRoughness)
+        {
+            s_DefaultMetalRoughness = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+            // R=0, G=128 (roughness=0.5), B=0 (metalness=0), A=255
+            uint8_t pixel[4] = { 0, 128, 0, 255 };
+            uint32_t packed; memcpy(&packed, pixel, 4);
+            s_DefaultMetalRoughness->SetData(&packed, sizeof(packed));
+            s_DefaultMetalRoughness->QueueUpload();
+        }
+        return s_DefaultMetalRoughness;
     }
 
     StaticMesh::~StaticMesh()
@@ -70,16 +87,23 @@ namespace Hominem
         }
     }
 
+    //todo: again lets gave some file i/o thing and use that here in FileUtils.h
     bool StaticMesh::LoadFromFile(const std::string &path)
     {
-        std::string binPath = path + ".bin";
+        // GLB/glTF have embedded textures that can't be re-resolved from a path cache.
+        bool canCache = !path.ends_with(".glb") && !path.ends_with(".gltf")
+                     && !path.ends_with(".GLB") && !path.ends_with(".GLTF");
 
-        if (std::filesystem::exists(binPath))
+        if (canCache)
         {
-            HMN_CORE_INFO("StaticMesh: loading from cache '{}'", binPath);
-            if (LoadBinary(binPath))
-                return true;
-            HMN_CORE_WARN("StaticMesh: cache corrupt, re-importing '{}'", path);
+            std::string binPath = path + ".bin";
+            if (std::filesystem::exists(binPath))
+            {
+                HMN_CORE_INFO("StaticMesh: loading from cache '{}'", binPath);
+                if (LoadBinary(binPath))
+                    return true;
+                HMN_CORE_WARN("StaticMesh: cache corrupt, re-importing '{}'", path);
+            }
         }
 
         return LoadAssimp(path);
@@ -118,28 +142,55 @@ namespace Hominem
             f.read(reinterpret_cast<char *>(&baseVertex), sizeof(int32_t));
             f.read(reinterpret_cast<char *>(&pathLen), sizeof(uint32_t));
 
-            Ref<Texture2D> tex;
-            if (pathLen > 0)
+            auto readTex = [&]() -> Ref<Texture2D>
             {
-                std::string texPath(pathLen, '\0');
-                f.read(texPath.data(), pathLen);
-
+                uint32_t len = 0;
+                f.read(reinterpret_cast<char*>(&len), sizeof(uint32_t));
+                if (len == 0) return nullptr;
+                std::string texPath(len, '\0');
+                f.read(texPath.data(), len);
                 if (texPath.size() > 6 && texPath.substr(0, 6) == "color:")
                 {
                     unsigned r, g, b, a;
                     sscanf(texPath.c_str() + 6, "%02X%02X%02X%02X", &r, &g, &b, &a);
                     uint8_t pixel[4] = { (uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)a };
                     uint32_t packed; memcpy(&packed, pixel, 4);
-                    tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
-                    tex->SetData(&packed, 4);
+                    auto t = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+                    t->SetData(&packed, 4);
+                    t->QueueUpload();
+                    return t;
+                }
+                return Texture2D::Create(texPath);
+            };
+
+            // Old format stored pathLen inline; new format uses readTex() which reads its own length.
+            // We already read pathLen above — read the string then read mrPath via readTex().
+            Ref<Texture2D> albedo;
+            if (pathLen > 0)
+            {
+                std::string texPath(pathLen, '\0');
+                f.read(texPath.data(), pathLen);
+                if (texPath.size() > 6 && texPath.substr(0, 6) == "color:")
+                {
+                    unsigned r, g, b, a;
+                    sscanf(texPath.c_str() + 6, "%02X%02X%02X%02X", &r, &g, &b, &a);
+                    uint8_t pixel[4] = { (uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)a };
+                    uint32_t packed; memcpy(&packed, pixel, 4);
+                    albedo = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+                    albedo->SetData(&packed, 4);
+                    albedo->QueueUpload();
                 }
                 else
                 {
-                    tex = Texture2D::Create(texPath);
+                    albedo = Texture2D::Create(texPath);
                 }
             }
+            Ref<Texture2D> mr = readTex(); // metalRoughness — new in v4
 
-            m_DrawGroups.push_back({tex ? tex : GetWhiteTexture(), offset, count, baseVertex});
+            m_DrawGroups.push_back({
+                albedo ? albedo : GetWhiteTexture(),
+                mr     ? mr     : GetDefaultMetalRoughness(),
+                offset, count, baseVertex});
         }
 
         if (!f) return false;
@@ -169,6 +220,7 @@ namespace Hominem
         return true;
     }
 
+    //todo: lets move this one and SkinnedMesh Assimp things into some importer class, too much here
     bool StaticMesh::LoadAssimp(const std::string &path)
     {
         Assimp::Importer importer;
@@ -254,8 +306,14 @@ namespace Hominem
         }
 
         // --- load materials ---
-        std::vector<Ref<Texture2D> > matTextures(scene->mNumMaterials);
-        std::vector<std::string> matPaths(scene->mNumMaterials);
+        std::vector<Ref<Texture2D>> matAlbedo(scene->mNumMaterials);
+        std::vector<Ref<Texture2D>> matMetalRoughness(scene->mNumMaterials);
+        std::vector<std::string>    matAlbedoPaths(scene->mNumMaterials);
+        std::vector<std::string>    matMRPaths(scene->mNumMaterials);
+
+        // Keep old names as aliases so the existing resolve/makeColor lambdas below still compile
+        auto& matTextures = matAlbedo;
+        auto& matPaths    = matAlbedoPaths;
 
         // Resolve a texture path from the FBX — tries multiple candidates since FBX files
         // often store absolute artist-machine paths that won't exist on another machine.
@@ -312,35 +370,94 @@ namespace Hominem
             memcpy(&packed, pixel, 4);
             auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
             tex->SetData(&packed, 4);
+            tex->QueueUpload();
             return tex;
+        };
+
+        // Resolve embedded GLB texture — path is "*N" where N indexes scene->mTextures.
+        auto resolveEmbedded = [&](const std::string& rawPath) -> Ref<Texture2D>
+        {
+            if (rawPath.empty() || rawPath[0] != '*') return nullptr;
+            int idx = std::atoi(rawPath.c_str() + 1);
+            if (idx < 0 || idx >= (int)scene->mNumTextures) return nullptr;
+
+            const aiTexture* emb = scene->mTextures[idx];
+            if (emb->mHeight == 0)
+            {
+                // Compressed blob (PNG/JPG) — mWidth holds byte count
+                return Texture2D::CreateFromMemory(
+                    reinterpret_cast<const uint8_t*>(emb->pcData), emb->mWidth);
+            }
+            else
+            {
+                // Raw ARGB8888 uncompressed — convert to RGBA
+                uint32_t numPixels = emb->mWidth * emb->mHeight;
+                std::vector<uint8_t> rgba(numPixels * 4);
+                for (uint32_t p = 0; p < numPixels; p++)
+                {
+                    rgba[p*4+0] = emb->pcData[p].r;
+                    rgba[p*4+1] = emb->pcData[p].g;
+                    rgba[p*4+2] = emb->pcData[p].b;
+                    rgba[p*4+3] = emb->pcData[p].a;
+                }
+                auto tex = Texture2D::Create(emb->mWidth, emb->mHeight, TextureFormat::RGBA8);
+                tex->SetData(rgba.data(), (uint32_t)rgba.size());
+                tex->QueueUpload();
+                return tex;
+            }
+        };
+
+        // Try to find a base-color texture from a material, checking both glTF (BASE_COLOR)
+        // and legacy (DIFFUSE) slots so the same code works for both file formats.
+        auto findBaseColor = [&](const aiMaterial* mat, aiString& outPath) -> bool
+        {
+            if (mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
+                return mat->GetTexture(aiTextureType_BASE_COLOR, 0, &outPath) == AI_SUCCESS;
+            if (mat->GetTextureCount(aiTextureType_DIFFUSE) > 0)
+                return mat->GetTexture(aiTextureType_DIFFUSE, 0, &outPath) == AI_SUCCESS;
+            return false;
         };
 
         for (uint32_t i = 0; i < scene->mNumMaterials; i++)
         {
             const aiMaterial *mat = scene->mMaterials[i];
 
-            if (mat->GetTextureCount(aiTextureType_DIFFUSE) > 0)
+            aiString aiTexPath;
+            if (findBaseColor(mat, aiTexPath))
             {
-                aiString aiTexPath;
-                if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &aiTexPath) == AI_SUCCESS)
+                std::string raw = aiTexPath.data;
+
+                // Embedded GLB texture
+                if (!raw.empty() && raw[0] == '*')
                 {
-                    std::string resolved = resolveTexture(std::string(aiTexPath.data));
-                    if (!resolved.empty())
-                    {
-                        matPaths[i]    = resolved;
-                        matTextures[i] = Texture2D::Create(resolved);
-                        if (matTextures[i])
-                            HMN_CORE_INFO("StaticMesh: texture [{}] loaded '{}'", i, resolved);
-                        else
-                            HMN_CORE_WARN("StaticMesh: Texture2D::Create failed '{}'", resolved);
-                        continue;
-                    }
+                    matPaths[i]    = raw;
+                    matTextures[i] = resolveEmbedded(raw);
+                    if (matTextures[i])
+                        HMN_CORE_INFO("StaticMesh: embedded texture [{}] decoded", i);
+                    else
+                        HMN_CORE_WARN("StaticMesh: failed to decode embedded texture [{}]", i);
+                    continue;
+                }
+
+                // External file
+                std::string resolved = resolveTexture(raw);
+                if (!resolved.empty())
+                {
+                    matPaths[i]    = resolved;
+                    matTextures[i] = Texture2D::Create(resolved);
+                    if (matTextures[i])
+                        HMN_CORE_INFO("StaticMesh: texture [{}] loaded '{}'", i, resolved);
+                    else
+                        HMN_CORE_WARN("StaticMesh: Texture2D::Create failed '{}'", resolved);
+                    continue;
                 }
             }
 
-            // No texture — use material diffuse colour as a 1×1 fallback
+            // No texture — fall back to material base color as a 1×1 solid
             aiColor4D diffuse(0.7f, 0.7f, 0.7f, 1.f);
-            aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
+            aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &diffuse);
+            if (diffuse.r == 0 && diffuse.g == 0 && diffuse.b == 0)
+                aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
 
             char buf[20];
             snprintf(buf, sizeof(buf), "color:%02X%02X%02X%02X",
@@ -350,6 +467,31 @@ namespace Hominem
             matPaths[i]    = buf;
             matTextures[i] = makeColorTex(diffuse);
             HMN_CORE_INFO("StaticMesh: material [{}] color fallback {}", i, buf);
+
+            // MetalRoughness — glTF packs roughness in G, metalness in B
+            aiString mrPath;
+            if (mat->GetTextureCount(aiTextureType_METALNESS) > 0 &&
+                mat->GetTexture(aiTextureType_METALNESS, 0, &mrPath) == AI_SUCCESS)
+            {
+                std::string raw = mrPath.data;
+                if (!raw.empty() && raw[0] == '*')
+                {
+                    matMetalRoughness[i] = resolveEmbedded(raw);
+                    matMRPaths[i]        = raw;
+                    if (matMetalRoughness[i])
+                        HMN_CORE_INFO("StaticMesh: metalRoughness [{}] embedded", i);
+                }
+                else
+                {
+                    std::string resolved = resolveTexture(raw);
+                    if (!resolved.empty())
+                    {
+                        matMetalRoughness[i] = Texture2D::Create(resolved);
+                        matMRPaths[i]        = resolved;
+                        HMN_CORE_INFO("StaticMesh: metalRoughness [{}] '{}'", i, resolved);
+                    }
+                }
+            }
         }
 
         // --- sort by material to minimise texture rebinds ---
@@ -358,20 +500,27 @@ namespace Hominem
 
         // --- build draw groups ---
         m_DrawGroups.clear();
-        std::vector<std::string> groupTexPaths;
+        std::vector<std::string> groupAlbedoPaths2;
+        std::vector<std::string> groupMRPaths2;
         m_DrawGroups.reserve(rawSubs.size());
-        groupTexPaths.reserve(rawSubs.size());
+        groupAlbedoPaths2.reserve(rawSubs.size());
+        groupMRPaths2.reserve(rawSubs.size());
 
         for (const auto &sub: rawSubs)
         {
-            auto tex = (sub.matIdx < matTextures.size() && matTextures[sub.matIdx])
-                           ? matTextures[sub.matIdx]
+            auto albedo = (sub.matIdx < matAlbedo.size() && matAlbedo[sub.matIdx])
+                           ? matAlbedo[sub.matIdx]
                            : GetWhiteTexture();
+            auto mr     = (sub.matIdx < matMetalRoughness.size() && matMetalRoughness[sub.matIdx])
+                           ? matMetalRoughness[sub.matIdx]
+                           : GetDefaultMetalRoughness();
 
-            const std::string &texPath = sub.matIdx < matPaths.size() ? matPaths[sub.matIdx] : "";
+            const std::string& albedoPath = sub.matIdx < matAlbedoPaths.size() ? matAlbedoPaths[sub.matIdx] : "";
+            const std::string& mrPath     = sub.matIdx < matMRPaths.size()     ? matMRPaths[sub.matIdx]     : "";
 
-            m_DrawGroups.push_back({tex, sub.idxOffset * (uint32_t) sizeof(uint32_t), sub.idxCount, sub.baseVertex});
-            groupTexPaths.push_back(texPath);
+            m_DrawGroups.push_back({albedo, mr, sub.idxOffset * (uint32_t)sizeof(uint32_t), sub.idxCount, sub.baseVertex});
+            groupAlbedoPaths2.push_back(albedoPath);
+            groupMRPaths2.push_back(mrPath);
         }
 
         OptimizeGeometry(verts, indices, m_DrawGroups);
@@ -390,7 +539,9 @@ namespace Hominem
                           FormatSize(size.x), FormatSize(size.y), FormatSize(size.z));
         }
 
-        WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupTexPaths);
+        if (!path.ends_with(".glb") && !path.ends_with(".gltf")
+         && !path.ends_with(".GLB") && !path.ends_with(".GLTF"))
+            WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupAlbedoPaths2, groupMRPaths2);
         m_PendingVerts   = verts;
         m_PendingIndices = indices;
         RenderThread::QueueUpload([this] {
@@ -469,11 +620,13 @@ namespace Hominem
         indices = std::move(newIndices);
     }
 
+    //todo: move to some file io part of the application
     void StaticMesh::WriteBinary(const std::string &binPath,
                                  const std::vector<StaticVertex> &verts,
                                  const std::vector<uint32_t> &indices,
                                  const std::vector<DrawGroup> &groups,
-                                 const std::vector<std::string> &groupTexPaths)
+                                 const std::vector<std::string> &groupAlbedoPaths,
+                                 const std::vector<std::string> &groupMRPaths)
     {
         std::ofstream f(binPath, std::ios::binary);
         if (!f)
@@ -494,18 +647,24 @@ namespace Hominem
         f.write(reinterpret_cast<const char *>(verts.data()), verts.size() * sizeof(StaticVertex));
         f.write(reinterpret_cast<const char *>(indices.data()), indices.size() * sizeof(uint32_t));
 
+        auto writePath = [&](const std::string& p)
+        {
+            uint32_t len = static_cast<uint32_t>(p.size());
+            f.write(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
+            if (len > 0) f.write(p.data(), len);
+        };
+
         for (size_t i = 0; i < groups.size(); i++)
         {
-            const auto &g = groups[i];
-            const std::string &tex = i < groupTexPaths.size() ? groupTexPaths[i] : "";
-            uint32_t pathLen = static_cast<uint32_t>(tex.size());
+            const auto& g          = groups[i];
+            const std::string& albedo = i < groupAlbedoPaths.size() ? groupAlbedoPaths[i] : "";
+            const std::string& mr     = i < groupMRPaths.size()     ? groupMRPaths[i]     : "";
 
-            f.write(reinterpret_cast<const char *>(&g.IndexByteOffset), sizeof(uint32_t));
-            f.write(reinterpret_cast<const char *>(&g.IndexCount), sizeof(uint32_t));
-            f.write(reinterpret_cast<const char *>(&g.BaseVertex), sizeof(int32_t));
-            f.write(reinterpret_cast<const char *>(&pathLen), sizeof(uint32_t));
-            if (pathLen > 0)
-                f.write(tex.data(), pathLen);
+            f.write(reinterpret_cast<const char*>(&g.IndexByteOffset), sizeof(uint32_t));
+            f.write(reinterpret_cast<const char*>(&g.IndexCount),      sizeof(uint32_t));
+            f.write(reinterpret_cast<const char*>(&g.BaseVertex),      sizeof(int32_t));
+            writePath(albedo);
+            writePath(mr);
         }
 
         HMN_CORE_INFO("StaticMesh: wrote cache '{}'", binPath);
@@ -553,14 +712,15 @@ namespace Hominem
 
         shader->Bind();
         shader->SetMat4("u_Model", transform);
-        shader->SetInt("u_Texture", 0);
+        shader->SetInt("u_Albedo",        0);
+        shader->SetInt("u_MetalRoughness", 1);
 
         glBindVertexArray(m_VAO);
 
         for (const auto &group: m_DrawGroups)
         {
-            if (group.Texture)
-                group.Texture->Bind(0);
+            (group.Albedo        ? group.Albedo        : GetWhiteTexture())->Bind(0);
+            (group.MetalRoughness ? group.MetalRoughness : GetDefaultMetalRoughness())->Bind(1);
 
             glDrawElementsBaseVertex(
                 GL_TRIANGLES,
