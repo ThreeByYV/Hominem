@@ -91,6 +91,14 @@ namespace Hominem {
 		{
 			HMN_PROFILE_FRAME("MainThread");
 
+			if (m_Minimized)
+			{
+				// Window is minimized — nothing to render or update.
+				// Block until a window event wakes us so we use ~0% CPU.
+				glfwWaitEvents();
+				continue;
+			}
+
 			float time      = (float)glfwGetTime();
 			Timestep timestep = time - m_LastFrameTime;
 			m_LastFrameTime = time;
@@ -98,11 +106,8 @@ namespace Hominem {
 			if (Input::IsKeyPressed(HMN_KEY_ESCAPE))
 				m_Running = false;
 
-			if (!m_Minimized)
-			{
-				for (auto& layer : m_LayerStack)
-					layer->OnUpdate(timestep);
-			}
+			for (auto& layer : m_LayerStack)
+				layer->OnUpdate(timestep);
 
 			//todo: I dont think i like how application knows this much abt render thread, imgui and signals for it, anything else can be done?
 
@@ -121,11 +126,8 @@ namespace Hominem {
 			RenderFrame frame;
 			frame.arena    = &m_RenderThread.GetWriteArena();
 			frame.arenaIdx = m_RenderThread.GetWriteArenaIdx();
-			if (!m_Minimized)
-			{
-				for (auto& layer : m_LayerStack)
-					layer->OnBuildRenderFrame(frame);
-			}
+			for (auto& layer : m_LayerStack)
+				layer->OnBuildRenderFrame(frame);
 
 			// Hand frame to render thread. Main thread continues immediately.
 			// Blocks only if render thread hasn't consumed the previous frame yet (GPU-bound).

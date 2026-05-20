@@ -224,16 +224,14 @@ namespace Hominem {
 			if (frame.arena)
 				frame.arena->Reset();
 
-			// Notify main AFTER ImGui draw data is consumed — if we notify earlier
-			// the main thread can call ImGui::Render() while we're still reading
-			// GetDrawData(), corrupting the heap (0xC0000005).
-			m_ConsumedCV.notify_one();
-
-			// frame destructs here — no return-to-pool. Application builds a fresh
-			// RenderFrame each iteration so returning capacity provides no benefit,
-			// and the return-to-m_Frame write races with main's Submit.
-
+			// Swap first — this blocks on VSync, naturally throttling the main thread.
+			// Notifying main before swap lets it spin a full loop iteration while we
+			// wait for VSync, defeating the throttle.
 			glfwSwapBuffers(m_Window);
+
+			// Notify main AFTER swap+VSync so it only wakes once the display is ready.
+			// Also safe for ImGui: draw data is fully consumed before swap returns.
+			m_ConsumedCV.notify_one();
 		}
 
 		glfwMakeContextCurrent(nullptr);
