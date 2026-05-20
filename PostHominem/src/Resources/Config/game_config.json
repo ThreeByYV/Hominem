@@ -6,8 +6,8 @@
     },
     "spawn": {
       "_note": "changing position requires level restart — affects physics spawn",
-      "position": { "x": 0.0, "y": 1.0, "z": 3.0 },
-      "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
+      "position": { "x": 0.0, "y": 1.0, "z": 0.0 },
+      "scale": { "x": 0.35, "y": 0.35, "z": 0.35 }
     },
     "collider": {
       "extents": { "x": 0.5, "y": 0.5, "z": 0.3 },
@@ -15,7 +15,7 @@
       "static_friction": 0.5,
       "dynamic_friction": 0.5
     },
-    "scale": 0.002,
+    "scale": 0.35,
     "rest_y": 0.06,
     "_note_rest_y": "changing rest_y requires level restart — affects physics floor position"
   },
