@@ -76,6 +76,10 @@ set_target_properties(assimp_lib PROPERTIES
         "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimp-vc143-mtd.lib"
     IMPORTED_LOCATION_RELEASE
         "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+    IMPORTED_LOCATION_RELWITHDEBINFO
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+    IMPORTED_LOCATION_MINSIZEREL
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
     INTERFACE_INCLUDE_DIRECTORIES
         "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/include;${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/include"
 )
@@ -85,6 +89,10 @@ set_target_properties(zlib_lib PROPERTIES
     IMPORTED_LOCATION_DEBUG
         "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Debug/zlibstaticd.lib"
     IMPORTED_LOCATION_RELEASE
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
+    IMPORTED_LOCATION_RELWITHDEBINFO
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
+    IMPORTED_LOCATION_MINSIZEREL
         "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
 )
 
