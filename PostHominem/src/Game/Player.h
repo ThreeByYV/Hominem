@@ -31,7 +31,7 @@ public:
 		m_Config.Movement = cfg.Movement;
 		m_Config.Collider.StaticFriction  = cfg.Collider.StaticFriction;
 		m_Config.Collider.DynamicFriction = cfg.Collider.DynamicFriction;
-		Scale = glm::vec3(cfg.Scale);
+		Scale = cfg.Scale;
 	}
 
 	glm::vec3 GetVelocity() const { return m_Body ? m_Body->GetLinearVelocity() : glm::vec3(0.f); }

@@ -134,12 +134,12 @@ void Player::OnImGuiRender()
 	if (ImGui::Button("Save Spawn"))
 	{
 		m_Config.Spawn.Position = Position;
-		m_Config.Scale          = Scale.x;
+		m_Config.Scale = Scale;
 		WorldConfig cfg;
 		if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
 		{
 			cfg.Player.Spawn.Position = Position;
-			cfg.Player.Scale          = Scale.x;
+			cfg.Player.Scale          = Scale;
 			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
 		}
 	}

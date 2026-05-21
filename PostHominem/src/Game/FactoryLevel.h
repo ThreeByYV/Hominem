@@ -54,7 +54,7 @@ public:
 		// Player — spawn position comes from config (or bootstrapped above).
 		m_Player = &scene.SpawnActor<Player>(m_Config.Player);
 		if (m_Player)
-			m_Player->Scale = glm::vec3(m_Config.Player.Scale);
+			m_Player->Scale = m_Config.Player.Scale;
 
 		// Camera — all values from config; camera_x/camera_z saved by "Save Scene Transform".
 		SideScrollerCamera::Config camCfg;
@@ -98,7 +98,7 @@ public:
 			WorldConfig newCfg;
 			if (WorldConfig::LoadFromFile(k_ConfigPath, newCfg))
 			{
-				HMN_CORE_INFO("Config reloaded — player scale={:.6f}", newCfg.Player.Scale);
+				HMN_CORE_INFO("Config reloaded — player scale({:.4f},{:.4f},{:.4f})", newCfg.Player.Scale.x, newCfg.Player.Scale.y, newCfg.Player.Scale.z);
 				m_Config = newCfg;
 				auto& cam        = m_Camera.GetConfig();
 				cam.VisibleHeight = newCfg.Camera.VisibleHeight;

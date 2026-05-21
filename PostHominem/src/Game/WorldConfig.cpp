@@ -38,7 +38,12 @@ namespace nlohmann {
 		j.at("movement").get_to(c.Movement);
 		j.at("spawn").get_to(c.Spawn);
 		j.at("collider").get_to(c.Collider);
-		if (j.contains("scale"))  c.Scale = j.at("scale").get<float>();
+		if (j.contains("scale"))
+		{
+			const auto& s = j.at("scale");
+			if (s.is_object()) s.get_to(c.Scale);
+			else { float f = s.get<float>(); c.Scale = { f, f, f }; }
+		}
 		if (j.contains("rest_y")) c.RestY = j.at("rest_y").get<float>();
 	}
 
@@ -164,7 +169,7 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 				{ "static_friction",  cfg.Player.Collider.StaticFriction        },
 				{ "dynamic_friction", cfg.Player.Collider.DynamicFriction       }
 			}},
-			{ "scale",  cfg.Player.Scale },
+			{ "scale",  vec3_to_json(cfg.Player.Scale) },
 			{ "rest_y", cfg.Player.RestY }
 		};
 
