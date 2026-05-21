@@ -43,82 +43,38 @@ public:
 		m_Scene3D->Rotation = glm::radians(sc.Rotation);
 		m_Scene3D->Scale    = sc.Scale;
 
-		if (m_Scene3D->GetMesh())
-		{
-			//todo: can we break up these aabb, player, etc commented sections into private helpers too much here in one func
+		m_InitCameraX = m_Config.Camera.CameraX;
+		m_InitCameraZ = m_Config.Camera.CameraZ;
 
-			// ── Factory world AABB ───────────────────────────────────────────────
-			glm::vec3 lMin = m_Scene3D->GetMesh()->GetAABBMin();
-			glm::vec3 lMax = m_Scene3D->GetMesh()->GetAABBMax();
-			glm::mat4 tx   = m_Scene3D->GetTransform();
+		// First-run only: derive camera and player spawn from scene AABB when not yet saved.
+		if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
+		    m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
+			BootstrapFromAABB();
 
-			glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
-			for (int i = 0; i < 8; i++)
-			{
-				glm::vec3 c = glm::vec3(tx * glm::vec4(
-					(i & 1) ? lMax.x : lMin.x,
-					(i & 2) ? lMax.y : lMin.y,
-					(i & 4) ? lMax.z : lMin.z, 1.f));
-				wMin = glm::min(wMin, c);
-				wMax = glm::max(wMax, c);
-			}
-			glm::vec3 size = wMax - wMin;
-			HMN_CORE_INFO("FactoryLevel: AABB min({:.2f},{:.2f},{:.2f}) max({:.2f},{:.2f},{:.2f})",
-				wMin.x, wMin.y, wMin.z, wMax.x, wMax.y, wMax.z);
-
-			scene.SetWorldTransform(glm::translate(glm::mat4(1.f), wMin));
-
-			// ── Player spawn & floor ─────────────────────────────────────────────
-			const float k_PlayerRestY = m_Config.Player.RestY;
-
-			const auto& col  = m_Config.Player.Collider;
-			float floorTop   = k_PlayerRestY - glm::abs(col.Offset.y) - col.Extents.y;
-			m_Config.Physics.Floor.Position.y =
-				floorTop - m_Config.Physics.Floor.Scale.y * 0.5f;
-
-			float playerWorldY = k_PlayerRestY;
-			float spawnX       = (wMin.x + wMax.x) * 0.5f + size.x * 0.15f;
-			m_Config.Physics.Floor.Position.x = spawnX;
-
-			PlayerConfig pc   = m_Config.Player;
-			pc.Spawn.Position = { spawnX - wMin.x, k_PlayerRestY - wMin.y, size.z * 0.9f };
-			m_Player = &scene.SpawnActor<Player>(pc);
-
-			// ── Camera ───────────────────────────────────────────────────────────
-			SideScrollerCamera::Config camCfg;
-			camCfg.VisibleHeight = m_Config.Camera.VisibleHeight;
-			camCfg.PlayerScreenY = m_Config.Camera.PlayerScreenY;
-			camCfg.YBias         = m_Config.Camera.YBias;
-			camCfg.FOVDeg        = m_Config.Camera.FOVDeg;
-			camCfg.XSpeed        = m_Config.Camera.XSpeed;
-			camCfg.YSpeed        = m_Config.Camera.YSpeed;
-			camCfg.LeadStrength  = m_Config.Camera.LeadStrength;
-			camCfg.YDeadZone     = m_Config.Camera.YDeadZone;
-
-			float cz = m_Camera.ComputeCameraZ(wMax.z);
-			m_Camera.Init(scene.GetCamera(),
-			              scene.GetCameraPosition(),
-			              scene.GetCameraFront(),
-			              m_Aspect, cz, playerWorldY, camCfg);
-			m_Camera.SetTarget(m_Player);
-			scene.GetCameraPosition().x = spawnX;
-		}
-		else
-		{
-			// Fallback: no mesh loaded.
-			SideScrollerCamera::Config camCfg;
-			m_Camera.Init(scene.GetCamera(),
-			              scene.GetCameraPosition(),
-			              scene.GetCameraFront(),
-			              m_Aspect, 10.f, 0.f, camCfg);
-			m_Player = &scene.SpawnActor<Player>(m_Config.Player);
-			m_Camera.SetTarget(m_Player);
-		}
-
-		scene.SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
-
+		// Player — spawn position comes from config (or bootstrapped above).
+		m_Player = &scene.SpawnActor<Player>(m_Config.Player);
 		if (m_Player)
 			m_Player->Scale = glm::vec3(m_Config.Player.Scale);
+
+		// Camera — all values from config; camera_x/camera_z saved by "Save Scene Transform".
+		SideScrollerCamera::Config camCfg;
+		camCfg.VisibleHeight = m_Config.Camera.VisibleHeight;
+		camCfg.PlayerScreenY = m_Config.Camera.PlayerScreenY;
+		camCfg.YBias         = m_Config.Camera.YBias;
+		camCfg.FOVDeg        = m_Config.Camera.FOVDeg;
+		camCfg.XSpeed        = m_Config.Camera.XSpeed;
+		camCfg.YSpeed        = m_Config.Camera.YSpeed;
+		camCfg.LeadStrength  = m_Config.Camera.LeadStrength;
+		camCfg.YDeadZone     = m_Config.Camera.YDeadZone;
+
+		m_Camera.Init(scene.GetCamera(),
+		              scene.GetCameraPosition(),
+		              scene.GetCameraFront(),
+		              m_Aspect, m_InitCameraZ, m_Config.Player.RestY, camCfg);
+		m_Camera.SetTarget(m_Player);
+		scene.GetCameraPosition().x = m_InitCameraX;
+
+		scene.SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
 	}
 
 	void OnExit() override
@@ -155,6 +111,12 @@ public:
 				cam.YDeadZone     = newCfg.Camera.YDeadZone;
 				m_Camera.OnWindowResize(m_Aspect); // reapply projection with new FOV
 				if (m_Player) m_Player->Reload(newCfg.Player);
+				if (m_Scene3D)
+				{
+					m_Scene3D->Position = newCfg.Scene.Position;
+					m_Scene3D->Rotation = glm::radians(newCfg.Scene.Rotation);
+					m_Scene3D->Scale    = newCfg.Scene.Scale;
+				}
 			}
 			RenderThread::QueueUpload([] {
 				Renderer2D::GetShaderLibrary()->ReloadAll();
@@ -180,10 +142,17 @@ public:
 
 			if (ImGui::Button("Save Scene Transform"))
 			{
-				m_Config.Scene.Position = m_Scene3D->Position;
-				m_Config.Scene.Rotation = glm::degrees(m_Scene3D->Rotation);
-				m_Config.Scene.Scale    = m_Scene3D->Scale;
-				WorldConfig::SaveToFile("Resources/Config/game_config.json", m_Config);
+				// Load fresh from disk so we don't overwrite lights or other fields
+				// that other systems (GameLayer) may have already saved.
+				WorldConfig cfg;
+				WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
+				cfg.Scene.Position  = m_Scene3D->Position;
+				cfg.Scene.Rotation  = glm::degrees(m_Scene3D->Rotation);
+				cfg.Scene.Scale     = m_Scene3D->Scale;
+				cfg.Camera.CameraX  = m_InitCameraX;
+				cfg.Camera.CameraZ  = m_Camera.GetCameraZ();
+				WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
+				m_Config = cfg;
 			}
 		}
 
@@ -203,8 +172,40 @@ public:
 	}
 
 private:
+	void BootstrapFromAABB()
+	{
+		if (!m_Scene3D->GetMesh()) return;
+		glm::vec3 lMin = m_Scene3D->GetMesh()->GetAABBMin();
+		glm::vec3 lMax = m_Scene3D->GetMesh()->GetAABBMax();
+		glm::mat4 tx   = m_Scene3D->GetTransform();
+		glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
+		for (int i = 0; i < 8; i++)
+		{
+			glm::vec3 c = glm::vec3(tx * glm::vec4(
+				(i & 1) ? lMax.x : lMin.x,
+				(i & 2) ? lMax.y : lMin.y,
+				(i & 4) ? lMax.z : lMin.z, 1.f));
+			wMin = glm::min(wMin, c);
+			wMax = glm::max(wMax, c);
+		}
+		glm::vec3 size = wMax - wMin;
+		if (m_InitCameraX == 0.f) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
+		if (m_InitCameraZ == 0.f) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);
+		// Place player near the front-centre of the scene
+		if (m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
+		{
+			m_Config.Player.Spawn.Position = {
+				m_InitCameraX,
+				m_Config.Player.RestY,
+				wMin.z + size.z * 0.9f
+			};
+		}
+	}
+
 	WorldConfig        m_Config;
-	float              m_Aspect  = 1.f;
+	float              m_Aspect       = 1.f;
+	float              m_InitCameraX  = 0.f;
+	float              m_InitCameraZ  = 0.f;
 	SideScrollerCamera m_Camera;
 	Player*            m_Player  = nullptr;
 	SceneActor*        m_Scene3D = nullptr;

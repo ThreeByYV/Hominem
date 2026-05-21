@@ -1,48 +1,130 @@
 {
-  "player": {
-    "movement": {
-      "speed": 5,
-      "mass": 10.0
-    },
-    "spawn": {
-      "_note": "changing position requires level restart — affects physics spawn",
-      "position": { "x": 0.0, "y": 1.0, "z": 0.0 },
-      "scale": { "x": 0.35, "y": 0.35, "z": 0.35 }
-    },
-    "collider": {
-      "extents": { "x": 0.5, "y": 0.5, "z": 0.3 },
-      "offset": { "x": 0.0, "y": -0.75, "z": 0.0 },
-      "static_friction": 0.5,
-      "dynamic_friction": 0.5
-    },
-    "scale": 0.35,
-    "rest_y": 0.06,
-    "_note_rest_y": "changing rest_y requires level restart — affects physics floor position"
+  "camera": {
+    "camera_x": -14.712185859680176,
+    "camera_z": 32.24298095703125,
+    "fov": 30.0,
+    "lead_strength": 0.44999998807907104,
+    "player_screen_y": 0.25,
+    "smoothing": 0.15000000596046448,
+    "visible_height": 2.0,
+    "x_speed": 0.11999999731779099,
+    "y_bias": 0.2800000011920929,
+    "y_dead_zone": 0.15000000596046448,
+    "y_speed": 0.05000000074505806
   },
   "physics": {
-    "gravity": { "x": 0.0, "y": -9.81, "z": 0.0 },
     "floor": {
-      "position": { "x": 0.0, "y": -6.0, "z": 0.0 },
-      "scale": { "x": 10000.0, "y": 0.5, "z": 10000.0 },
-      "static_friction": 0.8,
-      "dynamic_friction": 0.6
+      "dynamic_friction": 0.6000000238418579,
+      "position": {
+        "x": -8.146272659301758,
+        "y": -1.440000057220459,
+        "z": 0.0
+      },
+      "scale": {
+        "x": 10000.0,
+        "y": 0.5,
+        "z": 10000.0
+      },
+      "static_friction": 0.800000011920929
+    },
+    "gravity": {
+      "x": 0.0,
+      "y": -9.8100004196167,
+      "z": 0.0
     }
   },
-  "camera": {
-    "smoothing": 0.15,
-    "visible_height": 2.0,
-    "player_screen_y": 0.25,
-    "y_bias": 0.28,
-    "fov": 30.0,
-    "x_speed": 0.12,
-    "y_speed": 0.05,
-    "lead_strength": 0.45,
-    "y_dead_zone": 0.15
+  "player": {
+    "collider": {
+      "dynamic_friction": 0.5,
+      "extents": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "offset": {
+        "x": 0.0,
+        "y": -0.75
+      },
+      "static_friction": 0.5
+    },
+    "movement": {
+      "mass": 10.0,
+      "speed": 4.0
+    },
+    "rest_y": 0.05999999865889549,
+    "scale": 1.0,
+    "spawn": {
+      "position": {
+        "x": 0.08405184000730515,
+        "y": 0.0598871111869812,
+        "z": 27.0
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      }
+    }
   },
+  "point_lights": [
+    {
+      "color": {
+        "x": 1.0,
+        "y": 0.8500000238418579,
+        "z": 0.6000000238418579
+      },
+      "intensity": 8.0,
+      "position": {
+        "x": -7.0,
+        "y": 3.5,
+        "z": 2.0
+      },
+      "radius": 8.0
+    },
+    {
+      "color": {
+        "x": 0.28296804428100586,
+        "y": 0.3538910150527954,
+        "z": 0.6274509429931641
+      },
+      "intensity": 8.0,
+      "position": {
+        "x": 2.75,
+        "y": 2.1500000953674316,
+        "z": 27.0
+      },
+      "radius": 8.0
+    },
+    {
+      "color": {
+        "x": 0.9264705777168274,
+        "y": 0.1362456977367401,
+        "z": 0.1362456977367401
+      },
+      "intensity": 4.199999809265137,
+      "position": {
+        "x": -0.699999988079071,
+        "y": 0.800000011920929,
+        "z": 27.0
+      },
+      "radius": 6.0
+    }
+  ],
   "scene": {
     "mesh_path": "Resources/Textures/the_bathroom_free.glb",
-    "position": { "x": 0.0, "y": 0.0, "z": 0.0 },
-    "rotation": { "x": 0.0, "y": -90.0, "z": 0.0 },
-    "scale":    { "x": 1.0, "y": 1.0, "z": 1.0 }
+    "position": {
+      "x": -1.0,
+      "y": -1.399999976158142,
+      "z": 27.600000381469727
+    },
+    "rotation": {
+      "x": 0.0,
+      "y": -90.5,
+      "z": 0.0
+    },
+    "scale": {
+      "x": 2.0,
+      "y": 2.0,
+      "z": 2.0
+    }
   }
 }

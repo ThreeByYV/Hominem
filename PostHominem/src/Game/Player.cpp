@@ -118,13 +118,29 @@ void Player::ReloadShader() {}
 void Player::OnImGuiRender()
 {
 	ImGui::Text("Player Transform");
-	ImGui::DragFloat3("Position", &Position.x, 0.01f);
+	glm::vec3 pos = Position;
+	if (ImGui::DragFloat3("Position", &pos.x, 0.01f))
+		SetPosition(pos);
 	ImGui::DragFloat3("Scale",    &Scale.x,    0.001f, 0.001f, 10.f);
 	ImGui::DragFloat3("Rotation", &Rotation.x, 0.01f, -3.14159f, 3.14159f);
 
 	if (ImGui::Button("Reset Transform"))
 	{
+		SetPosition(m_Config.Spawn.Position);
 		Scale    = m_Config.Spawn.Scale;
 		Rotation = glm::vec3(0.f, glm::radians(90.f), 0.f);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save Spawn"))
+	{
+		m_Config.Spawn.Position = Position;
+		m_Config.Scale          = Scale.x;
+		WorldConfig cfg;
+		if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
+		{
+			cfg.Player.Spawn.Position = Position;
+			cfg.Player.Scale          = Scale.x;
+			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
+		}
 	}
 }

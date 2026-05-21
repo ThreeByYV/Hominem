@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <string>
+#include <vector>
 
 struct PlayerMovementConfig
 {
@@ -62,6 +63,9 @@ struct CameraConfig
 	float YSpeed        = 0.05f;
 	float LeadStrength  = 0.45f;
 	float YDeadZone     = 0.15f;
+	// Saved camera world position; 0 = auto-compute from scene AABB on first run
+	float CameraX       = 0.0f;
+	float CameraZ       = 0.0f;
 };
 
 struct SceneConfig
@@ -72,12 +76,21 @@ struct SceneConfig
 	glm::vec3   Scale    = {  1.f,  1.f,   1.f };
 };
 
+struct PointLightConfig
+{
+	glm::vec3 Position  = { 0.f, 1.f, 0.f };
+	glm::vec3 Color     = { 1.f, 1.f, 1.f };
+	float     Intensity = 5.0f;
+	float     Radius    = 3.0f;
+};
+
 struct WorldConfig
 {
-	PlayerConfig  Player;
-	PhysicsConfig Physics;
-	CameraConfig  Camera;
-	SceneConfig   Scene;
+	PlayerConfig                Player;
+	PhysicsConfig               Physics;
+	CameraConfig                Camera;
+	SceneConfig                 Scene;
+	std::vector<PointLightConfig> PointLights;
 
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
 	static bool SaveToFile(const std::string& path, const WorldConfig& in);

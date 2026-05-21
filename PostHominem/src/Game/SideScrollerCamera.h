@@ -49,6 +49,7 @@ public:
 
     void    SetTarget(const Player* player) { m_Target = player; }
     Config& GetConfig()                     { return m_Cfg; }
+    float   GetCameraZ()             const  { return m_CamZ; }
 
     void OnUpdate(Hominem::Timestep ts)
     {

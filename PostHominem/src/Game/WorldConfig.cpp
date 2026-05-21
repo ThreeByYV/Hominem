@@ -70,6 +70,8 @@ namespace nlohmann {
 		if (j.contains("y_speed"))         c.YSpeed        = j.at("y_speed").get<float>();
 		if (j.contains("lead_strength"))   c.LeadStrength  = j.at("lead_strength").get<float>();
 		if (j.contains("y_dead_zone"))     c.YDeadZone     = j.at("y_dead_zone").get<float>();
+		if (j.contains("camera_x"))        c.CameraX       = j.at("camera_x").get<float>();
+		if (j.contains("camera_z"))        c.CameraZ       = j.at("camera_z").get<float>();
 	}
 
 	static void from_json(const json& j, SceneConfig& c)
@@ -80,24 +82,54 @@ namespace nlohmann {
 		if (j.contains("scale"))     j.at("scale").get_to(c.Scale);
 	}
 
+	static void from_json(const json& j, PointLightConfig& c)
+	{
+		if (j.contains("position"))  j.at("position").get_to(c.Position);
+		if (j.contains("color"))     j.at("color").get_to(c.Color);
+		if (j.contains("intensity")) c.Intensity = j.at("intensity").get<float>();
+		if (j.contains("radius"))    c.Radius    = j.at("radius").get<float>();
+	}
+
 	static void from_json(const json& j, WorldConfig& c)
 	{
 		j.at("player").get_to(c.Player);
 		j.at("physics").get_to(c.Physics);
 		j.at("camera").get_to(c.Camera);
 		if (j.contains("scene")) j.at("scene").get_to(c.Scene);
+		if (j.contains("point_lights"))
+		{
+			c.PointLights.clear();
+			for (const auto& pl : j.at("point_lights"))
+			{
+				PointLightConfig cfg;
+				pl.get_to(cfg);
+				c.PointLights.push_back(cfg);
+			}
+		}
 	}
 
 }
 
+static std::string ResolvePath(const std::string& path)
+{
+#ifdef HMN_SOURCE_RESOURCES_PATH
+	// In Debug, always read/write from source so saves persist across rebuilds.
+	auto it = path.find("Resources/");
+	if (it != std::string::npos)
+		return std::string(HMN_SOURCE_RESOURCES_PATH) + "/" + path.substr(it + 10);
+#endif
+	return path;
+}
+
 bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)
 {
+	const std::string resolved = ResolvePath(path);
 	try
 	{
-		std::ifstream file(path);
+		std::ifstream file(resolved);
 		if (!file.is_open())
 		{
-			HMN_CORE_ERROR("WorldConfig: cannot open '{}'", path);
+			HMN_CORE_ERROR("WorldConfig: cannot open '{}'", resolved);
 			return false;
 		}
 		json::parse(file).get_to(out);
@@ -105,7 +137,7 @@ bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)
 	}
 	catch (const json::exception& e)
 	{
-		HMN_CORE_ERROR("WorldConfig: parse error in '{}': {}", path, e.what());
+		HMN_CORE_ERROR("WorldConfig: parse error in '{}': {}", resolved, e.what());
 		return false;
 	}
 }
@@ -114,14 +146,51 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 {
 	using namespace nlohmann;
 
+	const std::string resolved = ResolvePath(path);
 	try
 	{
-		// Read existing file first to preserve any keys we don't own
 		json root;
 		{
-			std::ifstream in(path);
+			std::ifstream in(resolved);
 			if (in.is_open()) root = json::parse(in);
 		}
+
+		root["player"] = {
+			{ "movement", { { "speed", cfg.Player.Movement.Speed }, { "mass", cfg.Player.Movement.Mass } } },
+			{ "spawn",    { { "position", vec3_to_json(cfg.Player.Spawn.Position) }, { "scale", vec3_to_json(cfg.Player.Spawn.Scale) } } },
+			{ "collider", {
+				{ "extents",          vec2_to_json(cfg.Player.Collider.Extents) },
+				{ "offset",           vec2_to_json(cfg.Player.Collider.Offset)  },
+				{ "static_friction",  cfg.Player.Collider.StaticFriction        },
+				{ "dynamic_friction", cfg.Player.Collider.DynamicFriction       }
+			}},
+			{ "scale",  cfg.Player.Scale },
+			{ "rest_y", cfg.Player.RestY }
+		};
+
+		root["physics"] = {
+			{ "gravity", vec3_to_json(cfg.Physics.Gravity) },
+			{ "floor",   {
+				{ "position",         vec3_to_json(cfg.Physics.Floor.Position) },
+				{ "scale",            vec3_to_json(cfg.Physics.Floor.Scale)    },
+				{ "static_friction",  cfg.Physics.Floor.StaticFriction         },
+				{ "dynamic_friction", cfg.Physics.Floor.DynamicFriction        }
+			}}
+		};
+
+		root["camera"] = {
+			{ "smoothing",       cfg.Camera.Smoothing     },
+			{ "visible_height",  cfg.Camera.VisibleHeight },
+			{ "player_screen_y", cfg.Camera.PlayerScreenY },
+			{ "y_bias",          cfg.Camera.YBias         },
+			{ "fov",             cfg.Camera.FOVDeg        },
+			{ "x_speed",         cfg.Camera.XSpeed        },
+			{ "y_speed",         cfg.Camera.YSpeed        },
+			{ "lead_strength",   cfg.Camera.LeadStrength  },
+			{ "y_dead_zone",     cfg.Camera.YDeadZone     },
+			{ "camera_x",        cfg.Camera.CameraX       },
+			{ "camera_z",        cfg.Camera.CameraZ       }
+		};
 
 		root["scene"] = {
 			{ "mesh_path", cfg.Scene.MeshPath },
@@ -130,14 +199,26 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 			{ "scale",     vec3_to_json(cfg.Scene.Scale)    }
 		};
 
-		std::ofstream out(path);
+		json lightsArr = json::array();
+		for (const auto& pl : cfg.PointLights)
+		{
+			lightsArr.push_back({
+				{ "position",  vec3_to_json(pl.Position) },
+				{ "color",     vec3_to_json(pl.Color)    },
+				{ "intensity", pl.Intensity },
+				{ "radius",    pl.Radius    }
+			});
+		}
+		root["point_lights"] = lightsArr;
+
+		std::ofstream out(resolved);
 		if (!out.is_open())
 		{
-			HMN_CORE_ERROR("WorldConfig: cannot write '{}'", path);
+			HMN_CORE_ERROR("WorldConfig: cannot write '{}'", resolved);
 			return false;
 		}
 		out << root.dump(2);
-		HMN_CORE_INFO("WorldConfig: saved scene config to '{}'", path);
+		HMN_CORE_INFO("WorldConfig: saved to '{}'", resolved);
 		return true;
 	}
 	catch (const json::exception& e)
