@@ -9,12 +9,11 @@ namespace Hominem {
 
 	static GLenum ShaderTypeFromString(const std::string& type)
 	{
-		if (type == "vertex")
-			return GL_VERTEX_SHADER;
-		if (type == "fragment" || type == "pixel")
-			return GL_FRAGMENT_SHADER;
-		if (type == "geometry")
-			return GL_GEOMETRY_SHADER;
+		if (type == "vertex")                        return GL_VERTEX_SHADER;
+		if (type == "fragment" || type == "pixel")   return GL_FRAGMENT_SHADER;
+		if (type == "geometry")                      return GL_GEOMETRY_SHADER;
+		if (type == "tcs" || type == "tesscontrol")  return GL_TESS_CONTROL_SHADER;
+		if (type == "tes" || type == "tesseval")     return GL_TESS_EVALUATION_SHADER;
 
 		HMN_CORE_ASSERT(false, "Unknown shader type!");
 		return 0;
@@ -113,8 +112,8 @@ namespace Hominem {
 	{
 		GLuint program = glCreateProgram();
 
-		HMN_CORE_ASSERT(shaderSources.size() <= 3, "We only support up to 3 shaders (vert/geom/frag)");
-		std::array<GLenum, 3> glShaderIDs = {0, 0, 0};
+		HMN_CORE_ASSERT(shaderSources.size() <= 5, "We only support up to 5 shaders (vert/tcs/tes/geom/frag)");
+		std::array<GLenum, 5> glShaderIDs = {0, 0, 0, 0, 0};
 
 		int glShaderIDIndex = 0;
 

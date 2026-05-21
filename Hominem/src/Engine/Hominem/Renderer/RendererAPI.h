@@ -46,6 +46,15 @@ namespace Hominem {
 		/// Draws a fullscreen triangle using gl_VertexID — no VBO needed. Use for post-process passes.
 		virtual void DrawFullscreenTriangle() = 0;
 
+		/// Draws count vertices as points with the given pixel size.
+		virtual void DrawPoints(uint32_t count, float pointSize) = 0;
+
+		/// Draws count patches for tessellation.
+		virtual void DrawPatches(uint32_t count, uint32_t patchVertices = 1) = 0;
+
+		/// Toggles wireframe polygon mode.
+		virtual void SetWireframe(bool enabled) = 0;
+
 		/// Binds a texture to the given texture unit.
 		virtual void BindTexture(uint32_t slot, uint32_t id) = 0;
 

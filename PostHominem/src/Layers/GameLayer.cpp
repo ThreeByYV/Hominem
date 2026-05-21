@@ -53,12 +53,6 @@ void GameLayer::OnDetach()
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	if (!ImGui::GetIO().WantCaptureKeyboard && Input::IsKeyPressed(HMN_KEY_1))
-	{
-		TransitionTo<MenuLayer>();
-		return;
-	}
-
 	m_ActiveScene->OnUpdate(ts);
 	m_GameMode->OnUpdate(ts);
 }
@@ -96,7 +90,7 @@ void GameLayer::OnImGuiRender()
 		ImGui::SameLine();
 		if (ImGui::SmallButton("Add"))
 		{
-			Hominem::PointLight l;
+			PointLight l;
 			l.Position = { 0.f, 1.f, 0.f };
 			l.Color    = { 1.f, 0.9f, 0.7f };
 			m_PointLights.push_back(l);
@@ -187,6 +181,7 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		return false;
 	}
 
+	// ESC → back to menu (consumed so Application doesn't quit)
 	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
 	{
 		TransitionTo<MenuLayer>();

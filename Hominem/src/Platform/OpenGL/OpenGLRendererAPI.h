@@ -24,6 +24,9 @@ namespace Hominem {
 		void UnbindVAO()                         override;
 		void DrawArraysIndirect(uint32_t offset) override;
 		void DrawFullscreenTriangle()                        override;
+		void DrawPoints(uint32_t count, float pointSize)     override;
+		void DrawPatches(uint32_t count, uint32_t patchVertices) override;
+		void SetWireframe(bool enabled)                      override;
 		void BindTexture(uint32_t slot, uint32_t id)         override;
 
 	private:

@@ -6,6 +6,7 @@
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Game/Level.h"
+#include "Game/WorldConfig.h"
 
 class GameLayer : public Hominem::Layer
 {
@@ -26,7 +27,10 @@ private:
 	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
 	Hominem::Scope<Level>           m_GameMode;
 	bool                            m_ShowDebugUI = false;
-	Hominem::DirectionalLight       m_Light;
+	Hominem::DirectionalLight         m_Light;
+	std::vector<Hominem::PointLight>  m_PointLights;
+	int                               m_SelectedLight    = -1;
+	bool                              m_DebugPointLights = false;
 
 	bool  m_BloomEnabled       = false;
 	bool  m_ToneMappingEnabled = false;
