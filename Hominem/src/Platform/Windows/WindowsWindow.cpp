@@ -179,6 +179,29 @@ namespace Hominem {
 		return m_Data.VSync;
 	}
 
+	void WindowsWindow::ToggleFullscreen()
+	{
+		m_Fullscreen = !m_Fullscreen;
+
+		if (m_Fullscreen)
+		{
+			// Save windowed position and size before going fullscreen.
+			glfwGetWindowPos(m_Window, &m_WindowedX, &m_WindowedY);
+			m_WindowedWidth  = (int)m_Data.Width;
+			m_WindowedHeight = (int)m_Data.Height;
+
+			GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+			const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
+			glfwSetWindowMonitor(m_Window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+		}
+		else
+		{
+			glfwSetWindowMonitor(m_Window, nullptr, m_WindowedX, m_WindowedY, m_WindowedWidth, m_WindowedHeight, 0);
+		}
+
+		// VSync (glfwSwapInterval) must be restored on the render thread — caller is responsible.
+	}
+
 
 	WindowsWindow::~WindowsWindow()
 	{

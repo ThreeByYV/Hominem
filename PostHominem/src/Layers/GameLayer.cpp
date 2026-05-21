@@ -27,6 +27,22 @@ void GameLayer::OnAttach()
 	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
 
 	m_GameMode->OnEnter(*m_ActiveScene);
+
+	// Load point lights from config
+	WorldConfig cfg;
+	if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
+	{
+		m_PointLights.clear();
+		for (const auto& pl : cfg.PointLights)
+		{
+			PointLight light;
+			light.Position  = pl.Position;
+			light.Color     = pl.Color;
+			light.Intensity = pl.Intensity;
+			light.Radius    = pl.Radius;
+			m_PointLights.push_back(light);
+		}
+	}
 }
 
 void GameLayer::OnDetach()
@@ -49,14 +65,15 @@ void GameLayer::OnUpdate(Timestep ts)
 
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor        = { 0.1f, 0.1f, 0.1f, 1.f };
-	frame.light             = m_Light;
+	frame.clearColor         = { 0.1f, 0.1f, 0.1f, 1.f };
+	frame.light              = m_Light;
+	frame.pointLights        = m_PointLights;
+	frame.debugPointLights   = m_DebugPointLights;
 	frame.bloomEnabled       = m_BloomEnabled;
 	frame.toneMappingEnabled = m_ToneMappingEnabled;
 	frame.bloomStrength      = m_BloomStrength;
 	frame.bloomThreshold     = m_BloomThreshold;
 
-	//todo: why is in so many layers we have to this check, just make sure scene is there once from somewhere instead
 	if (m_ActiveScene)
 		m_ActiveScene->BuildRenderFrame(frame);
 }
@@ -67,10 +84,67 @@ void GameLayer::OnImGuiRender()
 	ImGui::Begin("Settings");
 	if (ImGui::CollapsingHeader("Lighting"))
 	{
-		ImGui::SliderFloat("Ambient",    &m_Light.AmbientIntensity, 0.f, 1.f);
-		ImGui::SliderFloat("Diffuse",    &m_Light.DiffuseIntensity, 0.f, 20.f);
-		ImGui::ColorEdit3("Color",       &m_Light.Color.x);
-		ImGui::SliderFloat3("Direction", &m_Light.Direction.x, -1.f, 1.f);
+		ImGui::SliderFloat("Ambient",       &m_Light.AmbientIntensity, 0.f, 1.f);
+		ImGui::ColorEdit3("Ambient Color",  &m_Light.AmbientColor.x);
+		ImGui::SliderFloat("Diffuse",       &m_Light.DiffuseIntensity, 0.f, 20.f);
+		ImGui::ColorEdit3("Light Color",    &m_Light.Color.x);
+		ImGui::SliderFloat3("Direction",    &m_Light.Direction.x, -1.f, 1.f);
+	}
+	if (ImGui::CollapsingHeader("Point Lights"))
+	{
+		ImGui::Text("%d light(s)", (int)m_PointLights.size());
+		ImGui::SameLine();
+		if (ImGui::SmallButton("Add"))
+		{
+			Hominem::PointLight l;
+			l.Position = { 0.f, 1.f, 0.f };
+			l.Color    = { 1.f, 0.9f, 0.7f };
+			m_PointLights.push_back(l);
+			m_SelectedLight = (int)m_PointLights.size() - 1;
+		}
+		ImGui::SameLine();
+		if (ImGui::SmallButton("Save"))
+		{
+			WorldConfig cfg;
+			WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
+			cfg.PointLights.clear();
+			for (const auto& pl : m_PointLights)
+			{
+				PointLightConfig plc;
+				plc.Position  = pl.Position;
+				plc.Color     = pl.Color;
+				plc.Intensity = pl.Intensity;
+				plc.Radius    = pl.Radius;
+				cfg.PointLights.push_back(plc);
+			}
+			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
+		}
+
+		for (int i = 0; i < (int)m_PointLights.size(); i++)
+		{
+			ImGui::PushID(i);
+			auto& pl = m_PointLights[i];
+			char label[32];
+			snprintf(label, sizeof(label), "Light %d", i);
+			bool selected = (m_SelectedLight == i);
+			if (ImGui::Selectable(label, selected))
+				m_SelectedLight = i;
+			if (m_SelectedLight == i)
+			{
+				ImGui::DragFloat3("Position",  &pl.Position.x,  0.05f);
+				ImGui::ColorEdit3("Color",     &pl.Color.x);
+				ImGui::DragFloat("Intensity",  &pl.Intensity,   0.1f, 0.f, 100.f);
+				ImGui::DragFloat("Radius",     &pl.Radius,      0.1f, 0.1f, 50.f);
+				if (ImGui::SmallButton("Remove"))
+				{
+					m_PointLights.erase(m_PointLights.begin() + i);
+					m_SelectedLight = -1;
+					ImGui::PopID();
+					break;
+				}
+			}
+			ImGui::PopID();
+		}
 	}
 	if (ImGui::CollapsingHeader("Post Processing"))
 	{
@@ -106,14 +180,30 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (e.GetRepeatCount() > 0)
 		return false;
 
+	// TAB always toggles debug UI regardless of ImGui focus
 	if (e.GetKeyCode() == HMN_KEY_TAB)
+	{
 		m_ShowDebugUI = !m_ShowDebugUI;
+		return false;
+	}
+
+	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
+	{
+		TransitionTo<MenuLayer>();
+		return true;
+	}
+
+	if (ImGui::GetIO().WantCaptureKeyboard)
+		return false;
 
 	if (e.GetKeyCode() == HMN_KEY_N)
 		Renderer3D::SetDrawNormals(!Renderer3D::GetDrawNormals());
 
 	if (e.GetKeyCode() == HMN_KEY_B)
 		Renderer3D::SetDrawAABB(!Renderer3D::GetDrawAABB());
+
+	if (e.GetKeyCode() == HMN_KEY_L)
+		m_DebugPointLights = !m_DebugPointLights;
 
 	return false;
 }
