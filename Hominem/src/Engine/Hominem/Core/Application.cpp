@@ -71,12 +71,38 @@ namespace Hominem {
 		EventDispatcher dispatcher(e);
 		dispatcher.Dispatch<WindowCloseEvent>(HMN_BIND_EVENT_FN(Application::OnWindowClose));
 		dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(Application::OnWindowResize));
+		dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& ke) {
+			if (ke.GetRepeatCount() != 0) return false;
+			if (ke.GetKeyCode() == HMN_KEY_F)
+			{
+				m_Window->ToggleFullscreen();
+				bool vsync = m_Window->IsVSync();
+				RenderThread::QueueUpload([vsync] {
+					glfwSwapInterval(vsync ? 1 : 0);
+				});
+				return true;
+			}
+			return false;
+		});
 
 
 		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin(); )
 		{
 			(*--it)->OnEvent(e);
 			if (e.Handled) break;
+		}
+
+		// If no layer consumed ESC, quit.
+		if (!e.Handled)
+		{
+			dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& ke) {
+				if (ke.GetKeyCode() == HMN_KEY_ESCAPE && ke.GetRepeatCount() == 0)
+				{
+					m_Running = false;
+					return true;
+				}
+				return false;
+			});
 		}
 	}
 
@@ -102,9 +128,6 @@ namespace Hominem {
 			float time      = (float)glfwGetTime();
 			Timestep timestep = time - m_LastFrameTime;
 			m_LastFrameTime = time;
-
-			if (Input::IsKeyPressed(HMN_KEY_ESCAPE))
-				m_Running = false;
 
 			for (auto& layer : m_LayerStack)
 				layer->OnUpdate(timestep);
