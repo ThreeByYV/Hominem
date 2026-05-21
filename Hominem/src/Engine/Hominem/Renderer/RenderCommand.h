@@ -55,6 +55,24 @@ namespace Hominem {
 			s_RendererAPI->SetScissorEnabled(enabled);
 		}
 
+		/// Draws count vertices as points with the given pixel size.
+		inline static void DrawPoints(uint32_t count, float pointSize)
+		{
+			s_RendererAPI->DrawPoints(count, pointSize);
+		}
+
+		/// Draws count patches for tessellation. patchVertices = vertices per patch.
+		inline static void DrawPatches(uint32_t count, uint32_t patchVertices = 1)
+		{
+			s_RendererAPI->DrawPatches(count, patchVertices);
+		}
+
+		/// Toggles wireframe polygon mode.
+		inline static void SetWireframe(bool enabled)
+		{
+			s_RendererAPI->SetWireframe(enabled);
+		}
+
 		/// Binds the engine-owned empty VAO (required by OpenGL before any draw call).
 		inline static void BindEmptyVAO()
 		{

@@ -26,6 +26,7 @@ namespace Hominem {
 		Ref<Shader>        NormalsShader;
 		Ref<Shader>        NormalsSkinnedShader;
 		Ref<Shader>        DebugAABBShader;
+		Ref<Shader>        DebugSphereShader;
 		Ref<VertexArray>   DebugVAO;
 		Ref<VertexBuffer>  DebugVBO;              // dynamic — 8 world-space corners per draw
 		Ref<IndexBuffer>   DebugIBO;              // static  — 24 indices for 12 edges
@@ -38,7 +39,8 @@ namespace Hominem {
 		static void Shutdown();
 
 		static void BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos,
-		                       const DirectionalLight& light = {});
+		                       const DirectionalLight& light = {},
+		                       const std::vector<PointLight>& pointLights = {});
 		static void EndScene();
 
 		static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
@@ -53,6 +55,9 @@ namespace Hominem {
 		static void SetDrawAABB(bool enabled) { s_DrawAABB = enabled; }
 		static bool GetDrawAABB()             { return s_DrawAABB; }
 
+		// Debug point light gizmos — toggle with L key
+		static void DrawDebugPointLights(const std::vector<PointLight>& lights);
+
 		static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
 		static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform);
 
@@ -63,10 +68,11 @@ namespace Hominem {
 	private:
 		struct SceneData
 		{
-			glm::mat4        ViewProjection{};
-			glm::vec3        CameraWorldPos{};
-			DirectionalLight Light;
-			Shader*          BoundShader = nullptr; // state cache — skip redundant Bind()
+			glm::mat4               ViewProjection{};
+			glm::vec3               CameraWorldPos{};
+			DirectionalLight        Light;
+			std::vector<PointLight> PointLights;
+			Shader*                 BoundShader = nullptr;
 		};
 
 		static Renderer3DStorage* s_Data;

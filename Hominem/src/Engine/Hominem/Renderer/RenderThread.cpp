@@ -39,23 +39,39 @@ namespace Hominem {
 
 			RenderCommand::SetDepthTestEnabled(false);
 			Renderer2D::BeginScene(frame.viewProjection2D);
+
 			for (const auto& q : frame.quads)
+			{
 				Renderer2D::PushQuad(q.transform, q.color, q.uvMin, q.uvMax, q.texture);
+			}
+
 			Renderer2D::Flush();
+
 			for (const auto& t : frame.texts)
+			{
 				Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
+			}
+
 			Renderer2D::EndScene();
 
 			RenderCommand::SetDepthTestEnabled(true);
-			Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos, frame.light);
+			Renderer3D::BeginScene(frame.viewProjection3D, frame.cameraWorldPos, frame.light, frame.pointLights);
+
 			for (const auto& sm : frame.staticMeshes)
+			{
 				Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+			}
+
 			for (const auto& m : frame.meshes)
 			{
 				m.mesh->DispatchSkinning(m.bones);
 				Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
 			}
+
 			Renderer3D::EndScene();
+
+			if (frame.debugPointLights && !frame.pointLights.empty())
+				Renderer3D::DrawDebugPointLights(frame.pointLights);
 
 			hdr->Unbind();
 		});
@@ -230,7 +246,7 @@ namespace Hominem {
 			glfwSwapBuffers(m_Window);
 
 			// Notify main AFTER swap+VSync so it only wakes once the display is ready.
-			// Also safe for ImGui: draw data is fully consumed before swap returns.
+			// Also, safe for ImGui: draw data is fully consumed before swap returns.
 			m_ConsumedCV.notify_one();
 		}
 

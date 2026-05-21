@@ -148,6 +148,24 @@ namespace Hominem {
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 	}
 
+	void OpenGLRendererAPI::DrawPoints(uint32_t count, float pointSize)
+	{
+		glPointSize(pointSize);
+		glDrawArrays(GL_POINTS, 0, (GLsizei)count);
+		glPointSize(1.f);
+	}
+
+	void OpenGLRendererAPI::DrawPatches(uint32_t count, uint32_t patchVertices)
+	{
+		glPatchParameteri(GL_PATCH_VERTICES, (GLint)patchVertices);
+		glDrawArrays(GL_PATCHES, 0, (GLsizei)count);
+	}
+
+	void OpenGLRendererAPI::SetWireframe(bool enabled)
+	{
+		glPolygonMode(GL_FRONT_AND_BACK, enabled ? GL_LINE : GL_FILL);
+	}
+
 	void OpenGLRendererAPI::BindTexture(uint32_t slot, uint32_t id)
 	{
 		glBindTextureUnit(slot, id);

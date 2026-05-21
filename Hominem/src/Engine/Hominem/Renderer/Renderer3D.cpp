@@ -25,6 +25,7 @@ namespace Hominem {
         s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug_skinned.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/debug_aabb.glsl");
+        s_Data->ShaderLibrary->Load("Resources/Shaders/debug_sphere.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/composite.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_threshold.glsl");
         s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_blur.glsl");
@@ -35,6 +36,7 @@ namespace Hominem {
         s_Data->NormalsShader        = s_Data->ShaderLibrary->Get("normals_debug");
         s_Data->NormalsSkinnedShader = s_Data->ShaderLibrary->Get("normals_debug_skinned");
         s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
+        s_Data->DebugSphereShader    = s_Data->ShaderLibrary->Get("debug_sphere");
 
         // Debug AABB: 8 corner vertices (dynamic) + 24 indices for 12 edges (static)
         //
@@ -65,13 +67,29 @@ namespace Hominem {
     }
 
     void Renderer3D::BeginScene(const glm::mat4& viewProj, const glm::vec3& cameraWorldPos,
-                                const DirectionalLight& light)
+                                const DirectionalLight& light,
+                                const std::vector<PointLight>& pointLights)
     {
         HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
         s_Scene->ViewProjection = viewProj;
         s_Scene->CameraWorldPos = cameraWorldPos;
         s_Scene->Light          = light;
+        s_Scene->PointLights    = pointLights;
         s_Scene->BoundShader    = nullptr;
+    }
+
+    static void UploadPointLights(const Ref<Shader>& shader, const std::vector<PointLight>& lights)
+    {
+        int count = (int)std::min(lights.size(), (size_t)16);
+        shader->SetInt("u_PointLightCount", count);
+        for (int i = 0; i < count; i++)
+        {
+            const auto& l = lights[i];
+            shader->SetFloat3("u_PointLightPositions["  + std::to_string(i) + "]", l.Position);
+            shader->SetFloat3("u_PointLightColors["     + std::to_string(i) + "]", l.Color);
+            shader->SetFloat ("u_PointLightIntensities[" + std::to_string(i) + "]", l.Intensity);
+            shader->SetFloat ("u_PointLightRadii["      + std::to_string(i) + "]", l.Radius);
+        }
     }
 
     void Renderer3D::EndScene()
@@ -92,8 +110,10 @@ namespace Hominem {
         shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
         shader->SetFloat3("u_LightDirection",  l.Direction);
         shader->SetFloat3("u_LightColor",      l.Color);
+        shader->SetFloat3("u_AmbientColor",    l.AmbientColor);
         shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
         shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
+        UploadPointLights(shader, s_Scene->PointLights);
         const Material& mat = mesh.GetMaterial();
         shader->SetFloat("u_Roughness", mat.Roughness);
         shader->SetFloat("u_Metalness", mat.Metalness);
@@ -125,8 +145,10 @@ namespace Hominem {
             shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
             shader->SetFloat3("u_LightDirection",  l.Direction);
             shader->SetFloat3("u_LightColor",      l.Color);
+            shader->SetFloat3("u_AmbientColor",    l.AmbientColor);
             shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
             shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
+            UploadPointLights(shader, s_Scene->PointLights);
             s_Scene->BoundShader = shader.get();
         }
 
@@ -174,6 +196,34 @@ namespace Hominem {
             RenderCommand::SetDepthTestEnabled(true);
             s_Data->DebugVAO->Unbind();
         }
+    }
+
+    void Renderer3D::DrawDebugPointLights(const std::vector<PointLight>& lights)
+    {
+        if (lights.empty() || !s_Data->DebugSphereShader) return;
+
+        s_Data->DebugSphereShader->Bind();
+        s_Data->DebugSphereShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
+        s_Data->DebugSphereShader->SetFloat("u_TessLevel", 16.f);
+        s_Data->DebugVAO->Bind();
+
+        RenderCommand::SetDepthTestEnabled(false);
+        // RenderCommand::SetWireframe(true);
+
+        for (const auto& light : lights)
+        {
+            glm::vec3 pos = light.Position;
+            s_Data->DebugVBO->SetData(&pos, sizeof(glm::vec3));
+            s_Data->DebugSphereShader->SetFloat4("u_Color", glm::vec4(light.Color, 1.f));
+            // Radius scaled down so gizmo is visible but not huge
+            float gizmoRadius = glm::clamp(light.Radius * 0.08f, 0.05f, 0.4f);
+            s_Data->DebugSphereShader->SetFloat("u_Radius", gizmoRadius);
+            RenderCommand::DrawPatches(1, 1);
+        }
+
+        // RenderCommand::SetWireframe(false);
+        RenderCommand::SetDepthTestEnabled(true);
+        s_Data->DebugVAO->Unbind();
     }
 
     void Renderer3D::Draw(const MeshRendererComponent& rc, const glm::mat4& transform)

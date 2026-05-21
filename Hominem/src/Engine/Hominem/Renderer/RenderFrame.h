@@ -42,12 +42,21 @@ namespace Hominem {
 		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
 	};
 
+	struct PointLight
+	{
+		glm::vec3 Position  = { 0.f, 1.f, 0.f };
+		glm::vec3 Color     = { 1.f, 1.f, 1.f };
+		float     Intensity = 5.0f;
+		float     Radius    = 3.0f;   // world-space units — full falloff at this distance
+	};
+
 	struct DirectionalLight
 	{
 		glm::vec3 Direction        = glm::normalize(glm::vec3(0.5f, -1.f, 0.4f));
 		glm::vec3 Color            = glm::vec3(1.f, 0.93f, 0.78f);
-		float     AmbientIntensity = 0.1f;
-		float     DiffuseIntensity = 5.0f;
+		glm::vec3 AmbientColor     = glm::vec3(0.4f, 0.45f, 0.6f); // cool blue-grey fill
+		float     AmbientIntensity = 0.35f;
+		float     DiffuseIntensity = 2.0f;
 	};
 
 	struct StaticMeshDraw
@@ -82,10 +91,13 @@ namespace Hominem {
 		uint32_t  viewportWidth  = 0;
 		uint32_t  viewportHeight = 0;
 
+		bool debugPointLights = false;
+
 		std::vector<QuadDraw>       quads;
 		std::vector<TextDraw>       texts;
 		std::vector<MeshDraw>       meshes;
 		std::vector<StaticMeshDraw> staticMeshes;
+		std::vector<PointLight>     pointLights;
 
 		// Arena backing — set by RenderThread, not owned by this frame.
 		FrameArena* arena    = nullptr;
