@@ -29,8 +29,10 @@ public:
 	/// Resizes all FBOs if the viewport changed, then runs every pass in order.
 	void Execute(const RenderFrame& frame);
 
+	/// Explicitly resize all FBOs to the given dimensions (no-op if unchanged).
+	void Resize(uint32_t w, uint32_t h);
+
 private:
-	/// Resizes all managed FBOs to the new dimensions.
 	void OnResize(uint32_t w, uint32_t h);
 
 	struct Pass     { std::string name; PassFn fn; };

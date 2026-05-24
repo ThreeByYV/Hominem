@@ -85,6 +85,8 @@ namespace Hominem {
 
 		glm::mat4 viewProjection2D {};
 		glm::mat4 viewProjection3D {};
+		glm::mat4 view3D           {};   // separate view matrix — needed by Forward+ light culling
+		glm::mat4 proj3D           {};   // separate projection matrix — needed for tile frustum extraction
 		glm::vec3 cameraWorldPos   {};
 		Frustum   frustum3D        {};
 

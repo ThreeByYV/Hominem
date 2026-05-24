@@ -7,8 +7,7 @@
 #include <source_location>
 
 #include "RenderFrame.h"
-#include "RenderGraph.h"
-#include "AutoExposure.h"
+#include "SceneRenderer.h"
 #include "Hominem/Threading/JobSystem.h"
 
 struct GLFWwindow;
@@ -65,15 +64,13 @@ namespace Hominem {
 	private:
 		void ThreadFunc();
 		void ExecuteFrame(const RenderFrame& frame);
-		void SetupPasses();
 
 		GLFWwindow* m_Window = nullptr;
 		std::thread m_Thread;
 
 		inline static std::thread::id s_ThreadId;
 
-		RenderGraph             m_RenderGraph;
-		AutoExposure            m_AutoExposure;
+		SceneRenderer           m_SceneRenderer;
 		RenderFrame             m_Frame;
 		bool                    m_Consumed = true;
 		bool                    m_Shutdown = false;

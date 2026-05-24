@@ -24,11 +24,14 @@ namespace Hominem {
 		if (m_ViewportWidth == 0 || m_ViewportHeight == 0)
 			return;
 
-		glm::mat4 view            = glm::lookAt(m_CameraPosition, m_CameraPosition + m_CameraFront, glm::vec3(0.f, 1.f, 0.f));
-		glm::mat4 viewProjection  = m_Camera.GetProjectionMatrix() * view;
+		glm::mat4 view           = glm::lookAt(m_CameraPosition, m_CameraPosition + m_CameraFront, glm::vec3(0.f, 1.f, 0.f));
+		glm::mat4 proj           = m_Camera.GetProjectionMatrix();
+		glm::mat4 viewProjection = proj * view;
 
 		frame.viewProjection2D = viewProjection;
 		frame.viewProjection3D = viewProjection;
+		frame.view3D           = view;
+		frame.proj3D           = proj;
 		frame.cameraWorldPos   = m_CameraPosition;
 		frame.frustum3D        = Frustum::FromViewProjection(viewProjection);
 
