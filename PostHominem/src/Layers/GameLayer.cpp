@@ -25,7 +25,6 @@ void GameLayer::OnAttach()
 
 	auto& window = Application::Get().GetWindow();
 	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
-
 	m_GameMode->OnEnter(*m_ActiveScene);
 
 	// Load point lights from config
@@ -43,16 +42,22 @@ void GameLayer::OnAttach()
 			m_PointLights.push_back(light);
 		}
 	}
+
+	auto& audio = Application::Get().GetAudioSystem();
+	audio.LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+
 }
 
 void GameLayer::OnDetach()
 {
+	Application::Get().GetAudioSystem().StopMusic();
 	m_GameMode->OnExit();
 	m_ActiveScene.reset();
 }
 
 void GameLayer::OnUpdate(Timestep ts)
 {
+	Application::Get().GetAudioSystem().UpdateMusic();
 	m_ActiveScene->OnUpdate(ts);
 	m_GameMode->OnUpdate(ts);
 }
@@ -74,6 +79,32 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 void GameLayer::OnImGuiRender()
 {
+	if (m_ShowPlayerOverlay && m_GameMode)
+	{
+		auto info = m_GameMode->GetPlayerDebugInfo();
+		if (info.valid)
+		{
+			ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+			ImGui::SetNextWindowBgAlpha(0.7f);
+			constexpr ImGuiWindowFlags kOverlayFlags =
+				ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+				ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+				ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
+			if (ImGui::Begin("##PlayerOverlay", nullptr, kOverlayFlags))
+			{
+				ImGui::Text("Pos  %6.2f  %6.2f  %6.2f", info.position.x, info.position.y, info.position.z);
+				ImGui::Text("Vel  %6.2f  %6.2f  %6.2f", info.velocity.x, info.velocity.y, info.velocity.z);
+				ImGui::Text("Speed  %.2f", info.speed);
+				ImGui::Separator();
+				if (info.isMoving)
+					ImGui::TextColored(ImVec4(0.2f, 1.f, 0.2f, 1.f), "MOVING");
+				else
+					ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "IDLE");
+			}
+			ImGui::End();
+		}
+	}
+
 	if (!m_ShowDebugUI) return;
 	ImGui::Begin("Settings");
 	if (ImGui::CollapsingHeader("Lighting"))
@@ -199,6 +230,12 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 
 	if (e.GetKeyCode() == HMN_KEY_L)
 		m_DebugPointLights = !m_DebugPointLights;
+
+	if (e.GetKeyCode() == HMN_KEY_H)
+		Renderer3D::SetDebugHeatmap(!Renderer3D::GetDebugHeatmap());
+
+	if (e.GetKeyCode() == HMN_KEY_P)
+		m_ShowPlayerOverlay = !m_ShowPlayerOverlay;
 
 	return false;
 }

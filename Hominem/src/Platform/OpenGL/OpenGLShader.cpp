@@ -405,6 +405,11 @@ namespace Hominem {
 		glUniform1i(GetUniformLocation(name), value);
 	}
 
+	void OpenGLComputeShader::SetMat4(const std::string& name, const glm::mat4& value)
+	{
+		glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
+	}
+
 	GLint OpenGLComputeShader::GetUniformLocation(const std::string& name) const
 	{
 		auto it = m_UniformCache.find(name);

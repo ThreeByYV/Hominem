@@ -69,6 +69,7 @@ namespace Hominem {
 
 		void SetUint(const std::string& name, uint32_t value) override;
 		void SetInt(const std::string& name, int value) override;
+		void SetMat4(const std::string& name, const glm::mat4& value) override;
 
 		const std::string& GetName() const override { return m_Name; }
 

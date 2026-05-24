@@ -26,7 +26,8 @@ private:
 
 	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
 	Hominem::Scope<Level>           m_GameMode;
-	bool                            m_ShowDebugUI = false;
+	bool                            m_ShowDebugUI      = false;
+	bool                            m_ShowPlayerOverlay = false;
 	Hominem::DirectionalLight         m_Light;
 	std::vector<Hominem::PointLight>  m_PointLights;
 	int                               m_SelectedLight    = -1;

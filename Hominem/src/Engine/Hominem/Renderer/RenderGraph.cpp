@@ -25,6 +25,12 @@ Ref<Framebuffer> RenderGraph::GetFBO(const std::string& name)
 	return it->second.fbo; // may be null if viewport was 0 and OnResize hasn't fired yet
 }
 
+void RenderGraph::Resize(uint32_t w, uint32_t h)
+{
+	if (w > 0 && h > 0 && (w != m_Width || h != m_Height))
+		OnResize(w, h);
+}
+
 void RenderGraph::Execute(const RenderFrame& frame)
 {
 	// Only resize FBOs when the viewport is valid — never create a 0-sized FBO.

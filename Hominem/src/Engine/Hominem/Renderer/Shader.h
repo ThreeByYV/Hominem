@@ -46,6 +46,7 @@ namespace Hominem {
 
 		virtual void SetUint(const std::string& name, uint32_t value) = 0;
 		virtual void SetInt(const std::string& name, int value) = 0;
+		virtual void SetMat4(const std::string& name, const glm::mat4& value) = 0;
 
 		virtual const std::string& GetName() const = 0;
 

@@ -68,10 +68,6 @@ project "Hominem"
     cppdialect "C++latest"
     multiprocessorcompile "on"
 
-    filter "action:vs*"
-        buildoptions { "/experimental:module-" }
-    filter {}
-
     targetdir ("bin/" .. outputdir .. "/Hominem")
     objdir    ("bin-int/" .. outputdir .. "/Hominem")
 
@@ -133,10 +129,6 @@ project "PostHominem"
     cppdialect "C++latest"
     multiprocessorcompile "on"
 
-    filter "action:vs*"
-        buildoptions { "/experimental:module-" }
-    filter {}
-
     targetdir ("bin/" .. outputdir .. "/PostHominem")
     objdir    ("bin-int/" .. outputdir .. "/PostHominem")
 
@@ -154,7 +146,16 @@ project "PostHominem"
     {
         "PostHominem/src/**.h",
         "PostHominem/src/**.cpp",
-        "PostHominem/src/**.hpp"
+        "PostHominem/src/**.hpp",
+        "PostHominem/src/Resources/**"
+    }
+
+    vpaths
+    {
+        ["Game/**"]       = "PostHominem/src/Game/**",
+        ["Layers/**"]     = "PostHominem/src/Layers/**",
+        ["Resources/**"]  = "PostHominem/src/Resources/**",
+        ["*"]             = "PostHominem/src/*",
     }
 
     defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
