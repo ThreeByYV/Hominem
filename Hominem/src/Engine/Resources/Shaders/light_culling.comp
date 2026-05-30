@@ -3,10 +3,12 @@
 // One work group = one 16×16 screen tile.
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
-struct GPUPointLight
+struct GPULight
 {
-    vec4 positionAndRadius; 
-    vec4 colorAndIntensity; 
+    vec4 positionAndRadius; // xyz = world pos, w = radius
+    vec4 colorAndIntensity; // xyz = colour,    w = intensity
+    vec4 directionAndType;  // xyz = direction (spot), w = type (0=point 1=spot)
+    vec4 coneAngles;        // x = cos(inner), y = cos(outer)
 };
 
 struct LightGridEntry
@@ -26,7 +28,7 @@ uniform uint u_ScreenHeight;
 
 layout(std430, binding = 1) readonly buffer LightBuffer
 {
-    GPUPointLight lights[];
+    GPULight lights[];
 };
 
 layout(std430, binding = 2) writeonly buffer LightIndexListBuffer 

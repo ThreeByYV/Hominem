@@ -10,10 +10,12 @@ namespace Hominem {
 
 namespace {
 
-    struct alignas(16) GPUPointLight
+    struct alignas(16) GPULight
     {
         glm::vec4 positionAndRadius; // xyz = world pos, w = radius
         glm::vec4 colorAndIntensity; // xyz = colour,    w = intensity
+        glm::vec4 directionAndType;  // xyz = direction (spot), w = type (0=point 1=spot)
+        glm::vec4 coneAngles;        // x = cos(innerAngle), y = cos(outerAngle), zw = 0
     };
 
     struct LightGridEntry
@@ -72,7 +74,7 @@ void Renderer3D::InitForwardPlus()
     HMN_CORE_ASSERT(s_Data, "Renderer3D::InitForwardPlus called before Init()");
 
     s_Data->SceneUBO           = UniformBuffer::Create(sizeof(SceneUBOData), 0);
-    s_Data->LightBuffer        = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPUPointLight));
+    s_Data->LightBuffer        = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPULight));
     s_Data->GlobalLightCounter = StorageBuffer::Create(sizeof(uint32_t));
 
     // LightIndexList and LightGrid are sized per-viewport in ResizeTileBuffers().
@@ -112,18 +114,25 @@ void Renderer3D::CullLights(const RenderFrame& frame)
 
     // Build GPU light list from RenderFrame
     const uint32_t lightCount =
-        static_cast<uint32_t>(std::min(frame.pointLights.size(), (size_t)MAX_LIGHTS));
+        static_cast<uint32_t>(std::min(frame.lights.size(), (size_t)MAX_LIGHTS));
 
-    std::vector<GPUPointLight> gpuLights;
+    std::vector<GPULight> gpuLights;
     gpuLights.reserve(lightCount);
     std::ranges::transform(
-        frame.pointLights | std::views::take(lightCount),
+        frame.lights | std::views::take(lightCount),
         std::back_inserter(gpuLights),
-        [](const PointLight& l) -> GPUPointLight {
-            return { { l.Position, l.Radius }, { l.Color, l.Intensity } };
+        [](const Light& l) -> GPULight {
+            float cosInner = glm::cos(glm::radians(l.InnerAngle));
+            float cosOuter = glm::cos(glm::radians(l.OuterAngle));
+            return {
+                { l.Position, l.Radius },
+                { l.Color, l.Intensity },
+                { l.Direction, static_cast<float>(l.Type) },
+                { cosInner, cosOuter, 0.f, 0.f }
+            };
         });
 
-    s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPUPointLight));
+    s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
 
     const uint32_t zero = 0u;
     s_Data->GlobalLightCounter->SetData(&zero, sizeof(uint32_t));
@@ -157,7 +166,7 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
     s_Scene->EnvMapIntensity = (envID != 0u) ? frame.envMapIntensity : 0.f;
     s_Scene->ETA             = frame.eta;
     s_Scene->FresnelPower    = frame.fresnelPower;
-    s_Scene->PointLights     = frame.pointLights;
+    s_Scene->Lights          = frame.lights;
     s_DrawCalls              = 0;
     s_Triangles              = 0;
 
@@ -181,7 +190,7 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
         s_Data->SceneUBO->SetData(&ubo, sizeof(ubo));
     }
 
-    if (s_Data->LightCullingShader && !frame.pointLights.empty())
+    if (s_Data->LightCullingShader && !frame.lights.empty())
         CullLights(frame);
 }
 
@@ -209,16 +218,16 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     shader->SetFloat("u_Roughness", mat.Roughness);
     shader->SetFloat("u_Metalness", mat.Metalness);
 
-    const int lightCount = (int)std::min(s_Scene->PointLights.size(), (size_t)MAX_POINT_LIGHTS_SKINNED);
+    const int lightCount = (int)std::min(s_Scene->Lights.size(), (size_t)MAX_POINT_LIGHTS_SKINNED);
     shader->SetInt("u_PointLightCount", lightCount);
     for (int i = 0; i < lightCount; i++)
     {
-        const auto& pl  = s_Scene->PointLights[i];
+        const auto& l   = s_Scene->Lights[i];
         const std::string idx = "[" + std::to_string(i) + "]";
-        shader->SetFloat3("u_PointLightPositions"  + idx, pl.Position);
-        shader->SetFloat3("u_PointLightColors"     + idx, pl.Color);
-        shader->SetFloat ("u_PointLightIntensities"+ idx, pl.Intensity);
-        shader->SetFloat ("u_PointLightRadii"      + idx, pl.Radius);
+        shader->SetFloat3("u_PointLightPositions"  + idx, l.Position);
+        shader->SetFloat3("u_PointLightColors"     + idx, l.Color);
+        shader->SetFloat ("u_PointLightIntensities"+ idx, l.Intensity);
+        shader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
     }
 
     mesh.Render(shader);
@@ -294,7 +303,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     }
 }
 
-void Renderer3D::DrawDebugPointLights(const std::vector<PointLight>& lights)
+void Renderer3D::DrawDebugLights(const std::vector<Light>& lights)
 {
     if (lights.empty() || !s_Data->DebugSphereShader) return;
 

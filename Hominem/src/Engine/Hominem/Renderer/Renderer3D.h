@@ -94,7 +94,7 @@ public:
     static uint32_t GetDrawCalls() { return s_DrawCalls; }
     static uint64_t GetTriangles() { return s_Triangles; }
 
-    static void DrawDebugPointLights(const std::vector<PointLight>& lights);
+    static void DrawDebugLights(const std::vector<Light>& lights);
     static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
     static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform);
     static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
@@ -114,7 +114,7 @@ private:
 
     struct SceneData
     {
-        std::vector<PointLight> PointLights;
+        std::vector<Light> Lights;
         uint32_t EnvMapID        = 0;
         float    EnvMapIntensity = 0.f;
         float    ETA             = 0.667f;

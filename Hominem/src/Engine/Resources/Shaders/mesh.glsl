@@ -75,9 +75,9 @@ uniform float     u_Metalness;
 #endif
 
 #ifdef FORWARD_PLUS
-    layout(std430, binding = 1) readonly buffer LightBuffer          { GPUPointLight  lights[];        };
-    layout(std430, binding = 2) readonly buffer LightIndexListBuffer { uint            lightIndexList[]; };
-    layout(std430, binding = 3) readonly buffer LightGridBuffer      { LightGridEntry  lightGrid[];     };
+    layout(std430, binding = 1) readonly buffer LightBuffer          { GPULight       lights[];         };
+    layout(std430, binding = 2) readonly buffer LightIndexListBuffer { uint           lightIndexList[];  };
+    layout(std430, binding = 3) readonly buffer LightGridBuffer      { LightGridEntry lightGrid[];       };
 #else
     #define MAX_POINT_LIGHTS 16
     uniform int   u_PointLightCount;
@@ -140,9 +140,21 @@ void main()
         float radius  = lights[idx].positionAndRadius.w;
         float falloff = clamp(1.0 - (dist / radius) * (dist / radius), 0.0, 1.0);
         falloff      *= falloff;
-        vec3 radiance = lights[idx].colorAndIntensity.xyz
-                      * lights[idx].colorAndIntensity.w
-                      * (falloff / max(dist * dist, 0.0001));
+        vec3  radiance = lights[idx].colorAndIntensity.xyz
+                       * lights[idx].colorAndIntensity.w
+                       * (falloff / max(dist * dist, 0.0001));
+
+        // Spotlight cone attenuation (type 1 = spot; point lights have cosOuter = -1 → factor = 1)
+        if (lights[idx].directionAndType.w > 0.5)
+        {
+            vec3  lightDir  = normalize(lights[idx].directionAndType.xyz);
+            float cosAngle  = dot(-normalize(Lp), lightDir);
+            float cosInner  = lights[idx].coneAngles.x;
+            float cosOuter  = lights[idx].coneAngles.y;
+            float coneFactor = smoothstep(cosOuter, cosInner, cosAngle);
+            radiance *= coneFactor;
+        }
+
         color += evalPBR(N, V, normalize(Lp), albedo, roughness, metalness, radiance);
     }
 #else

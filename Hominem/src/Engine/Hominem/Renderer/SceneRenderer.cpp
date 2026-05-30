@@ -105,8 +105,8 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
 
     Renderer3D::EndScene();
 
-    if (frame.debugPointLights && !frame.pointLights.empty())
-        Renderer3D::DrawDebugPointLights(frame.pointLights);
+    if (frame.debugLights && !frame.lights.empty())
+        Renderer3D::DrawDebugLights(frame.lights);
 
     hdr->Unbind();
 }

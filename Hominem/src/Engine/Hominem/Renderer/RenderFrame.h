@@ -50,12 +50,18 @@ namespace Hominem {
 		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
 	};
 
-	struct PointLight
+	enum class LightType : uint32_t { Point = 0, Spot = 1 };
+
+	struct Light
 	{
-		glm::vec3 Position  = { 0.f, 1.f, 0.f };
-		glm::vec3 Color     = { 1.f, 1.f, 1.f };
-		float     Intensity = 5.0f;
-		float     Radius    = 3.0f;   // world-space units — full falloff at this distance
+		glm::vec3 Position   = { 0.f, 1.f, 0.f };
+		glm::vec3 Color      = { 1.f, 1.f, 1.f };
+		glm::vec3 Direction  = { 0.f,-1.f, 0.f }; // Spot only
+		float     Intensity  = 5.0f;
+		float     Radius     = 3.0f;               // world-space range
+		float     InnerAngle = 25.f;               // Spot only, degrees
+		float     OuterAngle = 35.f;               // Spot only, degrees
+		LightType Type       = LightType::Point;
 	};
 
 	struct DirectionalLight
@@ -101,7 +107,7 @@ namespace Hominem {
 		uint32_t  viewportWidth  = 0;
 		uint32_t  viewportHeight = 0;
 
-		bool debugPointLights = false;
+		bool debugLights = false;
 
 		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by Renderer3D
 		Ref<TextureCube> envMap;
@@ -118,7 +124,7 @@ namespace Hominem {
 		std::vector<TextDraw>       texts;
 		std::vector<MeshDraw>       meshes;
 		std::vector<StaticMeshDraw> staticMeshes;
-		std::vector<PointLight>     pointLights;
+		std::vector<Light>          lights;
 
 		// Arena backing — set by RenderThread, not owned by this frame.
 		FrameArena* arena    = nullptr;
