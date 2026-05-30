@@ -6,6 +6,86 @@
 
 namespace Hominem {
 
+	// ---- OpenGLTextureCube ------------------------------------------------
+
+	OpenGLTextureCube::OpenGLTextureCube(uint32_t resolution)
+		: m_Resolution(resolution)
+	{
+		// No GL calls — CreateGL() must be called on the render thread before use.
+	}
+
+	OpenGLTextureCube::OpenGLTextureCube(const std::array<std::string, 6>& faces)
+	{
+		Ref self(this);
+		auto facesCopy = std::make_shared<std::array<std::string, 6>>(faces);
+
+		RenderThread::QueueUpload([self, facesCopy]() mutable {
+			glGenTextures(1, &self->m_RendererID);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, self->m_RendererID);
+
+			stbi_set_flip_vertically_on_load(0);
+			for (int i = 0; i < 6; i++)
+			{
+				int w, h, channels;
+				stbi_uc* data = stbi_load((*facesCopy)[i].c_str(), &w, &h, &channels, 0);
+				if (data)
+				{
+					GLenum fmt = (channels == 4) ? GL_RGBA : GL_RGB;
+					glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
+					stbi_image_free(data);
+					if (self->m_Resolution == 0) self->m_Resolution = (uint32_t)w;
+				}
+				else
+					HMN_CORE_WARN("OpenGLTextureCube: failed to load face {}: {}", i, (*facesCopy)[i]);
+			}
+			stbi_set_flip_vertically_on_load(1);
+
+			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+		});
+	}
+
+	OpenGLTextureCube::~OpenGLTextureCube()
+	{
+		if (!m_RendererID) return;
+		if (RenderThread::IsOnRenderThread())
+		{
+			glDeleteTextures(1, &m_RendererID);
+		}
+		else
+		{
+			uint32_t id = m_RendererID;
+			RenderThread::QueueUpload([id] { glDeleteTextures(1, &id); });
+		}
+	}
+
+	void OpenGLTextureCube::Bind(uint32_t slot) const
+	{
+		glBindTextureUnit(slot, m_RendererID);
+	}
+
+	void OpenGLTextureCube::CreateGL()
+	{
+		RenderThread::AssertRenderThread();
+		HMN_CORE_ASSERT(m_Resolution > 0, "OpenGLTextureCube: resolution not set before CreateGL");
+
+		glGenTextures(1, &m_RendererID);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, m_RendererID);
+		for (int i = 0; i < 6; i++)
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA16F,
+			             m_Resolution, m_Resolution, 0, GL_RGBA, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	}
+
 	// CPU-only — no GL. Caller must call SetData() before first Bind().
 	OpenGLTexture2D::OpenGLTexture2D(uint32_t width, uint32_t height, TextureFormat format)
 		: m_Width(width), m_Height(height)

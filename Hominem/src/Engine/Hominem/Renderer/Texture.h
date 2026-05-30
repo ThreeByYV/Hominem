@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hominem/Core/Core.h"
+#include <array>
 
 namespace Hominem {
 
@@ -28,12 +29,22 @@ namespace Hominem {
 		static void UnbindAll();
 	};
 
+	class TextureCube : public Texture
+	{
+	public:
+		static Ref<TextureCube> Create(const std::array<std::string, 6>& faces);
+		static Ref<TextureCube> CreateEmpty(uint32_t resolution);
+
+		virtual uint32_t GetRendererID() const = 0;
+	};
+
 	class Texture2D : public Texture
 	{
 	public:
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height);
 		static Ref<Texture2D> Create(uint32_t width, uint32_t height, TextureFormat format);
 		static Ref<Texture2D> Create(const std::string& path);
+
 		/// Decodes a compressed image (PNG/JPG) from a memory blob.
 		static Ref<Texture2D> CreateFromMemory(const uint8_t* data, uint32_t byteSize);
 

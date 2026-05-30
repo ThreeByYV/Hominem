@@ -3,8 +3,33 @@
 #include "Hominem/Renderer/Texture.h"
 #include <glad/glad.h>
 #include <vector>
+#include <array>
 
 namespace Hominem {
+
+	class OpenGLTextureCube : public TextureCube
+	{
+	public:
+		// Main thread: allocate object, no GL calls (ID stays 0 until CreateGL)
+		explicit OpenGLTextureCube(uint32_t resolution);
+		// Main thread: load 6 faces from disk, upload via QueueUpload
+		explicit OpenGLTextureCube(const std::array<std::string, 6>& faces);
+		~OpenGLTextureCube();
+
+		uint32_t GetWidth()      const override { return m_Resolution; }
+		uint32_t GetHeight()     const override { return m_Resolution; }
+		uint32_t GetRendererID() const override { return m_RendererID; }
+
+		void SetData(const void*, uint32_t) override {}
+		void Bind(uint32_t slot) const override;
+
+		// Render thread: allocates the GL cubemap texture (for the baked empty path)
+		void CreateGL();
+
+	private:
+		mutable uint32_t m_RendererID = 0;
+		uint32_t         m_Resolution = 0;
+	};
 
 	class OpenGLTexture2D : public Texture2D
 	{
