@@ -75,12 +75,17 @@ public:
 		scene.GetCameraPosition().x = m_InitCameraX;
 
 		scene.SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
+
+		scene.BakeEnvironment(glm::vec3(0.08405184f, 1.5f, 27.0f));
+
+		m_Scene = &scene;
 	}
 
 	void OnExit() override
 	{
 		m_Player  = nullptr;
 		m_Scene3D = nullptr;
+		m_Scene   = nullptr;
 	}
 
 	void OnUpdate(Hominem::Timestep ts) override
@@ -121,6 +126,7 @@ public:
 			RenderThread::QueueUpload([] {
 				Renderer2D::GetShaderLibrary()->ReloadAll();
 				Renderer3D::GetShaderLibrary()->ReloadAll();
+				Renderer3D::ReloadVariants();
 			});
 		}
 
@@ -129,6 +135,20 @@ public:
 
 	void OnImGuiRender() override
 	{
+		if (m_Scene)
+		{
+			ImGui::Separator();
+			ImGui::Text("Environment Map");
+			if (ImGui::Checkbox("Enable##envmap", &m_EnvMapEnabled))
+				m_Scene->SetEnvMapIntensity(m_EnvMapEnabled ? m_EnvMapIntensity : 0.f);
+			if (m_EnvMapEnabled)
+			{
+				if (ImGui::SliderFloat("Intensity##envmap", &m_EnvMapIntensity, 0.f, 1.f))
+					m_Scene->SetEnvMapIntensity(m_EnvMapIntensity);
+			}
+			ImGui::Separator();
+		}
+
 		ImGui::DragFloat("Camera Y Bias", &m_Camera.GetConfig().YBias, 0.01f);
 
 		if (m_Scene3D)
@@ -157,6 +177,18 @@ public:
 		}
 
 		if (m_Player) m_Player->OnImGuiRender();
+	}
+
+	PlayerDebugInfo GetPlayerDebugInfo() const override
+	{
+		if (!m_Player) return {};
+		PlayerDebugInfo info;
+		info.valid    = true;
+		info.position = m_Player->Position;
+		info.velocity = m_Player->GetVelocity();
+		info.speed    = glm::length(info.velocity);
+		info.isMoving = m_Player->IsMoving();
+		return info;
 	}
 
 	void OnEvent(Hominem::Event& e) override
@@ -209,4 +241,8 @@ private:
 	SideScrollerCamera m_Camera;
 	Player*            m_Player  = nullptr;
 	SceneActor*        m_Scene3D = nullptr;
+	Hominem::Scene*    m_Scene   = nullptr;
+
+	bool               m_EnvMapEnabled   = true;
+	float              m_EnvMapIntensity  = 1.f;
 };

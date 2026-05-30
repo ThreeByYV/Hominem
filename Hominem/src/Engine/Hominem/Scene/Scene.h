@@ -5,9 +5,11 @@
 #include "Hominem/Scene/SceneCamera.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Texture.h"
 
 #include <vector>
 #include <concepts>
+#include <memory>
 
 namespace Hominem {
 
@@ -60,6 +62,22 @@ namespace Hominem {
 		void               SetPhysicsWorld(Ref<PhysicsWorld> world) { m_PhysicsWorld = world; }
 		Ref<PhysicsWorld>  GetPhysicsWorld() const                  { return m_PhysicsWorld; }
 
+		// Request a runtime cubemap bake from capturePos (e.g. room center).
+		// Bake executes on the render thread during the first frame after this call.
+		// Reflections activate automatically once the bake completes.
+		void BakeEnvironment(const glm::vec3& capturePos,
+		                     float intensity   = 1.f,
+		                     float eta         = 0.667f,
+		                     uint32_t resolution = 512);
+
+		// Assign a pre-loaded cubemap (e.g. TextureCube::Create from 6 files).
+		void SetEnvMap(Ref<TextureCube> map,
+		               float intensity   = 1.f,
+		               float eta         = 0.667f,
+		               float fresnelPower = 5.f);
+
+		void SetEnvMapIntensity(float intensity) { m_EnvMapIntensity = intensity; }
+
 	private:
 		std::vector<Scope<Actor>> m_Actors;
 
@@ -71,6 +89,16 @@ namespace Hominem {
 
 		Ref<PhysicsWorld> m_PhysicsWorld;
 		glm::mat4         m_WorldTransform{ 1.f };
+
+		// Env map state
+		bool                         m_BakeEnvPending  = false;
+		glm::vec3                    m_BakeCapPos;
+		uint32_t                     m_BakeResolution  = 512;
+		std::shared_ptr<BakedEnvMap> m_BakedEnvMap;      // result from runtime bake
+		Ref<TextureCube>             m_ExplicitEnvMap;   // assigned via SetEnvMap
+		float                        m_EnvMapIntensity  = 1.f;
+		float                        m_ETA              = 0.667f;
+		float                        m_FresnelPower     = 5.f;
 	};
 
 }
