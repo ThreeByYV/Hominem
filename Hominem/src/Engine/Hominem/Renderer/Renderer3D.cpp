@@ -29,6 +29,8 @@ namespace {
     float                  Renderer3D::s_NormalLength = 0.1f;
     bool                   Renderer3D::s_DrawAABB     = false;
     bool                   Renderer3D::s_DebugHeatmap = false;
+    uint32_t               Renderer3D::s_DrawCalls    = 0;
+    uint64_t               Renderer3D::s_Triangles    = 0;
 
 void Renderer3D::Init()
 {
@@ -37,21 +39,15 @@ void Renderer3D::Init()
 
     s_Data->ShaderLibrary = CreateRef<ShaderLibrary>();
 
-    s_Data->ShaderLibrary->Load("Resources/Shaders/basic.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/fog.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/skinning.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/normals_debug_skinned.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/debug_aabb.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/debug_sphere.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/composite.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_threshold.glsl");
-    s_Data->ShaderLibrary->Load("Resources/Shaders/bloom_blur.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/fog.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/debug_aabb.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/debug_sphere.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/composite.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/bloom_threshold.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/bloom_blur.glsl");
 
-    s_Data->DefaultShader        = s_Data->ShaderLibrary->Get("basic");
-    s_Data->SkinnedMeshShader    = s_Data->ShaderLibrary->Get("skinning");
-    s_Data->NormalsShader        = s_Data->ShaderLibrary->Get("normals_debug");
-    s_Data->NormalsSkinnedShader = s_Data->ShaderLibrary->Get("normals_debug_skinned");
+    s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
+    s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
     s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
     s_Data->DebugSphereShader    = s_Data->ShaderLibrary->Get("debug_sphere");
 
@@ -75,15 +71,17 @@ void Renderer3D::InitForwardPlus()
 {
     HMN_CORE_ASSERT(s_Data, "Renderer3D::InitForwardPlus called before Init()");
 
+    s_Data->SceneUBO           = UniformBuffer::Create(sizeof(SceneUBOData), 0);
     s_Data->LightBuffer        = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPUPointLight));
     s_Data->GlobalLightCounter = StorageBuffer::Create(sizeof(uint32_t));
 
     // LightIndexList and LightGrid are sized per-viewport in ResizeTileBuffers().
 
-    s_Data->LightCullingShader = ComputeShader::Create("Resources/Shaders/light_culling.comp");
+    s_Data->LightCullingShader = ComputeShader::Create("engine://Shaders/light_culling.comp");
 
-    s_Data->ShaderLibrary->Load("Resources/Shaders/forward_plus.glsl");
-    s_Data->StaticMeshShader = s_Data->ShaderLibrary->Get("forward_plus");
+    s_Data->MeshVariants = ShaderPermutationSet::Create(
+        "engine://Shaders/mesh.glsl",
+        k_MeshPerms, std::size(k_MeshPerms));
 
     HMN_CORE_INFO("Renderer3D: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
                   MAX_LIGHTS, TILE_SIZE);
@@ -154,12 +152,34 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
 {
     HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
 
-    s_Scene->ViewProjection = frame.viewProjection3D;
-    s_Scene->CameraWorldPos = frame.cameraWorldPos;
-    s_Scene->Light          = frame.light;
-    s_Scene->ViewportWidth  = frame.viewportWidth;
-    s_Scene->BoundShader    = nullptr;
-    s_Scene->PointLights    = frame.pointLights;
+    const uint32_t envID     = frame.envMap ? frame.envMap->GetRendererID() : 0u;
+    s_Scene->EnvMapID        = envID;
+    s_Scene->EnvMapIntensity = (envID != 0u) ? frame.envMapIntensity : 0.f;
+    s_Scene->ETA             = frame.eta;
+    s_Scene->FresnelPower    = frame.fresnelPower;
+    s_Scene->PointLights     = frame.pointLights;
+    s_DrawCalls              = 0;
+    s_Triangles              = 0;
+
+    // Upload all scene-wide data once — every shader reads it from binding 0
+    if (s_Data->SceneUBO)
+    {
+        SceneUBOData ubo;
+        ubo.ViewProjection   = frame.viewProjection3D;
+        ubo.CameraWorldPos   = glm::vec4(frame.cameraWorldPos, 0.f);
+        ubo.LightDirection   = glm::vec4(frame.light.Direction, 0.f);
+        ubo.LightColor       = glm::vec4(frame.light.Color, 0.f);
+        ubo.AmbientColor     = glm::vec4(frame.light.AmbientColor, 0.f);
+        ubo.AmbientIntensity = frame.light.AmbientIntensity;
+        ubo.DiffuseIntensity = frame.light.DiffuseIntensity;
+        ubo.EnvMapIntensity  = s_Scene->EnvMapIntensity;
+        ubo.ETA              = s_Scene->ETA;
+        ubo.FresnelPower     = s_Scene->FresnelPower;
+        ubo.ScreenWidth      = frame.viewportWidth;
+        ubo.DebugMode        = s_DebugHeatmap ? 1 : 0;
+        ubo._pad             = 0.f;
+        s_Data->SceneUBO->SetData(&ubo, sizeof(ubo));
+    }
 
     if (s_Data->LightCullingShader && !frame.pointLights.empty())
         CullLights(frame);
@@ -173,19 +193,18 @@ void Renderer3D::EndScene()
 
 void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 {
-    Ref<Shader> shader = SelectShader(mesh.GetShader(), s_Data->OverrideShader, s_Data->SkinnedMeshShader);
-    HMN_CORE_ASSERT(shader, "Renderer3D has no shader for skinned mesh");
+    Ref<Shader> shader = s_Data->OverrideShader;
+    if (!shader)
+    {
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded");
+        uint32_t perm = ResolvePermutation(ShaderPerm_Skinned, k_MeshPerms, std::size(k_MeshPerms));
+        shader = s_Data->MeshVariants->GetVariant(perm);
+    }
+    HMN_CORE_ASSERT(shader, "Renderer3D: no shader for skinned mesh");
 
-    const DirectionalLight& l = s_Scene->Light;
     shader->Bind();
-    shader->SetMat4("u_ViewProjection",    s_Scene->ViewProjection);
-    shader->SetMat4("u_Model",             transform);
-    shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
-    shader->SetFloat3("u_LightDirection",  l.Direction);
-    shader->SetFloat3("u_LightColor",      l.Color);
-    shader->SetFloat3("u_AmbientColor",    l.AmbientColor);
-    shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
-    shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
+    shader->SetInt("u_Albedo", 0);
+    shader->SetMat4("u_Model", transform);
     const Material& mat = mesh.GetMaterial();
     shader->SetFloat("u_Roughness", mat.Roughness);
     shader->SetFloat("u_Metalness", mat.Metalness);
@@ -207,49 +226,46 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     if (s_DrawNormals && s_Data->NormalsSkinnedShader)
     {
         s_Data->NormalsSkinnedShader->Bind();
-        s_Data->NormalsSkinnedShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
         s_Data->NormalsSkinnedShader->SetMat4("u_Model", transform);
         s_Data->NormalsSkinnedShader->SetFloat("u_NormalLength", s_NormalLength);
-        s_Data->NormalsSkinnedShader->SetFloat3("u_CameraWorldPos", s_Scene->CameraWorldPos);
         mesh.Render(s_Data->NormalsSkinnedShader);
     }
 }
 
 void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 {
-    auto shader = s_Data->OverrideShader ? s_Data->OverrideShader : s_Data->StaticMeshShader;
-    HMN_CORE_ASSERT(shader, "Renderer3D: Forward+ shader not loaded — was InitForwardPlus() called?");
-
-    // Re-upload scene-wide uniforms only when the shader changes.
-    if (shader.get() != s_Scene->BoundShader)
+    Ref<Shader> shader;
+    if (s_Data->OverrideShader)
     {
-        const DirectionalLight& l = s_Scene->Light;
-        shader->Bind();
-        shader->SetMat4("u_ViewProjection",    s_Scene->ViewProjection);
-        shader->SetFloat3("u_CameraWorldPos",  s_Scene->CameraWorldPos);
-        shader->SetFloat3("u_LightDirection",  l.Direction);
-        shader->SetFloat3("u_LightColor",      l.Color);
-        shader->SetFloat3("u_AmbientColor",    l.AmbientColor);
-        shader->SetFloat("u_AmbientIntensity", l.AmbientIntensity);
-        shader->SetFloat("u_DiffuseIntensity", l.DiffuseIntensity);
-        // u_ScreenWidth lets the fragment shader derive its tile index from gl_FragCoord.
-        shader->SetInt("u_ScreenWidth",  (int)s_Scene->ViewportWidth);
-        shader->SetInt("u_DebugMode",    s_DebugHeatmap ? 1 : 0);
-        s_Scene->BoundShader = shader.get();
+        shader = s_Data->OverrideShader;
     }
+    else
+    {
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded — was InitForwardPlus() called?");
+        uint32_t perm = mesh.GetPermutationFlags();  // includes ShaderPerm_ForwardPlus
+        if (s_Scene->EnvMapID != 0u) perm |= ShaderPerm_HasEnvMap;
+        perm   = ResolvePermutation(perm, k_MeshPerms, std::size(k_MeshPerms));
+        shader = s_Data->MeshVariants->GetVariant(perm);
+    }
+    HMN_CORE_ASSERT(shader, "Renderer3D::DrawStaticMesh: no shader variant available");
+
+    shader->Bind();
+
+    if (s_Scene->EnvMapID != 0u)
+        RenderCommand::BindTexture(3, s_Scene->EnvMapID);
 
     const Material& mat = mesh.GetMaterial();
     shader->SetFloat("u_Roughness", mat.Roughness);
     shader->SetFloat("u_Metalness", mat.Metalness);
 
     mesh.Draw(shader, transform);
+    s_DrawCalls += (uint32_t)mesh.GetDrawGroupCount();
+    s_Triangles += mesh.GetTriangleCount();
 
     if (s_DrawNormals && s_Data->NormalsShader)
     {
         s_Data->NormalsShader->Bind();
-        s_Data->NormalsShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
         s_Data->NormalsShader->SetFloat("u_NormalLength", s_NormalLength);
-        s_Data->NormalsShader->SetFloat3("u_CameraWorldPos", s_Scene->CameraWorldPos);
         mesh.Draw(s_Data->NormalsShader, transform);
     }
 
@@ -269,7 +285,6 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
         };
         s_Data->DebugVBO->SetData(corners, sizeof(corners));
         s_Data->DebugAABBShader->Bind();
-        s_Data->DebugAABBShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
         s_Data->DebugAABBShader->SetFloat4("u_Color", glm::vec4(1.f, 0.f, 0.f, 1.f));
         s_Data->DebugVAO->Bind();
         RenderCommand::SetDepthTestEnabled(false);
@@ -284,7 +299,6 @@ void Renderer3D::DrawDebugPointLights(const std::vector<PointLight>& lights)
     if (lights.empty() || !s_Data->DebugSphereShader) return;
 
     s_Data->DebugSphereShader->Bind();
-    s_Data->DebugSphereShader->SetMat4("u_ViewProjection", s_Scene->ViewProjection);
     s_Data->DebugSphereShader->SetFloat("u_TessLevel", 16.f);
     s_Data->DebugVAO->Bind();
 
