@@ -7,6 +7,24 @@
 
 namespace Hominem {
 
+	Ref<TextureCube> TextureCube::Create(const std::array<std::string, 6>& faces)
+	{
+		switch (Renderer::GetAPI())
+		{
+			case RendererAPI::API::OpenGL: return CreateRef<OpenGLTextureCube>(faces);
+			default: HMN_CORE_ASSERT(false, "Unknown RendererAPI!"); return nullptr;
+		}
+	}
+
+	Ref<TextureCube> TextureCube::CreateEmpty(uint32_t resolution)
+	{
+		switch (Renderer::GetAPI())
+		{
+			case RendererAPI::API::OpenGL: return CreateRef<OpenGLTextureCube>(resolution);
+			default: HMN_CORE_ASSERT(false, "Unknown RendererAPI!"); return nullptr;
+		}
+	}
+
 	Ref<Texture2D> Texture2D::Create(uint32_t width, uint32_t height)
 	{
 		switch (Renderer::GetAPI())
