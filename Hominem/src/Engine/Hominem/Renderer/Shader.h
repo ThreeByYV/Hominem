@@ -31,6 +31,8 @@ namespace Hominem {
 		static Ref<Shader> Create(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc);
 		static Ref<Shader> Create(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath);
 		static Ref<Shader> Create(const std::string& filepath);
+		// Compile with extra #define flags injected after each #version line.
+		static Ref<Shader> Create(const std::string& filepath, const std::vector<std::string>& defines);
 
 		static void UnbindAll();
 	};
