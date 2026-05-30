@@ -13,7 +13,17 @@ namespace Hominem {
 			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
 			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(filepath);
 		}
+		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+		return nullptr;
+	}
 
+	Ref<Shader> Shader::Create(const std::string& filepath, const std::vector<std::string>& defines)
+	{
+		switch (Renderer::GetAPI())
+		{
+			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
+			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(filepath, defines);
+		}
 		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
 		return nullptr;
 	}

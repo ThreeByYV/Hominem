@@ -17,6 +17,15 @@ namespace Hominem {
 		static Ref<StorageBuffer> Create(uint32_t capacity);
 	};
 
+	class UniformBuffer : public RefCounted
+	{
+	public:
+		virtual ~UniformBuffer() = default;
+		virtual void SetData(const void* data, uint32_t size, uint32_t offset = 0) = 0;
+		// binding = layout(std140, binding = N) in the shader
+		static Ref<UniformBuffer> Create(uint32_t size, uint32_t binding);
+	};
+
 	// GPU-side draw-indirect buffer (GL_DRAW_INDIRECT_BUFFER).
 	class DrawIndirectBuffer : public RefCounted
 	{

@@ -4,6 +4,7 @@
 #include <glad/glad.h>
 #include <glm/gtc/type_ptr.hpp>
 #include "Hominem/Utils/FileUtils.h"
+#include "Hominem/Core/VFS.h"
 
 namespace Hominem {
 
@@ -32,10 +33,100 @@ namespace Hominem {
 		Compile(sources);
 	}
 
+	std::string OpenGLShader::InjectDefines(const std::string& sectionSrc,
+	                                          const std::vector<std::string>& defines)
+	{
+		if (defines.empty()) return sectionSrc;
+
+		// Find end of the #version line and insert defines right after it
+		size_t versionEnd = sectionSrc.find('\n');
+		if (versionEnd == std::string::npos) return sectionSrc;
+
+		std::string preamble;
+		for (const auto& def : defines)
+			preamble += "#define " + def + "\n";
+
+		return sectionSrc.substr(0, versionEnd + 1)
+		     + preamble
+		     + sectionSrc.substr(versionEnd + 1);
+	}
+
+	std::string OpenGLShader::ResolveIncludes(const std::string& source,
+	                                            const std::string& shaderDir,
+	                                            int                sourceId,
+	                                            int&               nextId,
+	                                            std::unordered_map<int, std::string>& sourceMap)
+	{
+		std::string result = source;
+		const std::string token = "#include";
+		size_t pos = 0;
+
+		while ((pos = result.find(token, pos)) != std::string::npos)
+		{
+			size_t q1 = result.find('"', pos);
+			size_t q2 = result.find('"', q1 + 1);
+			if (q1 == std::string::npos || q2 == std::string::npos) break;
+
+			// Count lines up to this include so we can resume the parent's line counter after
+			int resumeLine = 1 + (int)std::count(result.begin(), result.begin() + pos, '\n');
+
+			std::string includePath = shaderDir + "/" + result.substr(q1 + 1, q2 - q1 - 1);
+			int fileId = nextId++;
+			sourceMap[fileId] = includePath;
+
+			std::string content = ReadTextFile(includePath);
+			content = ResolveIncludes(content, shaderDir, fileId, nextId, sourceMap);
+
+			// Wrap with #line so GLSL error messages show file:line instead of expanded-blob line
+			std::string wrapped =
+			    "\n#line 1 " + std::to_string(fileId) + "\n" +
+			    content +
+			    "\n#line " + std::to_string(resumeLine + 1) + " " + std::to_string(sourceId) + "\n";
+
+			size_t lineEnd = result.find('\n', pos);
+			result.replace(pos, (lineEnd == std::string::npos ? result.size() : lineEnd) - pos, wrapped);
+			pos += wrapped.size();
+		}
+
+		return result;
+	}
+
+	OpenGLShader::OpenGLShader(const std::string& filepath,
+	                            const std::vector<std::string>& defines)
+		: m_Defines(defines)
+	{
+		std::string resolved = VFS::Resolve(filepath);
+		std::string source   = ReadTextFile(resolved);
+		std::string dir      = std::filesystem::path(resolved).parent_path().string();
+		m_SourceMap.clear();
+		m_SourceMap[0]     = resolved;
+		int nextId         = 1;
+		source             = ResolveIncludes(source, dir, 0, nextId, m_SourceMap);
+		auto sections      = PreProcess(source);
+		for (auto& [type, src] : sections)
+			src = InjectDefines(src, defines);
+		Compile(sections);
+
+		m_Filepath     = filepath;
+		m_IsSingleFile = true;
+
+		auto lastSlash = filepath.find_last_of("/\\");
+		lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1;
+		auto lastDot = filepath.rfind('.');
+		auto count   = lastDot == std::string::npos ? filepath.size() - lastSlash : lastDot - lastSlash;
+		m_Name = filepath.substr(lastSlash, count);
+	}
+
 	OpenGLShader::OpenGLShader(const std::string& filepath)
 	{
-		std::string source = ReadTextFile(filepath);
-		auto shaderSources = PreProcess(source);
+		std::string resolved = VFS::Resolve(filepath);
+		std::string source   = ReadTextFile(resolved);
+		std::string dir      = std::filesystem::path(resolved).parent_path().string();
+		m_SourceMap.clear();
+		m_SourceMap[0]      = resolved;
+		int nextId          = 1;
+		source              = ResolveIncludes(source, dir, 0, nextId, m_SourceMap);
+		auto shaderSources  = PreProcess(source);
 		Compile(shaderSources);
 
 		// Store filepath so we can reload later
@@ -143,7 +234,25 @@ namespace Hominem {
 
 				glDeleteShader(shader);
 
-				HMN_CORE_ERROR("{0}", infoLog.data());
+				// Replace numeric source IDs with filenames so errors read:
+				// "ERROR: pbr.glsl:15" instead of "ERROR: 2:15"
+				std::string log = infoLog.data();
+				for (const auto& [id, path] : m_SourceMap)
+				{
+					std::string idStr  = std::to_string(id);
+					std::string name   = std::filesystem::path(path).filename().string();
+					// Replace both "id:line" (AMD/Intel) and "id(line)" (NVIDIA) patterns
+					for (const std::string prefix : { idStr + ":", idStr + "(" })
+					{
+						size_t p = 0;
+						while ((p = log.find(prefix, p)) != std::string::npos)
+						{
+							log.replace(p, idStr.size(), name);
+							p += name.size();
+						}
+					}
+				}
+				HMN_CORE_ERROR("Shader compile error in '{}':\n{}", m_Name, log);
 				HMN_CORE_ASSERT(false, "Shader compilation failure!");
 				break;
 			}
@@ -184,6 +293,12 @@ namespace Hominem {
 		// Always detach shaders after a successful link.
 		for (auto id : glShaderIDs)
 			if (id) glDetachShader(program, id);
+
+		// Explicitly bind the SceneUBO block to point 0.
+		// layout(binding=N) is GL 4.2+ but some drivers ignore it without this call.
+		GLuint sceneUBOIndex = glGetUniformBlockIndex(program, "SceneUBO");
+		if (sceneUBOIndex != GL_INVALID_INDEX)
+			glUniformBlockBinding(program, sceneUBOIndex, 0);
 	}
 	
 	void OpenGLShader::Bind() const
@@ -206,16 +321,22 @@ namespace Hominem {
 
 		HMN_CORE_INFO("Reloading shader from file: {0}", m_Filepath);
 
-		// Read file again
-		std::string source = ReadTextFile(m_Filepath);
-		
+		std::string source = ReadTextFile(VFS::Resolve(m_Filepath));
 		if (source.empty())
 		{
 			HMN_CORE_ERROR("Failed to read shader file during reload: {0}", m_Filepath);
 			return;
 		}
 
+		std::string resolved = VFS::Resolve(m_Filepath);
+		std::string dir      = std::filesystem::path(resolved).parent_path().string();
+		m_SourceMap.clear();
+		m_SourceMap[0]       = resolved;
+		int nextId         = 1;
+		source             = ResolveIncludes(source, dir, 0, nextId, m_SourceMap);
 		auto shaderSources = PreProcess(source);
+		for (auto& [type, src] : shaderSources)
+			src = InjectDefines(src, m_Defines);
 
 		uint32_t oldProgram = m_RendererID;
 
@@ -334,7 +455,7 @@ namespace Hominem {
 		auto count = (lastDot == std::string::npos) ? filepath.size() - start : lastDot - start;
 		m_Name = filepath.substr(start, count);
 
-		std::string src = FileUtils::ReadTextFile(filepath);
+		std::string src = FileUtils::ReadTextFile(VFS::Resolve(filepath));
 		if (src.empty()) return;
 
 		const char* cstr = src.c_str();
