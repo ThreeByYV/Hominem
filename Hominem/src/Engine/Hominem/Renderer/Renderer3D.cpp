@@ -116,6 +116,7 @@ void Renderer3D::CullLights(const RenderFrame& frame)
     const uint32_t lightCount =
         static_cast<uint32_t>(std::min(frame.lights.size(), (size_t)MAX_LIGHTS));
 
+    // Pack CPU Light structs into GPU-ready GPULight vec4s for the SSBO.
     std::vector<GPULight> gpuLights;
     gpuLights.reserve(lightCount);
     std::ranges::transform(
@@ -175,6 +176,8 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
     {
         SceneUBOData ubo;
         ubo.ViewProjection   = frame.viewProjection3D;
+        ubo.View             = frame.view3D;
+        ubo.InvProjection    = glm::inverse(frame.proj3D);
         ubo.CameraWorldPos   = glm::vec4(frame.cameraWorldPos, 0.f);
         ubo.LightDirection   = glm::vec4(frame.light.Direction, 0.f);
         ubo.LightColor       = glm::vec4(frame.light.Color, 0.f);
@@ -231,6 +234,8 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     }
 
     mesh.Render(shader);
+    s_DrawCalls += mesh.GetSubmeshCount();
+    s_Triangles += mesh.GetIndexCount() / 3;
 
     if (s_DrawNormals && s_Data->NormalsSkinnedShader)
     {
