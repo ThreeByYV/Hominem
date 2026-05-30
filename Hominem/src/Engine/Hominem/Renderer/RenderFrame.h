@@ -3,6 +3,8 @@
 #include <vector>
 #include <span>
 #include <string>
+#include <memory>
+#include <atomic>
 #include <glm/glm.hpp>
 
 #include "Hominem/Renderer/Texture.h"
@@ -13,6 +15,12 @@
 #include "Hominem/Renderer/FrameArena.h"
 
 namespace Hominem {
+
+	struct BakedEnvMap
+	{
+		std::atomic<bool> ready { false };
+		Ref<TextureCube>  map;
+	};
 
 	struct QuadDraw
 	{
@@ -95,6 +103,17 @@ namespace Hominem {
 
 		bool debugPointLights = false;
 
+		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by Renderer3D
+		Ref<TextureCube> envMap;
+		float            envMapIntensity = 0.f;
+		float            eta             = 0.667f;
+		float            fresnelPower    = 5.f;
+
+		bool                           bakeEnvMap    = false;
+		glm::vec3                      bakeCapPos    = {};
+		uint32_t                       bakeResolution = 512;
+		std::shared_ptr<BakedEnvMap>   bakedEnvMapOut;  // render thread writes result here
+
 		std::vector<QuadDraw>       quads;
 		std::vector<TextDraw>       texts;
 		std::vector<MeshDraw>       meshes;
@@ -109,7 +128,7 @@ namespace Hominem {
 		std::span<glm::mat4> AllocBones(size_t count)
 		{
 			if (!arena || count == 0) return {};
-			glm::mat4* ptr = arena->Alloc<glm::mat4>(count);
+			auto* ptr = arena->Alloc<glm::mat4>(count);
 			return { ptr, count };
 		}
 	};

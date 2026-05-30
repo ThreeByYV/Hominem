@@ -16,6 +16,25 @@ namespace Hominem {
 			actor->OnUpdate(ts);
 	}
 
+	void Scene::BakeEnvironment(const glm::vec3& capturePos, float intensity,
+	                             float eta, uint32_t resolution)
+	{
+		m_BakeCapPos      = capturePos;
+		m_BakeResolution  = resolution;
+		m_EnvMapIntensity = intensity;
+		m_ETA             = eta;
+		m_BakedEnvMap     = std::make_shared<BakedEnvMap>();
+		m_BakeEnvPending  = true;
+	}
+
+	void Scene::SetEnvMap(Ref<TextureCube> map, float intensity, float eta, float fresnelPower)
+	{
+		m_ExplicitEnvMap  = std::move(map);
+		m_EnvMapIntensity = intensity;
+		m_ETA             = eta;
+		m_FresnelPower    = fresnelPower;
+	}
+
 	void Scene::BuildRenderFrame(RenderFrame& frame)
 	{
 		frame.viewportWidth  = m_ViewportWidth;
@@ -44,6 +63,31 @@ namespace Hominem {
 			[](const StaticMeshDraw& a, const StaticMeshDraw& b) {
 				return a.sortKey < b.sortKey;
 			});
+
+		// Env map — pass bake request on the frame it was requested, then track the result.
+		if (m_BakeEnvPending)
+		{
+			frame.bakeEnvMap     = true;
+			frame.bakeCapPos     = m_BakeCapPos;
+			frame.bakeResolution = m_BakeResolution;
+			frame.bakedEnvMapOut = m_BakedEnvMap;
+			m_BakeEnvPending     = false;
+		}
+
+		// Pick the active env map: baked result takes priority over explicit assignment.
+		Ref<TextureCube> activeMap;
+		if (m_BakedEnvMap && m_BakedEnvMap->ready.load(std::memory_order_acquire))
+			activeMap = m_BakedEnvMap->map;
+		else if (m_ExplicitEnvMap)
+			activeMap = m_ExplicitEnvMap;
+
+		if (activeMap)
+		{
+			frame.envMap          = activeMap;
+			frame.envMapIntensity = m_EnvMapIntensity;
+			frame.eta             = m_ETA;
+			frame.fresnelPower    = m_FresnelPower;
+		}
 	}
 
 	void Scene::OnViewportResize(uint32_t width, uint32_t height)
