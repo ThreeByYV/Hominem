@@ -64,7 +64,7 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
         faceFrame.proj3D           = proj;
         faceFrame.cameraWorldPos   = capturePos;
         faceFrame.light            = sceneFrame.light;
-        faceFrame.pointLights      = sceneFrame.pointLights;  // needed for accurate bake lighting
+        faceFrame.lights           = sceneFrame.lights;  // needed for accurate bake lighting
         faceFrame.viewportWidth    = resolution;
         faceFrame.viewportHeight   = resolution;
         faceFrame.envMapIntensity  = 0.f;    // no recursion

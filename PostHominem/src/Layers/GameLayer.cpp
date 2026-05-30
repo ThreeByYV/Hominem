@@ -27,25 +27,27 @@ void GameLayer::OnAttach()
 	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
 	m_GameMode->OnEnter(*m_ActiveScene);
 
-	// Load point lights from config
 	WorldConfig cfg;
 	if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
 	{
-		m_PointLights.clear();
-		for (const auto& pl : cfg.PointLights)
+		m_Lights.clear();
+		for (const auto& lc : cfg.Lights)
 		{
-			PointLight light;
-			light.Position  = pl.Position;
-			light.Color     = pl.Color;
-			light.Intensity = pl.Intensity;
-			light.Radius    = pl.Radius;
-			m_PointLights.push_back(light);
+			Light l;
+			l.Position   = lc.Position;
+			l.Color      = lc.Color;
+			l.Direction  = lc.Direction;
+			l.Intensity  = lc.Intensity;
+			l.Radius     = lc.Radius;
+			l.InnerAngle = lc.InnerAngle;
+			l.OuterAngle = lc.OuterAngle;
+			l.Type       = static_cast<LightType>(lc.Type);
+			m_Lights.push_back(l);
 		}
 	}
 
 	auto& audio = Application::Get().GetAudioSystem();
 	audio.LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
-
 }
 
 void GameLayer::OnDetach()
@@ -69,8 +71,8 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
 	frame.clearColor         = { 0.1f, 0.1f, 0.1f, 1.f };
 	frame.light              = m_Light;
-	frame.pointLights        = m_PointLights;
-	frame.debugPointLights   = m_DebugPointLights;
+	frame.lights             = m_Lights;
+	frame.debugLights        = m_DebugLights;
 	frame.bloomEnabled       = m_BloomEnabled;
 	frame.toneMappingEnabled = m_ToneMappingEnabled;
 	frame.bloomStrength      = m_BloomStrength;
@@ -121,54 +123,76 @@ void GameLayer::OnImGuiRender()
 		ImGui::ColorEdit3("Light Color",    &m_Light.Color.x);
 		ImGui::SliderFloat3("Direction",    &m_Light.Direction.x, -1.f, 1.f);
 	}
-	if (ImGui::CollapsingHeader("Point Lights"))
+	if (ImGui::CollapsingHeader("Lights"))
 	{
-		ImGui::Text("%d light(s)", (int)m_PointLights.size());
+		ImGui::Text("%d light(s)", (int)m_Lights.size());
 		ImGui::SameLine();
-		if (ImGui::SmallButton("Add"))
+		if (ImGui::SmallButton("Add Point"))
 		{
-			PointLight l;
+			Light l;
 			l.Position = { 0.f, 1.f, 0.f };
 			l.Color    = { 1.f, 0.9f, 0.7f };
-			m_PointLights.push_back(l);
-			m_SelectedLight = (int)m_PointLights.size() - 1;
+			l.Type     = LightType::Point;
+			m_Lights.push_back(l);
+			m_SelectedLight = (int)m_Lights.size() - 1;
+		}
+		ImGui::SameLine();
+		if (ImGui::SmallButton("Add Spot"))
+		{
+			Light l;
+			l.Position = { 0.f, 2.f, 0.f };
+			l.Color    = { 1.f, 0.9f, 0.7f };
+			l.Type     = LightType::Spot;
+			m_Lights.push_back(l);
+			m_SelectedLight = (int)m_Lights.size() - 1;
 		}
 		ImGui::SameLine();
 		if (ImGui::SmallButton("Save"))
 		{
 			WorldConfig cfg;
 			WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
-			cfg.PointLights.clear();
-			for (const auto& pl : m_PointLights)
+			cfg.Lights.clear();
+			for (const auto& l : m_Lights)
 			{
-				PointLightConfig plc;
-				plc.Position  = pl.Position;
-				plc.Color     = pl.Color;
-				plc.Intensity = pl.Intensity;
-				plc.Radius    = pl.Radius;
-				cfg.PointLights.push_back(plc);
+				LightConfig lc;
+				lc.Position   = l.Position;
+				lc.Color      = l.Color;
+				lc.Direction  = l.Direction;
+				lc.Intensity  = l.Intensity;
+				lc.Radius     = l.Radius;
+				lc.InnerAngle = l.InnerAngle;
+				lc.OuterAngle = l.OuterAngle;
+				lc.Type       = static_cast<uint32_t>(l.Type);
+				cfg.Lights.push_back(lc);
 			}
 			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
 		}
 
-		for (int i = 0; i < (int)m_PointLights.size(); i++)
+		for (int i = 0; i < (int)m_Lights.size(); i++)
 		{
 			ImGui::PushID(i);
-			auto& pl = m_PointLights[i];
+			auto& l = m_Lights[i];
 			char label[32];
-			snprintf(label, sizeof(label), "Light %d", i);
+			snprintf(label, sizeof(label), "%s %d",
+			         l.Type == LightType::Spot ? "Spot" : "Point", i);
 			bool selected = (m_SelectedLight == i);
 			if (ImGui::Selectable(label, selected))
 				m_SelectedLight = i;
 			if (m_SelectedLight == i)
 			{
-				ImGui::DragFloat3("Position",  &pl.Position.x,  0.05f);
-				ImGui::ColorEdit3("Color",     &pl.Color.x);
-				ImGui::DragFloat("Intensity",  &pl.Intensity,   0.1f, 0.f, 100.f);
-				ImGui::DragFloat("Radius",     &pl.Radius,      0.1f, 0.1f, 50.f);
+				ImGui::DragFloat3("Position",  &l.Position.x, 0.05f);
+				ImGui::ColorEdit3("Color",     &l.Color.x);
+				ImGui::DragFloat("Intensity",  &l.Intensity,  0.1f, 0.f, 100.f);
+				ImGui::DragFloat("Radius",     &l.Radius,     0.1f, 0.1f, 50.f);
+				if (l.Type == LightType::Spot)
+				{
+					ImGui::DragFloat3("Direction",   &l.Direction.x,  0.01f, -1.f, 1.f);
+					ImGui::DragFloat("Inner Angle",  &l.InnerAngle,   0.5f,  0.f, 89.f);
+					ImGui::DragFloat("Outer Angle",  &l.OuterAngle,   0.5f,  0.f, 89.f);
+				}
 				if (ImGui::SmallButton("Remove"))
 				{
-					m_PointLights.erase(m_PointLights.begin() + i);
+					m_Lights.erase(m_Lights.begin() + i);
 					m_SelectedLight = -1;
 					ImGui::PopID();
 					break;
@@ -211,14 +235,12 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (e.GetRepeatCount() > 0)
 		return false;
 
-	// TAB always toggles debug UI regardless of ImGui focus
 	if (e.GetKeyCode() == HMN_KEY_TAB)
 	{
 		m_ShowDebugUI = !m_ShowDebugUI;
 		return false;
 	}
 
-	// ESC → back to menu (consumed so Application doesn't quit)
 	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
 	{
 		TransitionTo<MenuLayer>();
@@ -235,7 +257,7 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		Renderer3D::SetDrawAABB(!Renderer3D::GetDrawAABB());
 
 	if (e.GetKeyCode() == HMN_KEY_L)
-		m_DebugPointLights = !m_DebugPointLights;
+		m_DebugLights = !m_DebugLights;
 
 	if (e.GetKeyCode() == HMN_KEY_H)
 		Renderer3D::SetDebugHeatmap(!Renderer3D::GetDebugHeatmap());

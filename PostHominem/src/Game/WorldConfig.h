@@ -76,12 +76,16 @@ struct SceneConfig
 	glm::vec3   Scale    = {  1.f,  1.f,   1.f };
 };
 
-struct PointLightConfig
+struct LightConfig
 {
-	glm::vec3 Position  = { 0.f, 1.f, 0.f };
-	glm::vec3 Color     = { 1.f, 1.f, 1.f };
-	float     Intensity = 5.0f;
-	float     Radius    = 3.0f;
+	glm::vec3 Position   = { 0.f, 1.f, 0.f };
+	glm::vec3 Color      = { 1.f, 1.f, 1.f };
+	glm::vec3 Direction  = { 0.f,-1.f, 0.f };
+	float     Intensity  = 5.0f;
+	float     Radius     = 3.0f;
+	float     InnerAngle = 25.f;
+	float     OuterAngle = 35.f;
+	uint32_t  Type       = 0; // 0=point, 1=spot
 };
 
 struct WorldConfig
@@ -90,7 +94,7 @@ struct WorldConfig
 	PhysicsConfig               Physics;
 	CameraConfig                Camera;
 	SceneConfig                 Scene;
-	std::vector<PointLightConfig> PointLights;
+	std::vector<LightConfig> Lights;
 
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
 	static bool SaveToFile(const std::string& path, const WorldConfig& in);

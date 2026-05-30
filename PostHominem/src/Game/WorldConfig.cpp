@@ -87,12 +87,16 @@ namespace nlohmann {
 		if (j.contains("scale"))     j.at("scale").get_to(c.Scale);
 	}
 
-	static void from_json(const json& j, PointLightConfig& c)
+	static void from_json(const json& j, LightConfig& c)
 	{
-		if (j.contains("position"))  j.at("position").get_to(c.Position);
-		if (j.contains("color"))     j.at("color").get_to(c.Color);
-		if (j.contains("intensity")) c.Intensity = j.at("intensity").get<float>();
-		if (j.contains("radius"))    c.Radius    = j.at("radius").get<float>();
+		if (j.contains("position"))    j.at("position").get_to(c.Position);
+		if (j.contains("color"))       j.at("color").get_to(c.Color);
+		if (j.contains("direction"))   j.at("direction").get_to(c.Direction);
+		if (j.contains("intensity"))   c.Intensity  = j.at("intensity").get<float>();
+		if (j.contains("radius"))      c.Radius     = j.at("radius").get<float>();
+		if (j.contains("inner_angle")) c.InnerAngle = j.at("inner_angle").get<float>();
+		if (j.contains("outer_angle")) c.OuterAngle = j.at("outer_angle").get<float>();
+		if (j.contains("type"))        c.Type       = j.at("type").get<uint32_t>();
 	}
 
 	static void from_json(const json& j, WorldConfig& c)
@@ -101,14 +105,17 @@ namespace nlohmann {
 		j.at("physics").get_to(c.Physics);
 		j.at("camera").get_to(c.Camera);
 		if (j.contains("scene")) j.at("scene").get_to(c.Scene);
-		if (j.contains("point_lights"))
+
+		// Support both old "point_lights" key and new "lights" key
+		const char* key = j.contains("lights") ? "lights" : "point_lights";
+		if (j.contains(key))
 		{
-			c.PointLights.clear();
-			for (const auto& pl : j.at("point_lights"))
+			c.Lights.clear();
+			for (const auto& pl : j.at(key))
 			{
-				PointLightConfig cfg;
+				LightConfig cfg;
 				pl.get_to(cfg);
-				c.PointLights.push_back(cfg);
+				c.Lights.push_back(cfg);
 			}
 		}
 	}
@@ -205,16 +212,20 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 		};
 
 		json lightsArr = json::array();
-		for (const auto& pl : cfg.PointLights)
+		for (const auto& l : cfg.Lights)
 		{
 			lightsArr.push_back({
-				{ "position",  vec3_to_json(pl.Position) },
-				{ "color",     vec3_to_json(pl.Color)    },
-				{ "intensity", pl.Intensity },
-				{ "radius",    pl.Radius    }
+				{ "position",    vec3_to_json(l.Position)  },
+				{ "color",       vec3_to_json(l.Color)     },
+				{ "direction",   vec3_to_json(l.Direction) },
+				{ "intensity",   l.Intensity  },
+				{ "radius",      l.Radius     },
+				{ "inner_angle", l.InnerAngle },
+				{ "outer_angle", l.OuterAngle },
+				{ "type",        l.Type       }
 			});
 		}
-		root["point_lights"] = lightsArr;
+		root["lights"] = lightsArr;
 
 		std::ofstream out(resolved);
 		if (!out.is_open())

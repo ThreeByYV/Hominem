@@ -30,10 +30,10 @@ private:
 	bool  m_ShowPerfPanel = true;
 	float m_FPS           = 0.f;
 	float m_FrameTimeMs   = 0.f;
-	Hominem::DirectionalLight         m_Light;
-	std::vector<Hominem::PointLight>  m_PointLights;
-	int                               m_SelectedLight    = -1;
-	bool                              m_DebugPointLights = false;
+	Hominem::DirectionalLight      m_Light;
+	std::vector<Hominem::Light>    m_Lights;
+	int                            m_SelectedLight = -1;
+	bool                           m_DebugLights   = false;
 
 	bool  m_BloomEnabled       = false;
 	bool  m_ToneMappingEnabled = false;
