@@ -60,6 +60,9 @@ void GameLayer::OnUpdate(Timestep ts)
 	Application::Get().GetAudioSystem().UpdateMusic();
 	m_ActiveScene->OnUpdate(ts);
 	m_GameMode->OnUpdate(ts);
+
+	m_FrameTimeMs = ts.GetMilliseconds();
+	m_FPS         = ts > 0.f ? 1.f / ts : 0.f;
 }
 
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
@@ -79,30 +82,33 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 void GameLayer::OnImGuiRender()
 {
-	if (m_ShowPlayerOverlay && m_GameMode)
+	// Perf panel — top left, toggled with P
+	if (m_ShowPerfPanel)
 	{
-		auto info = m_GameMode->GetPlayerDebugInfo();
-		if (info.valid)
+		ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+		ImGui::SetNextWindowBgAlpha(0.6f);
+		constexpr ImGuiWindowFlags kOverlayFlags =
+			ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
+
+		if (ImGui::Begin("##PerfPanel", nullptr, kOverlayFlags))
 		{
-			ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
-			ImGui::SetNextWindowBgAlpha(0.7f);
-			constexpr ImGuiWindowFlags kOverlayFlags =
-				ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-				ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
-				ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
-			if (ImGui::Begin("##PlayerOverlay", nullptr, kOverlayFlags))
-			{
-				ImGui::Text("Pos  %6.2f  %6.2f  %6.2f", info.position.x, info.position.y, info.position.z);
-				ImGui::Text("Vel  %6.2f  %6.2f  %6.2f", info.velocity.x, info.velocity.y, info.velocity.z);
-				ImGui::Text("Speed  %.2f", info.speed);
-				ImGui::Separator();
-				if (info.isMoving)
-					ImGui::TextColored(ImVec4(0.2f, 1.f, 0.2f, 1.f), "MOVING");
-				else
-					ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "IDLE");
-			}
-			ImGui::End();
+			ImVec4 fpsColor = m_FPS >= 60.f ? ImVec4(0.2f, 1.f, 0.2f, 1.f)
+			                : m_FPS >= 30.f ? ImVec4(1.f,  0.8f, 0.f,  1.f)
+			                                : ImVec4(1.f,  0.3f, 0.3f, 1.f);
+			ImGui::TextColored(fpsColor, "%.0f FPS  %.2f ms", m_FPS, m_FrameTimeMs);
+
+			uint64_t tris = Renderer3D::GetTriangles();
+			const char* triUnit = tris >= 1000000 ? "M" : tris >= 1000 ? "K" : "";
+			float       triVal  = tris >= 1000000 ? tris / 1000000.f : tris >= 1000 ? tris / 1000.f : (float)tris;
+			ImGui::Text("Draw calls  %u", Renderer3D::GetDrawCalls());
+			ImGui::Text("Triangles   %.1f%s", triVal, triUnit);
+
+			if (m_ActiveScene && m_ActiveScene->GetPhysicsWorld())
+				ImGui::Text("Physics     %.2f ms", m_ActiveScene->GetPhysicsWorld()->GetLastStepMs());
 		}
+		ImGui::End();
 	}
 
 	if (!m_ShowDebugUI) return;
@@ -235,7 +241,7 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		Renderer3D::SetDebugHeatmap(!Renderer3D::GetDebugHeatmap());
 
 	if (e.GetKeyCode() == HMN_KEY_P)
-		m_ShowPlayerOverlay = !m_ShowPlayerOverlay;
+		m_ShowPerfPanel = !m_ShowPerfPanel;
 
 	return false;
 }

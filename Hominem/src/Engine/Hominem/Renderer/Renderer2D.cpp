@@ -45,7 +45,7 @@ namespace Hominem {
 		s_Data->IndirectBuffer = DrawIndirectBuffer::Create(
 			sizeof(DrawArraysIndirectCommand) * Renderer2DStorage::MaxQuads);
 
-		s_Data->BatchPVPShader = s_Data->ShaderLibrary->Load("Resources/Shaders/texture_batch.glsl");
+		s_Data->BatchPVPShader = s_Data->ShaderLibrary->Load("engine://Shaders/texture_batch.glsl");
 
 		// as fallback use the unit-quad VAO for custom-shader draws
 		s_Data->QuadVertexArray = VertexArray::Create();
@@ -74,7 +74,7 @@ namespace Hominem {
 		s_Data->WhiteTexture->SetData(&white, sizeof(uint32_t));
 		s_Data->WhiteTexture->QueueUpload();
 
-		s_Data->TextureShader = s_Data->ShaderLibrary->Load("Resources/Shaders/texture.glsl");
+		s_Data->TextureShader = s_Data->ShaderLibrary->Load("engine://Shaders/texture.glsl");
 		s_Data->DefaultShader = s_Data->ShaderLibrary->Get("texture");
 		s_Data->OverrideShader = nullptr;
 
@@ -91,7 +91,7 @@ namespace Hominem {
 			{ ShaderDataType::Float2, "a_TexCoord" },
 		});
 		s_Data->TextVertexArray->AddVertexBuffer(s_Data->TextVertexBuffer);
-		s_Data->TextShader = Shader::Create("Resources/Shaders/text.glsl");
+		s_Data->TextShader = Shader::Create("engine://Shaders/text.glsl");
 	}
 
 	void Renderer2D::Shutdown()

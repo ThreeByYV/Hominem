@@ -227,13 +227,25 @@ add_custom_command(TARGET PostHominem POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/PostHominem/src/Resources"
         "$<TARGET_FILE_DIR:PostHominem>/Resources"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/Hominem/src/Engine/Resources"
+        "$<TARGET_FILE_DIR:PostHominem>/EngineResources"
 )
 
-# Standalone target to sync Resources without a full rebuild.
-# Run via: cmake --build cmake-build-debug --target sync-resources
+# Always read engine resources directly from source during development so
+# hot-reload (R key) works without a post-build copy. Remove for distribution builds.
+target_compile_definitions(Hominem PRIVATE
+    HMN_ENGINE_RESOURCES_PATH="${CMAKE_SOURCE_DIR}/Hominem/src/Engine/Resources"
+)
+
+# Standalone target to sync both resource directories without a full rebuild.
+# Run via: cmake --build cmake-build-release --target sync-resources
 add_custom_target(sync-resources
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/PostHominem/src/Resources"
         "${CMAKE_BINARY_DIR}/Resources"
-    COMMENT "Syncing Resources to build directory"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/Hominem/src/Engine/Resources"
+        "${CMAKE_BINARY_DIR}/EngineResources"
+    COMMENT "Syncing game and engine resources to build directory"
 )
