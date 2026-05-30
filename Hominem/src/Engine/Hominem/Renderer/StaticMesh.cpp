@@ -28,7 +28,7 @@ namespace Hominem
     }
 
     static constexpr uint32_t k_CacheMagic   = 0x48534D53u; // "SMSH"
-    static constexpr uint32_t k_CacheVersion = 4u;          // v4: PBR — albedo + metalRoughness per group
+    static constexpr uint32_t k_CacheVersion = 5u;          // v5: normal maps + tangent in vertex
 
     constexpr unsigned int k_AssimpFlags =
             aiProcess_Triangulate |
@@ -36,10 +36,12 @@ namespace Hominem
             aiProcess_FlipUVs |
             aiProcess_JoinIdenticalVertices |
             aiProcess_OptimizeMeshes |
-            aiProcess_PreTransformVertices; // bakes node hierarchy into vertex positions
+            aiProcess_PreTransformVertices | // bakes node hierarchy into vertex positions
+            aiProcess_CalcTangentSpace;      // computes tangent + bitangent per vertex
 
     static Ref<Texture2D> s_WhiteTexture;
     static Ref<Texture2D> s_DefaultMetalRoughness; // G=0.5 roughness, B=0 metalness
+    static Ref<Texture2D> s_FlatNormalMap;          // (128,128,255) = no perturbation
 
     static Ref<Texture2D> GetWhiteTexture()
     {
@@ -66,6 +68,20 @@ namespace Hominem
             s_DefaultMetalRoughness->QueueUpload();
         }
         return s_DefaultMetalRoughness;
+    }
+
+    static Ref<Texture2D> GetFlatNormalMap()
+    {
+        if (!s_FlatNormalMap)
+        {
+            s_FlatNormalMap = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+            // (128, 128, 255) decodes to normal (0, 0, 1) — no perturbation
+            uint8_t pixel[4] = { 128, 128, 255, 255 };
+            uint32_t packed; memcpy(&packed, pixel, 4);
+            s_FlatNormalMap->SetData(&packed, sizeof(packed));
+            s_FlatNormalMap->QueueUpload();
+        }
+        return s_FlatNormalMap;
     }
 
     StaticMesh::~StaticMesh()
@@ -185,12 +201,19 @@ namespace Hominem
                     albedo = Texture2D::Create(texPath);
                 }
             }
-            Ref<Texture2D> mr = readTex(); // metalRoughness — new in v4
+            Ref<Texture2D> mr     = readTex();
+            Ref<Texture2D> normal = readTex();
 
-            m_DrawGroups.push_back({
-                albedo ? albedo : GetWhiteTexture(),
-                mr     ? mr     : GetDefaultMetalRoughness(),
-                offset, count, baseVertex});
+            DrawGroup dg;
+            dg.Albedo                = albedo ? albedo : GetWhiteTexture();
+            dg.MetalRoughness        = mr     ? mr     : GetDefaultMetalRoughness();
+            dg.NormalMap             = normal ? normal : GetFlatNormalMap();
+            dg.HasRealMetalRoughness = mr     != nullptr;
+            dg.HasRealNormalMap      = normal != nullptr;
+            dg.IndexByteOffset       = offset;
+            dg.IndexCount            = count;
+            dg.BaseVertex            = baseVertex;
+            m_DrawGroups.push_back(std::move(dg));
         }
 
         if (!f) return false;
@@ -285,10 +308,25 @@ namespace Hominem
                 const auto &p = mesh->mVertices[v];
                 const auto &n = mesh->mNormals ? mesh->mNormals[v] : kZero;
                 const auto &u = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0][v] : kZero;
+
+                // Tangent + handedness (w = sign of det of TBN matrix)
+                glm::vec4 tangent(1, 0, 0, 1);
+                if (mesh->mTangents && mesh->mBitangents)
+                {
+                    const auto& t = mesh->mTangents[v];
+                    const auto& b = mesh->mBitangents[v];
+                    glm::vec3 T(t.x, t.y, t.z);
+                    glm::vec3 N(n.x, n.y, n.z);
+                    glm::vec3 B(b.x, b.y, b.z);
+                    float handedness = (glm::dot(glm::cross(N, T), B) < 0.f) ? -1.f : 1.f;
+                    tangent = glm::vec4(T, handedness);
+                }
+
                 verts.push_back({
                     { p.x * scaleToMetres, p.y * scaleToMetres, p.z * scaleToMetres },
                     { n.x, n.y, n.z },
-                    { u.x, u.y }
+                    { u.x, u.y },
+                    tangent
                 });
             }
 
@@ -308,8 +346,10 @@ namespace Hominem
         // --- load materials ---
         std::vector<Ref<Texture2D>> matAlbedo(scene->mNumMaterials);
         std::vector<Ref<Texture2D>> matMetalRoughness(scene->mNumMaterials);
+        std::vector<Ref<Texture2D>> matNormalMaps(scene->mNumMaterials);
         std::vector<std::string>    matAlbedoPaths(scene->mNumMaterials);
         std::vector<std::string>    matMRPaths(scene->mNumMaterials);
+        std::vector<std::string>    matNormalPaths(scene->mNumMaterials);
 
         // Keep old names as aliases so the existing resolve/makeColor lambdas below still compile
         auto& matTextures = matAlbedo;
@@ -422,12 +462,12 @@ namespace Hominem
         {
             const aiMaterial *mat = scene->mMaterials[i];
 
+            // --- Albedo ---
             aiString aiTexPath;
             if (findBaseColor(mat, aiTexPath))
             {
                 std::string raw = aiTexPath.data;
 
-                // Embedded GLB texture
                 if (!raw.empty() && raw[0] == '*')
                 {
                     matPaths[i]    = raw;
@@ -436,39 +476,66 @@ namespace Hominem
                         HMN_CORE_INFO("StaticMesh: embedded texture [{}] decoded", i);
                     else
                         HMN_CORE_WARN("StaticMesh: failed to decode embedded texture [{}]", i);
-                    continue;
                 }
-
-                // External file
-                std::string resolved = resolveTexture(raw);
-                if (!resolved.empty())
+                else
                 {
-                    matPaths[i]    = resolved;
-                    matTextures[i] = Texture2D::Create(resolved);
-                    if (matTextures[i])
-                        HMN_CORE_INFO("StaticMesh: texture [{}] loaded '{}'", i, resolved);
-                    else
-                        HMN_CORE_WARN("StaticMesh: Texture2D::Create failed '{}'", resolved);
-                    continue;
+                    std::string resolved = resolveTexture(raw);
+                    if (!resolved.empty())
+                    {
+                        matPaths[i]    = resolved;
+                        matTextures[i] = Texture2D::Create(resolved);
+                        if (matTextures[i])
+                            HMN_CORE_INFO("StaticMesh: texture [{}] loaded '{}'", i, resolved);
+                        else
+                            HMN_CORE_WARN("StaticMesh: Texture2D::Create failed '{}'", resolved);
+                    }
                 }
             }
 
-            // No texture — fall back to material base color as a 1×1 solid
-            aiColor4D diffuse(0.7f, 0.7f, 0.7f, 1.f);
-            aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &diffuse);
-            if (diffuse.r == 0 && diffuse.g == 0 && diffuse.b == 0)
-                aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
+            if (!matTextures[i])
+            {
+                // No texture — fall back to material base color as a 1×1 solid
+                aiColor4D diffuse(0.7f, 0.7f, 0.7f, 1.f);
+                aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &diffuse);
+                if (diffuse.r == 0 && diffuse.g == 0 && diffuse.b == 0)
+                    aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
 
-            char buf[20];
-            snprintf(buf, sizeof(buf), "color:%02X%02X%02X%02X",
-                (uint8_t)(diffuse.r * 255), (uint8_t)(diffuse.g * 255),
-                (uint8_t)(diffuse.b * 255), (uint8_t)(diffuse.a * 255));
+                char buf[20];
+                snprintf(buf, sizeof(buf), "color:%02X%02X%02X%02X",
+                    (uint8_t)(diffuse.r * 255), (uint8_t)(diffuse.g * 255),
+                    (uint8_t)(diffuse.b * 255), (uint8_t)(diffuse.a * 255));
 
-            matPaths[i]    = buf;
-            matTextures[i] = makeColorTex(diffuse);
-            HMN_CORE_INFO("StaticMesh: material [{}] color fallback {}", i, buf);
+                matPaths[i]    = buf;
+                matTextures[i] = makeColorTex(diffuse);
+                HMN_CORE_INFO("StaticMesh: material [{}] color fallback {}", i, buf);
+            }
 
-            // MetalRoughness — glTF packs roughness in G, metalness in B
+            // --- Normal map ---
+            aiString nmPath;
+            if (mat->GetTextureCount(aiTextureType_NORMALS) > 0 &&
+                mat->GetTexture(aiTextureType_NORMALS, 0, &nmPath) == AI_SUCCESS)
+            {
+                std::string raw = nmPath.data;
+                if (!raw.empty() && raw[0] == '*')
+                {
+                    matNormalMaps[i] = resolveEmbedded(raw);
+                    matNormalPaths[i] = raw;
+                    if (matNormalMaps[i])
+                        HMN_CORE_INFO("StaticMesh: normalMap [{}] embedded", i);
+                }
+                else
+                {
+                    std::string resolved = resolveTexture(raw);
+                    if (!resolved.empty())
+                    {
+                        matNormalMaps[i]  = Texture2D::Create(resolved);
+                        matNormalPaths[i] = resolved;
+                        HMN_CORE_INFO("StaticMesh: normalMap [{}] '{}'", i, resolved);
+                    }
+                }
+            }
+
+            // --- MetalRoughness ---
             aiString mrPath;
             if (mat->GetTextureCount(aiTextureType_METALNESS) > 0 &&
                 mat->GetTexture(aiTextureType_METALNESS, 0, &mrPath) == AI_SUCCESS)
@@ -492,6 +559,7 @@ namespace Hominem
                     }
                 }
             }
+
         }
 
         // --- sort by material to minimise texture rebinds ---
@@ -502,25 +570,38 @@ namespace Hominem
         m_DrawGroups.clear();
         std::vector<std::string> groupAlbedoPaths2;
         std::vector<std::string> groupMRPaths2;
+        std::vector<std::string> groupNormalPaths2;
         m_DrawGroups.reserve(rawSubs.size());
         groupAlbedoPaths2.reserve(rawSubs.size());
         groupMRPaths2.reserve(rawSubs.size());
+        groupNormalPaths2.reserve(rawSubs.size());
 
         for (const auto &sub: rawSubs)
         {
             auto albedo = (sub.matIdx < matAlbedo.size() && matAlbedo[sub.matIdx])
-                           ? matAlbedo[sub.matIdx]
-                           : GetWhiteTexture();
+                           ? matAlbedo[sub.matIdx] : GetWhiteTexture();
             auto mr     = (sub.matIdx < matMetalRoughness.size() && matMetalRoughness[sub.matIdx])
-                           ? matMetalRoughness[sub.matIdx]
-                           : GetDefaultMetalRoughness();
+                           ? matMetalRoughness[sub.matIdx] : GetDefaultMetalRoughness();
+            auto normal = (sub.matIdx < matNormalMaps.size() && matNormalMaps[sub.matIdx])
+                           ? matNormalMaps[sub.matIdx] : GetFlatNormalMap();
 
-            const std::string& albedoPath = sub.matIdx < matAlbedoPaths.size() ? matAlbedoPaths[sub.matIdx] : "";
-            const std::string& mrPath     = sub.matIdx < matMRPaths.size()     ? matMRPaths[sub.matIdx]     : "";
+            const std::string& albedoPath = sub.matIdx < matAlbedoPaths.size()  ? matAlbedoPaths[sub.matIdx]  : "";
+            const std::string& mrPath     = sub.matIdx < matMRPaths.size()      ? matMRPaths[sub.matIdx]      : "";
+            const std::string& normalPath = sub.matIdx < matNormalPaths.size()  ? matNormalPaths[sub.matIdx]  : "";
 
-            m_DrawGroups.push_back({albedo, mr, sub.idxOffset * (uint32_t)sizeof(uint32_t), sub.idxCount, sub.baseVertex});
+            DrawGroup dg;
+            dg.Albedo               = albedo;
+            dg.MetalRoughness       = mr;
+            dg.NormalMap            = normal;
+            dg.HasRealMetalRoughness = !mrPath.empty();
+            dg.HasRealNormalMap      = !normalPath.empty();
+            dg.IndexByteOffset       = sub.idxOffset * (uint32_t)sizeof(uint32_t);
+            dg.IndexCount            = sub.idxCount;
+            dg.BaseVertex            = sub.baseVertex;
+            m_DrawGroups.push_back(std::move(dg));
             groupAlbedoPaths2.push_back(albedoPath);
             groupMRPaths2.push_back(mrPath);
+            groupNormalPaths2.push_back(normalPath);
         }
 
         OptimizeGeometry(verts, indices, m_DrawGroups);
@@ -541,7 +622,7 @@ namespace Hominem
 
         if (!path.ends_with(".glb") && !path.ends_with(".gltf")
          && !path.ends_with(".GLB") && !path.ends_with(".GLTF"))
-            WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupAlbedoPaths2, groupMRPaths2);
+            WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupAlbedoPaths2, groupMRPaths2, groupNormalPaths2);
         m_PendingVerts   = verts;
         m_PendingIndices = indices;
         RenderThread::QueueUpload([this] {
@@ -626,7 +707,8 @@ namespace Hominem
                                  const std::vector<uint32_t> &indices,
                                  const std::vector<DrawGroup> &groups,
                                  const std::vector<std::string> &groupAlbedoPaths,
-                                 const std::vector<std::string> &groupMRPaths)
+                                 const std::vector<std::string> &groupMRPaths,
+                                 const std::vector<std::string> &groupNormalPaths)
     {
         std::ofstream f(binPath, std::ios::binary);
         if (!f)
@@ -657,14 +739,16 @@ namespace Hominem
         for (size_t i = 0; i < groups.size(); i++)
         {
             const auto& g          = groups[i];
-            const std::string& albedo = i < groupAlbedoPaths.size() ? groupAlbedoPaths[i] : "";
-            const std::string& mr     = i < groupMRPaths.size()     ? groupMRPaths[i]     : "";
+            const std::string& albedo = i < groupAlbedoPaths.size()  ? groupAlbedoPaths[i]  : "";
+            const std::string& mr     = i < groupMRPaths.size()      ? groupMRPaths[i]      : "";
+            const std::string& normal = i < groupNormalPaths.size()  ? groupNormalPaths[i]  : "";
 
             f.write(reinterpret_cast<const char*>(&g.IndexByteOffset), sizeof(uint32_t));
             f.write(reinterpret_cast<const char*>(&g.IndexCount),      sizeof(uint32_t));
             f.write(reinterpret_cast<const char*>(&g.BaseVertex),      sizeof(int32_t));
             writePath(albedo);
             writePath(mr);
+            writePath(normal);
         }
 
         HMN_CORE_INFO("StaticMesh: wrote cache '{}'", binPath);
@@ -701,6 +785,22 @@ namespace Hominem
         glEnableVertexArrayAttrib(m_VAO, 2);
         glVertexArrayAttribFormat(m_VAO, 2, 2, GL_FLOAT, GL_FALSE, (GLuint) offsetof(StaticVertex, TexCoord));
         glVertexArrayAttribBinding(m_VAO, 2, 0);
+
+        // Tangent — location 3 (xyz = tangent, w = handedness)
+        glEnableVertexArrayAttrib(m_VAO, 3);
+        glVertexArrayAttribFormat(m_VAO, 3, 4, GL_FLOAT, GL_FALSE, (GLuint) offsetof(StaticVertex, Tangent));
+        glVertexArrayAttribBinding(m_VAO, 3, 0);
+    }
+
+    uint32_t StaticMesh::GetPermutationFlags() const
+    {
+        uint32_t flags = ShaderPerm_ForwardPlus; // static meshes always use Forward+
+        for (const auto& g : m_DrawGroups)
+        {
+            if (g.HasRealNormalMap)      flags |= ShaderPerm_HasNormalMap;
+            if (g.HasRealMetalRoughness) flags |= ShaderPerm_HasMetalRoughness;
+        }
+        return flags;
     }
 
     void StaticMesh::Draw(const Ref<Shader> &shader, const glm::mat4 &transform)
@@ -712,15 +812,17 @@ namespace Hominem
 
         shader->Bind();
         shader->SetMat4("u_Model", transform);
-        shader->SetInt("u_Albedo",        0);
+        shader->SetInt("u_Albedo",         0);
         shader->SetInt("u_MetalRoughness", 1);
+        shader->SetInt("u_NormalMap",      2);
 
         glBindVertexArray(m_VAO);
 
         for (const auto &group: m_DrawGroups)
         {
-            (group.Albedo        ? group.Albedo        : GetWhiteTexture())->Bind(0);
+            (group.Albedo         ? group.Albedo         : GetWhiteTexture())->Bind(0);
             (group.MetalRoughness ? group.MetalRoughness : GetDefaultMetalRoughness())->Bind(1);
+            (group.NormalMap      ? group.NormalMap      : GetFlatNormalMap())->Bind(2);
 
             glDrawElementsBaseVertex(
                 GL_TRIANGLES,
