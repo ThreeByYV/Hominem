@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Shader.h"
+#include "ShaderPermutation.h"
 #include "Buffer.h"
 #include "VertexArray.h"
 #include "StorageBuffer.h"
@@ -8,6 +9,8 @@
 #include "Hominem/Renderer/StaticMesh.h"
 #include "Hominem/Renderer/Frustum.h"
 #include "Hominem/Renderer/RenderFrame.h"
+
+#include <glm/glm.hpp>
 
 namespace Hominem {
 
@@ -17,20 +20,39 @@ struct MeshRendererComponent
     Ref<Shader>      Shader;
 };
 
+// Must match layout(std140, binding=0) uniform SceneUBO in includes/scene_ubo.glsl
+struct alignas(16) SceneUBOData
+{
+    glm::mat4 ViewProjection;    // offset   0, 64 bytes
+    glm::vec4 CameraWorldPos;    // offset  64, 16 bytes (xyz used, w padding)
+    glm::vec4 LightDirection;    // offset  80
+    glm::vec4 LightColor;        // offset  96
+    glm::vec4 AmbientColor;      // offset 112
+    float     AmbientIntensity;  // offset 128
+    float     DiffuseIntensity;  // offset 132
+    float     EnvMapIntensity;   // offset 136
+    float     ETA;               // offset 140
+    float     FresnelPower;      // offset 144
+    uint32_t  ScreenWidth;       // offset 148
+    int32_t   DebugMode;         // offset 152
+    float     _pad;              // offset 156 → total 160 bytes
+};
+static_assert(sizeof(SceneUBOData) == 160, "SceneUBOData size mismatch — check std140 layout");
+
 struct Renderer3DStorage
 {
     Ref<ShaderLibrary> ShaderLibrary;
-    Ref<Shader>        DefaultShader;
-    Ref<Shader>        OverrideShader;       // optional scene-wide override
-    Ref<Shader>        StaticMeshShader;     // forward_plus.glsl — set by InitForwardPlus
-    Ref<Shader>        SkinnedMeshShader;
-    Ref<Shader>        NormalsShader;
-    Ref<Shader>        NormalsSkinnedShader;
+    Ref<Shader>               OverrideShader;       // optional scene-wide override
+    Ref<ShaderPermutationSet> MeshVariants;         // mesh.glsl permutations
+    Ref<Shader>               NormalsShader;        // normals_debug.glsl (static)
+    Ref<Shader>               NormalsSkinnedShader; // normals_debug.glsl + SKINNED
     Ref<Shader>        DebugAABBShader;
     Ref<Shader>        DebugSphereShader;
     Ref<VertexArray>   DebugVAO;
     Ref<VertexBuffer>  DebugVBO;
     Ref<IndexBuffer>   DebugIBO;
+
+    Ref<UniformBuffer> SceneUBO;             // binding 0 — SceneUBOData, uploaded once per frame
 
     // Forward+ tile-based light culling
     Ref<StorageBuffer> LightBuffer;          // slot 1 — GPUPointLight[MAX_LIGHTS]
@@ -69,12 +91,20 @@ public:
     static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
     static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
 
+    static uint32_t GetDrawCalls() { return s_DrawCalls; }
+    static uint64_t GetTriangles() { return s_Triangles; }
+
     static void DrawDebugPointLights(const std::vector<PointLight>& lights);
     static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
     static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform);
     static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
 
     static Ref<ShaderLibrary> GetShaderLibrary() { return s_Data->ShaderLibrary; }
+    static void ReloadVariants()
+    {
+        if (s_Data->MeshVariants)
+            s_Data->MeshVariants->ReloadAll();
+    }
 
 private:
     static void CullLights(const RenderFrame& frame);
@@ -84,12 +114,11 @@ private:
 
     struct SceneData
     {
-        glm::mat4        ViewProjection{};
-        glm::vec3        CameraWorldPos{};
-        DirectionalLight Light;
-        uint32_t         ViewportWidth = 0;
-        Shader*          BoundShader   = nullptr;
         std::vector<PointLight> PointLights;
+        uint32_t EnvMapID        = 0;
+        float    EnvMapIntensity = 0.f;
+        float    ETA             = 0.667f;
+        float    FresnelPower    = 5.f;
     };
 
     static Renderer3DStorage* s_Data;
@@ -98,6 +127,8 @@ private:
     static float              s_NormalLength;
     static bool               s_DrawAABB;
     static bool               s_DebugHeatmap;
+    static uint32_t           s_DrawCalls;
+    static uint64_t           s_Triangles;
 };
 
 } 

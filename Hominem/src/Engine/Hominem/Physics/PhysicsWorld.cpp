@@ -22,8 +22,11 @@ namespace Hominem {
 
 	void PhysicsWorld::Step(float deltaTime, uint32_t substeps)
 	{
+		auto t0 = std::chrono::high_resolution_clock::now();
 		float clampedDt = glm::min(deltaTime, 1.0f / 30.0f);
 		b2World_Step(m_WorldId, clampedDt, (int)substeps);
+		auto t1 = std::chrono::high_resolution_clock::now();
+		m_LastStepMs = std::chrono::duration<float, std::milli>(t1 - t0).count();
 	}
 
 	Ref<Rigidbody> PhysicsWorld::CreateRigidbody(const RigidbodySpec& spec)

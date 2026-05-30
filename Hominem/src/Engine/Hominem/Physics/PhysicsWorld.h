@@ -7,6 +7,7 @@
 #include "Collider.h"
 
 #include <box2d/box2d.h>
+#include <chrono>
 
 namespace Hominem {
 
@@ -30,9 +31,11 @@ namespace Hominem {
 		void       SetGravity(const glm::vec3& gravity);
 		glm::vec3  GetGravity() const;
 
-		b2WorldId  GetWorldId() const { return m_WorldId; }
+		b2WorldId  GetWorldId()       const { return m_WorldId; }
+		float      GetLastStepMs()    const { return m_LastStepMs; }
 
 	private:
-		b2WorldId m_WorldId = b2_nullWorldId;
+		b2WorldId m_WorldId    = b2_nullWorldId;
+		float     m_LastStepMs = 0.f;
 	};
 }
