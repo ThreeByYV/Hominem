@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "Core.h"
@@ -32,8 +33,9 @@ namespace Hominem {
         void QueueLayerTransition(const std::string& oldLayerName, std::unique_ptr<Layer> newLayer);
 
 
-        inline Window& GetWindow() { return *m_Window; }
-        inline AudioSystem& GetAudioSystem() { return m_AudioSystem; }
+        inline Window&       GetWindow()       { return *m_Window; }
+        inline AudioSystem&  GetAudioSystem()  { return m_AudioSystem; }
+        inline RenderThread& GetRenderThread() { return m_RenderThread; }
 
         inline static Application& Get() { return *s_Instance; }
 

@@ -136,7 +136,8 @@ project "PostHominem"
 
     postbuildcommands
     {
-        "{COPYDIR} %{prj.location}src/Resources %{cfg.targetdir}/Resources"
+        "{COPYDIR} %{prj.location}src/Resources %{cfg.targetdir}/Resources",
+        "{COPYDIR} %{wks.location}Hominem/src/Engine/Resources %{cfg.targetdir}/EngineResources"
     }
 
     pchheader "hmnpch.h"

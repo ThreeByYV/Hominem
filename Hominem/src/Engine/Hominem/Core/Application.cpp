@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Application.h"
+#include "VFS.h"
 #include "Core.h"
 #include "Hominem/Renderer/Buffer.h"
 #include "Input.h"
@@ -29,8 +30,16 @@ namespace Hominem {
 	Application::Application()
 	{
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
-
 		s_Instance = this;
+
+#ifdef HMN_ENGINE_RESOURCES_PATH
+		VFS::Mount("engine", HMN_ENGINE_RESOURCES_PATH "/");
+		HMN_CORE_INFO("VFS: engine path from source define");
+#else
+		VFS::Mount("engine", "EngineResources/");
+		HMN_CORE_WARN("VFS: HMN_ENGINE_RESOURCES_PATH not set — relying on post-build copy");
+#endif
+		VFS::Mount("game", "Resources/");
 
 #ifdef HMN_PLATFORM_WINDOWS
 		// Default Windows timer resolution is 15.6ms — sleep_for snaps to that quantum.
