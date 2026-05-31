@@ -108,6 +108,9 @@ void Player::OnUpdate(Timestep ts)
 void Player::OnBuildRenderFrame(RenderFrame& frame)
 {
 	if (!m_Mesh) return;
+	if (!frame.frustum3D.TestAABBTransformed(
+			m_Mesh->GetAABBMin(), m_Mesh->GetAABBMax(), GetTransform()))
+		return;
 	frame.staticMeshes.push_back({ m_Mesh, GetTransform() });
 }
 

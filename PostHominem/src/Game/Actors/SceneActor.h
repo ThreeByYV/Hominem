@@ -22,6 +22,9 @@ public:
 	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override
 	{
 		if (!m_Mesh || !m_Mesh->IsLoaded()) return;
+		if (!frame.frustum3D.TestAABBTransformed(
+				m_Mesh->GetAABBMin(), m_Mesh->GetAABBMax(), GetTransform()))
+			return;
 		uint64_t key = reinterpret_cast<uint64_t>(m_Mesh.get());
 		frame.staticMeshes.push_back({ m_Mesh, GetTransform(), key });
 	}

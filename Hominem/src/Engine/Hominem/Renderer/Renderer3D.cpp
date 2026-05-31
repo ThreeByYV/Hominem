@@ -27,12 +27,14 @@ namespace {
 } 
     Renderer3DStorage*     Renderer3D::s_Data         = nullptr;
     Renderer3D::SceneData* Renderer3D::s_Scene        = nullptr;
-    bool                   Renderer3D::s_DrawNormals  = false;
-    float                  Renderer3D::s_NormalLength = 0.1f;
-    bool                   Renderer3D::s_DrawAABB     = false;
-    bool                   Renderer3D::s_DebugHeatmap = false;
-    uint32_t               Renderer3D::s_DrawCalls    = 0;
-    uint64_t               Renderer3D::s_Triangles    = 0;
+    bool                   Renderer3D::s_DrawNormals   = false;
+    float                  Renderer3D::s_NormalLength  = 0.1f;
+    bool                   Renderer3D::s_DrawAABB      = false;
+    bool                   Renderer3D::s_DebugHeatmap  = false;
+    uint32_t               Renderer3D::s_DrawCalls     = 0;
+    uint64_t               Renderer3D::s_Triangles     = 0;
+    uint32_t               Renderer3D::s_GroupsTotal   = 0;
+    uint32_t               Renderer3D::s_GroupsCulled  = 0;
 
 void Renderer3D::Init()
 {
@@ -168,16 +170,17 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
     s_Scene->ETA             = frame.eta;
     s_Scene->FresnelPower    = frame.fresnelPower;
     s_Scene->Lights          = frame.lights;
+    s_Scene->CameraFrustum   = frame.frustum3D;
     s_DrawCalls              = 0;
     s_Triangles              = 0;
+    s_GroupsTotal            = 0;
+    s_GroupsCulled           = 0;
 
     // Upload all scene-wide data once — every shader reads it from binding 0
     if (s_Data->SceneUBO)
     {
         SceneUBOData ubo;
         ubo.ViewProjection   = frame.viewProjection3D;
-        ubo.View             = frame.view3D;
-        ubo.InvProjection    = glm::inverse(frame.proj3D);
         ubo.CameraWorldPos   = glm::vec4(frame.cameraWorldPos, 0.f);
         ubo.LightDirection   = glm::vec4(frame.light.Direction, 0.f);
         ubo.LightColor       = glm::vec4(frame.light.Color, 0.f);
@@ -272,9 +275,12 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     shader->SetFloat("u_Roughness", mat.Roughness);
     shader->SetFloat("u_Metalness", mat.Metalness);
 
-    mesh.Draw(shader, transform);
-    s_DrawCalls += (uint32_t)mesh.GetDrawGroupCount();
-    s_Triangles += mesh.GetTriangleCount();
+    auto [calls, tris] = mesh.Draw(shader, transform, &s_Scene->CameraFrustum);
+    s_DrawCalls   += calls;
+    s_Triangles   += tris;
+    uint32_t total = static_cast<uint32_t>(mesh.GetDrawGroupCount());
+    s_GroupsTotal  += total;
+    s_GroupsCulled += total - calls;
 
     if (s_DrawNormals && s_Data->NormalsShader)
     {
@@ -285,24 +291,34 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 
     if (s_DrawAABB && s_Data->DebugAABBShader)
     {
-        const glm::vec3 mn = mesh.GetAABBMin();
-        const glm::vec3 mx = mesh.GetAABBMax();
-        const glm::vec3 corners[8] = {
-            glm::vec3(transform * glm::vec4(mn.x, mn.y, mn.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mx.x, mn.y, mn.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mx.x, mx.y, mn.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mn.x, mx.y, mn.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mn.x, mn.y, mx.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mx.x, mn.y, mx.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mx.x, mx.y, mx.z, 1.f)),
-            glm::vec3(transform * glm::vec4(mn.x, mx.y, mx.z, 1.f)),
-        };
-        s_Data->DebugVBO->SetData(corners, sizeof(corners));
         s_Data->DebugAABBShader->Bind();
-        s_Data->DebugAABBShader->SetFloat4("u_Color", glm::vec4(1.f, 0.f, 0.f, 1.f));
         s_Data->DebugVAO->Bind();
         RenderCommand::SetDepthTestEnabled(false);
-        RenderCommand::DrawIndexedLines(s_Data->DebugVAO, 24);
+
+        const size_t groupCount = mesh.GetDrawGroupCount();
+        for (size_t gi = 0; gi < groupCount; gi++)
+        {
+            auto [mn, mx]          = mesh.GetDrawGroupBounds(gi);
+            const glm::mat4 model  = transform * mesh.GetDrawGroupTransform(gi);
+            const bool      visible = s_Scene->CameraFrustum.TestAABBTransformed(mn, mx, model);
+
+            const glm::vec3 corners[8] = {
+                glm::vec3(model * glm::vec4(mn.x, mn.y, mn.z, 1.f)),
+                glm::vec3(model * glm::vec4(mx.x, mn.y, mn.z, 1.f)),
+                glm::vec3(model * glm::vec4(mx.x, mx.y, mn.z, 1.f)),
+                glm::vec3(model * glm::vec4(mn.x, mx.y, mn.z, 1.f)),
+                glm::vec3(model * glm::vec4(mn.x, mn.y, mx.z, 1.f)),
+                glm::vec3(model * glm::vec4(mx.x, mn.y, mx.z, 1.f)),
+                glm::vec3(model * glm::vec4(mx.x, mx.y, mx.z, 1.f)),
+                glm::vec3(model * glm::vec4(mn.x, mx.y, mx.z, 1.f)),
+            };
+            s_Data->DebugVBO->SetData(corners, sizeof(corners));
+            s_Data->DebugAABBShader->SetFloat4("u_Color",
+                visible ? glm::vec4(0.f, 1.f, 0.f, 1.f)
+                        : glm::vec4(1.f, 0.f, 0.f, 1.f));
+            RenderCommand::DrawIndexedLines(s_Data->DebugVAO, 24);
+        }
+
         RenderCommand::SetDepthTestEnabled(true);
         s_Data->DebugVAO->Unbind();
     }

@@ -106,6 +106,7 @@ void GameLayer::OnImGuiRender()
 			float       triVal  = tris >= 1000000 ? tris / 1000000.f : tris >= 1000 ? tris / 1000.f : (float)tris;
 			ImGui::Text("Draw calls  %u", Renderer3D::GetDrawCalls());
 			ImGui::Text("Triangles   %.1f%s", triVal, triUnit);
+			ImGui::Text("Groups      %u / %u culled", Renderer3D::GetGroupsTotal(), Renderer3D::GetGroupsCulled());
 
 			if (m_ActiveScene && m_ActiveScene->GetPhysicsWorld())
 				ImGui::Text("Physics     %.2f ms", m_ActiveScene->GetPhysicsWorld()->GetLastStepMs());

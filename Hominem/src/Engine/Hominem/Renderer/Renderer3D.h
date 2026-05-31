@@ -91,8 +91,10 @@ public:
     static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
     static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
 
-    static uint32_t GetDrawCalls() { return s_DrawCalls; }
-    static uint64_t GetTriangles() { return s_Triangles; }
+    static uint32_t GetDrawCalls()    { return s_DrawCalls; }
+    static uint64_t GetTriangles()    { return s_Triangles; }
+    static uint32_t GetGroupsTotal()  { return s_GroupsTotal; }
+    static uint32_t GetGroupsCulled() { return s_GroupsCulled; }
 
     static void DrawDebugLights(const std::vector<Light>& lights);
     static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
@@ -119,6 +121,7 @@ private:
         float    EnvMapIntensity = 0.f;
         float    ETA             = 0.667f;
         float    FresnelPower    = 5.f;
+        Frustum  CameraFrustum  {};
     };
 
     static Renderer3DStorage* s_Data;
@@ -129,6 +132,8 @@ private:
     static bool               s_DebugHeatmap;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;
+    static uint32_t           s_GroupsTotal;
+    static uint32_t           s_GroupsCulled;
 };
 
 } 
