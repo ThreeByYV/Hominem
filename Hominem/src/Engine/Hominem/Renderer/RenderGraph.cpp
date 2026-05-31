@@ -10,11 +10,11 @@ void RenderGraph::AddPass(std::string name, PassFn fn)
 	m_Passes.push_back({ std::move(name), std::move(fn) });
 }
 
-void RenderGraph::CreateRenderTarget(std::string name, FramebufferFormat format, float scale)
+void RenderGraph::AddFBO(std::string name, FramebufferFormat format, float scale, uint32_t numColorAttachments)
 {
 	HMN_CORE_ASSERT(m_FBOs.find(name) == m_FBOs.end(),
 		"RenderGraph: target '{}' already declared", name);
-	m_FBOs[std::move(name)] = { nullptr, format, scale };
+	m_FBOs[std::move(name)] = { nullptr, format, scale, numColorAttachments };
 }
 
 Ref<Framebuffer> RenderGraph::GetFBO(const std::string& name)
@@ -53,9 +53,10 @@ void RenderGraph::OnResize(uint32_t w, uint32_t h)
 		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale));
 
 		FramebufferSpecification spec;
-		spec.Width  = fw;
-		spec.Height = fh;
-		spec.Format = entry.format;
+		spec.Width               = fw;
+		spec.Height              = fh;
+		spec.Format              = entry.format;
+		spec.NumColorAttachments = entry.numColorAttachments;
 
 		if (entry.fbo)
 			entry.fbo->Resize(fw, fh);

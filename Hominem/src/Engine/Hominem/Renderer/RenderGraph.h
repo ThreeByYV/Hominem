@@ -21,7 +21,7 @@ public:
 
 	/// Registers a named render target. scale is relative to the viewport (1.0 = full res, 0.25 = quarter res).
 	/// The FBO is created on the first Execute() with a valid viewport.
-	void CreateRenderTarget(std::string name, FramebufferFormat format, float scale = 1.0f);
+	void AddFBO(std::string name, FramebufferFormat format, float scale = 1.0f, uint32_t numColorAttachments = 1);
 
 	/// Returns a previously declared render target. Asserts if the name was never declared.
 	Ref<Framebuffer> GetFBO(const std::string& name);
@@ -36,7 +36,7 @@ private:
 	void OnResize(uint32_t w, uint32_t h);
 
 	struct Pass     { std::string name; PassFn fn; };
-	struct FBOEntry { Ref<Framebuffer> fbo; FramebufferFormat format; float scale = 1.0f; };
+	struct FBOEntry { Ref<Framebuffer> fbo; FramebufferFormat format; float scale = 1.0f; uint32_t numColorAttachments = 1; };
 
 	std::vector<Pass>                         m_Passes;
 	std::unordered_map<std::string, FBOEntry> m_FBOs;

@@ -8,11 +8,12 @@ namespace Hominem {
 
 	struct FramebufferSpecification
 	{
-		uint32_t          Width   = 0;
-		uint32_t          Height  = 0;
-		FramebufferFormat Format  = FramebufferFormat::RGBA8;
-		uint32_t          Samples = 1;
-		bool              SwapChainTarget = false;
+		uint32_t          Width               = 0;
+		uint32_t          Height              = 0;
+		FramebufferFormat Format              = FramebufferFormat::RGBA8;
+		uint32_t          Samples             = 1;
+		bool              SwapChainTarget     = false;
+		uint32_t          NumColorAttachments = 1; // MRT: up to 4 same-format attachments
 	};
 
 	class Framebuffer : public RefCounted
@@ -30,8 +31,8 @@ namespace Hominem {
 		/// Blits the color attachment to the default framebuffer using a single DSA call.
 		virtual void BlitToDefault(uint32_t screenW, uint32_t screenH) = 0;
 
-		/// Returns the GL texture ID of the color attachment for use as a shader input.
-		virtual uint32_t GetColorAttachmentRendererID() const = 0;
+		/// Returns the GL texture ID of color attachment at index (0 = primary).
+		virtual uint32_t GetColorAttachmentRendererID(uint32_t index = 0) const = 0;
 
 		/// Returns the spec this framebuffer was created from.
 		virtual const FramebufferSpecification& GetSpecification() const = 0;
