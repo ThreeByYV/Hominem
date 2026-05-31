@@ -26,7 +26,7 @@ private:
     void SetupPasses();
 
     void GeometryPass      (const RenderFrame& frame);
-    void ImGuiPass         ();
+    void ImGuiPass         (const RenderFrame& frame);
     void AutoExposurePass  (const RenderFrame& frame);
     void BloomThresholdPass(const RenderFrame& frame);
     void BloomBlurHPass    (const RenderFrame& frame);

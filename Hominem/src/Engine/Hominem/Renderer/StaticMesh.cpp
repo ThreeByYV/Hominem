@@ -2,6 +2,7 @@
 #include "StaticMesh.h"
 #include "RenderThread.h"
 #include "Frustum.h"
+
 #include "Hominem/Core/Profiler.h"
 
 #include <glad/glad.h>

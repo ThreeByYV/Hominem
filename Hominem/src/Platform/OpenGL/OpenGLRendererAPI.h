@@ -29,6 +29,9 @@ namespace Hominem {
 		void SetWireframe(bool enabled)                      override;
 		void BindTexture(uint32_t slot, uint32_t id)         override;
 
+		const char* GetGPUVendor()   const override;
+		const char* GetGPURenderer() const override;
+
 	private:
 		uint32_t m_EmptyVAO = 0;
 	};

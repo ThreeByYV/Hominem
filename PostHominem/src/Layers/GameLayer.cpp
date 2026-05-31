@@ -20,6 +20,8 @@ GameLayer::GameLayer()
 
 void GameLayer::OnAttach()
 {
+	m_RenderScale = Renderer3D::GetRecommendedRenderScale();
+
 	m_ActiveScene = CreateRef<Scene>();
 	m_GameMode    = CreateScope<FactoryLevel>();
 
