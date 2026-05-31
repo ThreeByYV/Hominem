@@ -40,9 +40,10 @@ void SceneRenderer::Shutdown()
 
 void SceneRenderer::SetupPasses()
 {
-    m_RenderGraph.CreateRenderTarget("hdr",        FramebufferFormat::RGBA16F);
-    m_RenderGraph.CreateRenderTarget("bloom",      FramebufferFormat::RGBA16F, 0.25f);
-    m_RenderGraph.CreateRenderTarget("bloom_temp", FramebufferFormat::RGBA16F, 0.25f);
+    // HDR has 2 color attachments: [0] = rendered scene, [1] = view-space normals + linear depth
+    m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
+    m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA16F, 0.25f);
+    m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA16F, 0.25f);
 
     m_RenderGraph.AddPass("scene",          [this](RenderGraph&, const RenderFrame& f) { GeometryPass(f);       });
     m_RenderGraph.AddPass("imgui",          [this](RenderGraph&, const RenderFrame&  ) { ImGuiPass();           });
