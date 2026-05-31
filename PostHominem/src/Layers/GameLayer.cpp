@@ -75,6 +75,7 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 	frame.debugLights        = m_DebugLights;
 	frame.bloomEnabled       = m_BloomEnabled;
 	frame.toneMappingEnabled = m_ToneMappingEnabled;
+	frame.renderScale        = m_RenderScale;
 	frame.bloomStrength      = m_BloomStrength;
 	frame.bloomThreshold     = m_BloomThreshold;
 
@@ -201,6 +202,12 @@ void GameLayer::OnImGuiRender()
 			}
 			ImGui::PopID();
 		}
+	}
+	if (ImGui::CollapsingHeader("Render"))
+	{
+		ImGui::SliderFloat("Render Scale", &m_RenderScale, 0.25f, 1.0f);
+		ImGui::SameLine();
+		ImGui::TextDisabled("%.0f%%", m_RenderScale * 100.f);
 	}
 	if (ImGui::CollapsingHeader("Post Processing"))
 	{

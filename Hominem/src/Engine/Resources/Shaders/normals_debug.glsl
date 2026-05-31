@@ -6,6 +6,8 @@ layout(std430, binding = 4) readonly buffer SkinnedPositions { vec4 u_SkinnedPos
 layout(std430, binding = 5) readonly buffer SkinnedNormals   { vec4 u_SkinnedNorm[]; };
 layout(location = 1) in vec2 a_TexCoord;
 #else
+layout(std430, binding = 5) readonly buffer ModelMatrices { mat4 b_Models[]; };
+uniform int u_BaseModelIndex;
 layout(location = 0) in vec3 a_Position;
 layout(location = 1) in vec3 a_Normal;
 layout(location = 2) in vec2 a_TexCoord;
@@ -24,8 +26,9 @@ void main()
 	vec4 worldPos      = u_Model * u_SkinnedPos[gl_VertexID];
 	vs_out.WorldNormal = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
 #else
-	vec4 worldPos      = u_Model * vec4(a_Position, 1.0);
-	vs_out.WorldNormal = normalize(mat3(u_Model) * a_Normal);
+	mat4 model         = b_Models[uint(u_BaseModelIndex) + uint(gl_DrawID)];
+	vec4 worldPos      = model * vec4(a_Position, 1.0);
+	vs_out.WorldNormal = normalize(mat3(model) * a_Normal);
 #endif
 	vs_out.WorldPos = worldPos.xyz;
 	gl_Position     = worldPos;

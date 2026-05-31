@@ -96,6 +96,7 @@ namespace Hominem {
 		bool  toneMappingEnabled = false;
 		float bloomStrength      = 1.0f;
 		float bloomThreshold     = 0.8f;
+		float renderScale        = 1.0f; // 0.25–1.0, scales all internal FBOs
 
 		glm::mat4 viewProjection2D {};
 		glm::mat4 viewProjection3D {};

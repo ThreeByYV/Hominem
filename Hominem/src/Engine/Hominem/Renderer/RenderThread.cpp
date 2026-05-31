@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "RenderThread.h"
+#include "Hominem/Core/Profiler.h"
 
 #include <GLFW/glfw3.h>
 
@@ -119,6 +120,7 @@ namespace Hominem {
 
 	void RenderThread::ExecuteFrame(const RenderFrame& frame)
 	{
+		HMN_PROFILE_SCOPE("RenderThread::ExecuteFrame");
 		// Drain pending GPU uploads — swap to avoid holding the lock while executing.
 		{
 			std::vector<Job> uploads;
