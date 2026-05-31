@@ -8,8 +8,11 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace Hominem {
+
+struct Frustum;
 
 class StaticMesh : public RefCounted
 {
@@ -17,11 +20,13 @@ public:
 	StaticMesh()  = default;
 	~StaticMesh();
 
-	// Checks for a .bin sidecar cache first; falls back to assimp and writes the cache.
 	bool LoadFromFile(const std::string& path);
-	void Draw(const Ref<Shader>& shader, const glm::mat4& transform);
 
-	// True once geometry is on GPU — false until first Draw() on the render thread.
+	// Returns {draw calls issued, triangles rendered}.
+	std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
+	                                    const glm::mat4&   actorTransform,
+	                                    const Frustum*     frustum = nullptr);
+
 	bool IsLoaded() const { return m_VAO != 0 || !m_PendingVerts.empty(); }
 
 	glm::vec3 GetAABBMin() const { return m_AABBMin; }
@@ -30,7 +35,6 @@ public:
 	const Material& GetMaterial() const              { return m_Material; }
 	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-	// Returns ShaderPerm flags describing which PBR features this mesh actually has textures for.
 	uint32_t GetPermutationFlags() const;
 
 	size_t   GetDrawGroupCount() const { return m_DrawGroups.size(); }
@@ -41,25 +45,40 @@ public:
 		return t;
 	}
 
+	struct GroupBounds { glm::vec3 Min, Max; };
+
+	GroupBounds GetDrawGroupBounds(size_t i) const
+	{
+		return { m_DrawGroups[i].AABBMin, m_DrawGroups[i].AABBMax };
+	}
+
+	glm::mat4 GetDrawGroupTransform(size_t i) const
+	{
+		return m_DrawGroups[i].NodeTransform;
+	}
+
 private:
 	struct StaticVertex
 	{
-		glm::vec3 Position;  // offset  0
-		glm::vec3 Normal;    // offset 12
-		glm::vec2 TexCoord;  // offset 24
-		glm::vec4 Tangent;   // offset 32 — xyz = tangent, w = handedness (-1 or +1)
-	};                       // total  48 bytes
+		glm::vec3 Position;
+		glm::vec3 Normal;
+		glm::vec2 TexCoord;
+		glm::vec4 Tangent;   // xyz = tangent, w = handedness
+	};
 
 	struct DrawGroup
 	{
 		Ref<Texture2D> Albedo;
-		Ref<Texture2D> MetalRoughness;      // G = roughness, B = metalness
+		Ref<Texture2D> MetalRoughness;
 		Ref<Texture2D> NormalMap;
-		bool           HasRealMetalRoughness = false; // false = default 0.5/0 fallback
-		bool           HasRealNormalMap      = false; // false = flat (0,0,1) fallback
-		uint32_t       IndexByteOffset;
-		uint32_t       IndexCount;
-		int32_t        BaseVertex;
+		bool           HasRealMetalRoughness = false;
+		bool           HasRealNormalMap      = false;
+		uint32_t       IndexByteOffset = 0;
+		uint32_t       IndexCount      = 0;
+		int32_t        BaseVertex      = 0;
+		glm::vec3      AABBMin {  FLT_MAX };  // local (node) space
+		glm::vec3      AABBMax { -FLT_MAX };
+		glm::mat4      NodeTransform { 1.f }; // accumulated world transform from GLTF node tree
 	};
 
 	bool LoadBinary(const std::string& binPath);
@@ -75,16 +94,16 @@ private:
 	                 const std::vector<std::string>&  groupMRPaths,
 	                 const std::vector<std::string>&  groupNormalPaths);
 	void Upload(const std::vector<StaticVertex>& verts, const std::vector<uint32_t>& indices);
+	void ComputeWorldAABB();
 
 	Material               m_Material;
 	uint32_t               m_VAO = 0;
 	uint32_t               m_VBO = 0;
 	uint32_t               m_IBO = 0;
 	std::vector<DrawGroup> m_DrawGroups;
-	glm::vec3              m_AABBMin{ 0.f };
-	glm::vec3              m_AABBMax{ 0.f };
+	glm::vec3              m_AABBMin { 0.f };
+	glm::vec3              m_AABBMax { 0.f };
 
-	// CPU-side geometry held until first Draw() on the render thread.
 	std::vector<StaticVertex> m_PendingVerts;
 	std::vector<uint32_t>     m_PendingIndices;
 };

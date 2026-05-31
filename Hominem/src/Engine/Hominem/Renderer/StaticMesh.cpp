@@ -1,16 +1,20 @@
 #include "hmnpch.h"
 #include "StaticMesh.h"
 #include "RenderThread.h"
+#include "Frustum.h"
 
 #include <glad/glad.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <meshoptimizer.h>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <functional>
 
 namespace Hominem
 {
@@ -28,16 +32,19 @@ namespace Hominem
     }
 
     static constexpr uint32_t k_CacheMagic   = 0x48534D53u; // "SMSH"
-    static constexpr uint32_t k_CacheVersion = 5u;          // v5: normal maps + tangent in vertex
+    static constexpr uint32_t k_CacheVersion = 6u;          // v6: per-node transforms for spatial culling
 
     constexpr unsigned int k_AssimpFlags =
             aiProcess_Triangulate |
             aiProcess_GenSmoothNormals |
             aiProcess_FlipUVs |
             aiProcess_JoinIdenticalVertices |
-            aiProcess_OptimizeMeshes |
-            aiProcess_PreTransformVertices | // bakes node hierarchy into vertex positions
-            aiProcess_CalcTangentSpace;      // computes tangent + bitangent per vertex
+            // aiProcess_OptimizeMeshes intentionally omitted: it merges meshes from different
+            // nodes (different world transforms) which corrupts geometry when PreTransformVertices
+            // is not used. Per-node granularity is what we want for per-object frustum culling.
+            // aiProcess_PreTransformVertices intentionally omitted: we preserve the node hierarchy
+            // so each node gets its own AABB for frustum culling.
+            aiProcess_CalcTangentSpace;
 
     static Ref<Texture2D> s_WhiteTexture;
     static Ref<Texture2D> s_DefaultMetalRoughness; // G=0.5 roughness, B=0 metalness
@@ -153,9 +160,13 @@ namespace Hominem
             uint32_t offset, count, pathLen;
             int32_t baseVertex;
 
-            f.read(reinterpret_cast<char *>(&offset), sizeof(uint32_t));
-            f.read(reinterpret_cast<char *>(&count), sizeof(uint32_t));
+            f.read(reinterpret_cast<char *>(&offset),     sizeof(uint32_t));
+            f.read(reinterpret_cast<char *>(&count),      sizeof(uint32_t));
             f.read(reinterpret_cast<char *>(&baseVertex), sizeof(int32_t));
+
+            glm::mat4 nodeTransform(1.f);
+            f.read(reinterpret_cast<char*>(glm::value_ptr(nodeTransform)), sizeof(glm::mat4));
+
             f.read(reinterpret_cast<char *>(&pathLen), sizeof(uint32_t));
 
             auto readTex = [&]() -> Ref<Texture2D>
@@ -213,18 +224,28 @@ namespace Hominem
             dg.IndexByteOffset       = offset;
             dg.IndexCount            = count;
             dg.BaseVertex            = baseVertex;
+            dg.NodeTransform         = nodeTransform;
             m_DrawGroups.push_back(std::move(dg));
         }
 
         if (!f) return false;
 
-        m_AABBMin = glm::vec3(FLT_MAX);
-        m_AABBMax = glm::vec3(-FLT_MAX);
-        for (const auto& v : verts)
+        // Compute per-group AABBs in local (node) space from vertex data.
+        for (auto& dg : m_DrawGroups)
         {
-            m_AABBMin = glm::min(m_AABBMin, v.Position);
-            m_AABBMax = glm::max(m_AABBMax, v.Position);
+            dg.AABBMin = glm::vec3( FLT_MAX);
+            dg.AABBMax = glm::vec3(-FLT_MAX);
+            uint32_t idxStart = dg.IndexByteOffset / sizeof(uint32_t);
+            for (uint32_t i = 0; i < dg.IndexCount; i++)
+            {
+                const glm::vec3& p = verts[dg.BaseVertex + indices[idxStart + i]].Position;
+                dg.AABBMin = glm::min(dg.AABBMin, p);
+                dg.AABBMax = glm::max(dg.AABBMax, p);
+            }
         }
+
+        ComputeWorldAABB();
+
 
         m_PendingVerts   = verts;
         m_PendingIndices = indices;
@@ -284,64 +305,88 @@ namespace Hominem
         verts.reserve(totalVerts);
         indices.reserve(totalIndices);
 
-        // --- extract geometry ---
+        // --- extract geometry (traverse GLTF node tree, preserving per-node transforms) ---
         struct RawSub
         {
-            uint32_t idxOffset, idxCount;
-            int32_t baseVertex;
-            uint32_t matIdx;
+            uint32_t  idxOffset, idxCount;
+            int32_t   baseVertex;
+            uint32_t  matIdx;
+            glm::mat4 nodeTransform { 1.f }; // accumulated world transform for this node's mesh
         };
         std::vector<RawSub> rawSubs;
-        rawSubs.reserve(scene->mNumMeshes);
 
         const aiVector3D kZero(0.f);
 
-        for (uint32_t m = 0; m < scene->mNumMeshes; m++)
+        // Converts Assimp row-major matrix to GLM column-major.
+        auto toGlm = [](const aiMatrix4x4& m) -> glm::mat4 {
+            return glm::mat4(
+                m.a1, m.b1, m.c1, m.d1,
+                m.a2, m.b2, m.c2, m.d2,
+                m.a3, m.b3, m.c3, m.d3,
+                m.a4, m.b4, m.c4, m.d4);
+        };
+
+        // Recursive traversal: each node contributes its meshes with the accumulated transform.
+        // scaleToMetres is folded into the root so vertex positions stay in raw file units.
+        std::function<void(const aiNode*, const glm::mat4&)> traverse;
+        traverse = [&](const aiNode* node, const glm::mat4& parentTransform)
         {
-            const aiMesh *mesh = scene->mMeshes[m];
-            int32_t baseVertex = static_cast<int32_t>(verts.size());
-            uint32_t baseIndex = static_cast<uint32_t>(indices.size());
-            uint32_t faceIndices = 0;
+            glm::mat4 worldTransform = parentTransform * toGlm(node->mTransformation);
 
-            for (uint32_t v = 0; v < mesh->mNumVertices; v++)
+            for (uint32_t mi = 0; mi < node->mNumMeshes; mi++)
             {
-                const auto &p = mesh->mVertices[v];
-                const auto &n = mesh->mNormals ? mesh->mNormals[v] : kZero;
-                const auto &u = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0][v] : kZero;
+                const aiMesh* mesh = scene->mMeshes[node->mMeshes[mi]];
+                int32_t  baseVertex  = static_cast<int32_t>(verts.size());
+                uint32_t baseIndex   = static_cast<uint32_t>(indices.size());
+                uint32_t faceIndices = 0;
 
-                // Tangent + handedness (w = sign of det of TBN matrix)
-                glm::vec4 tangent(1, 0, 0, 1);
-                if (mesh->mTangents && mesh->mBitangents)
+                for (uint32_t v = 0; v < mesh->mNumVertices; v++)
                 {
-                    const auto& t = mesh->mTangents[v];
-                    const auto& b = mesh->mBitangents[v];
-                    glm::vec3 T(t.x, t.y, t.z);
-                    glm::vec3 N(n.x, n.y, n.z);
-                    glm::vec3 B(b.x, b.y, b.z);
-                    float handedness = (glm::dot(glm::cross(N, T), B) < 0.f) ? -1.f : 1.f;
-                    tangent = glm::vec4(T, handedness);
+                    const auto& p = mesh->mVertices[v];
+                    const auto& n = mesh->mNormals ? mesh->mNormals[v] : kZero;
+                    const auto& u = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0][v] : kZero;
+
+                    glm::vec4 tangent(1, 0, 0, 1);
+                    if (mesh->mTangents && mesh->mBitangents)
+                    {
+                        const auto& t = mesh->mTangents[v];
+                        const auto& b = mesh->mBitangents[v];
+                        glm::vec3 T(t.x, t.y, t.z);
+                        glm::vec3 N(n.x, n.y, n.z);
+                        glm::vec3 B(b.x, b.y, b.z);
+                        float handedness = (glm::dot(glm::cross(N, T), B) < 0.f) ? -1.f : 1.f;
+                        tangent = glm::vec4(T, handedness);
+                    }
+
+                    verts.push_back({
+                        { p.x, p.y, p.z },  // raw file units — scaleToMetres is in nodeTransform
+                        { n.x, n.y, n.z },
+                        { u.x, u.y },
+                        tangent
+                    });
                 }
 
-                verts.push_back({
-                    { p.x * scaleToMetres, p.y * scaleToMetres, p.z * scaleToMetres },
-                    { n.x, n.y, n.z },
-                    { u.x, u.y },
-                    tangent
-                });
+                for (uint32_t f = 0; f < mesh->mNumFaces; f++)
+                {
+                    const aiFace& face = mesh->mFaces[f];
+                    if (face.mNumIndices != 3) continue;
+                    indices.push_back(face.mIndices[0]);
+                    indices.push_back(face.mIndices[1]);
+                    indices.push_back(face.mIndices[2]);
+                    faceIndices += 3;
+                }
+
+                rawSubs.push_back({ baseIndex, faceIndices, baseVertex,
+                                    mesh->mMaterialIndex, worldTransform });
             }
 
-            for (uint32_t f = 0; f < mesh->mNumFaces; f++)
-            {
-                const aiFace &face = mesh->mFaces[f];
-                if (face.mNumIndices != 3) continue;
-                indices.push_back(face.mIndices[0]);
-                indices.push_back(face.mIndices[1]);
-                indices.push_back(face.mIndices[2]);
-                faceIndices += 3;
-            }
+            for (uint32_t ci = 0; ci < node->mNumChildren; ci++)
+                traverse(node->mChildren[ci], worldTransform);
+        };
 
-            rawSubs.push_back({baseIndex, faceIndices, baseVertex, mesh->mMaterialIndex});
-        }
+        // Root parent folds in the unit scale so child transforms stay in file units.
+        glm::mat4 rootScale = glm::scale(glm::mat4(1.f), glm::vec3(scaleToMetres));
+        traverse(scene->mRootNode, rootScale);
 
         // --- load materials ---
         std::vector<Ref<Texture2D>> matAlbedo(scene->mNumMaterials);
@@ -590,14 +635,15 @@ namespace Hominem
             const std::string& normalPath = sub.matIdx < matNormalPaths.size()  ? matNormalPaths[sub.matIdx]  : "";
 
             DrawGroup dg;
-            dg.Albedo               = albedo;
-            dg.MetalRoughness       = mr;
-            dg.NormalMap            = normal;
+            dg.Albedo                = albedo;
+            dg.MetalRoughness        = mr;
+            dg.NormalMap             = normal;
             dg.HasRealMetalRoughness = !mrPath.empty();
             dg.HasRealNormalMap      = !normalPath.empty();
             dg.IndexByteOffset       = sub.idxOffset * (uint32_t)sizeof(uint32_t);
             dg.IndexCount            = sub.idxCount;
             dg.BaseVertex            = sub.baseVertex;
+            dg.NodeTransform         = sub.nodeTransform;
             m_DrawGroups.push_back(std::move(dg));
             groupAlbedoPaths2.push_back(albedoPath);
             groupMRPaths2.push_back(mrPath);
@@ -606,13 +652,7 @@ namespace Hominem
 
         OptimizeGeometry(verts, indices, m_DrawGroups);
 
-        m_AABBMin = glm::vec3(FLT_MAX);
-        m_AABBMax = glm::vec3(-FLT_MAX);
-        for (const auto &v: verts)
-        {
-            m_AABBMin = glm::min(m_AABBMin, v.Position);
-            m_AABBMax = glm::max(m_AABBMax, v.Position);
-        }
+        ComputeWorldAABB();
         {
             glm::vec3 size = m_AABBMax - m_AABBMin;
             HMN_CORE_INFO("StaticMesh: '{}' — {}v {}i {}groups", path, verts.size(), indices.size(), rawSubs.size());
@@ -623,6 +663,8 @@ namespace Hominem
         if (!path.ends_with(".glb") && !path.ends_with(".gltf")
          && !path.ends_with(".GLB") && !path.ends_with(".GLTF"))
             WriteBinary(path + ".bin", verts, indices, m_DrawGroups, groupAlbedoPaths2, groupMRPaths2, groupNormalPaths2);
+
+
         m_PendingVerts   = verts;
         m_PendingIndices = indices;
         RenderThread::QueueUpload([this] {
@@ -631,6 +673,25 @@ namespace Hominem
             m_PendingIndices = {};
         });
         return true;
+    }
+
+    void StaticMesh::ComputeWorldAABB()
+    {
+        m_AABBMin = glm::vec3( FLT_MAX);
+        m_AABBMax = glm::vec3(-FLT_MAX);
+        for (const auto& g : m_DrawGroups)
+        {
+            for (int ci = 0; ci < 8; ci++)
+            {
+                glm::vec3 corner(
+                    (ci & 1) ? g.AABBMax.x : g.AABBMin.x,
+                    (ci & 2) ? g.AABBMax.y : g.AABBMin.y,
+                    (ci & 4) ? g.AABBMax.z : g.AABBMin.z);
+                glm::vec3 wc = glm::vec3(g.NodeTransform * glm::vec4(corner, 1.f));
+                m_AABBMin = glm::min(m_AABBMin, wc);
+                m_AABBMax = glm::max(m_AABBMax, wc);
+            }
+        }
     }
 
     void StaticMesh::OptimizeGeometry(std::vector<StaticVertex>& verts,
@@ -690,6 +751,14 @@ namespace Hominem
             group.IndexByteOffset = static_cast<uint32_t>(newIndices.size() * sizeof(uint32_t));
             group.IndexCount      = localIdxCount;
 
+            group.AABBMin = glm::vec3( FLT_MAX);
+            group.AABBMax = glm::vec3(-FLT_MAX);
+            for (const auto& v : optVerts)
+            {
+                group.AABBMin = glm::min(group.AABBMin, v.Position);
+                group.AABBMax = glm::max(group.AABBMax, v.Position);
+            }
+
             newVerts.insert  (newVerts.end(),   optVerts.begin(),   optVerts.end());
             newIndices.insert(newIndices.end(), optIndices.begin(), optIndices.end());
         }
@@ -743,9 +812,10 @@ namespace Hominem
             const std::string& mr     = i < groupMRPaths.size()      ? groupMRPaths[i]      : "";
             const std::string& normal = i < groupNormalPaths.size()  ? groupNormalPaths[i]  : "";
 
-            f.write(reinterpret_cast<const char*>(&g.IndexByteOffset), sizeof(uint32_t));
-            f.write(reinterpret_cast<const char*>(&g.IndexCount),      sizeof(uint32_t));
-            f.write(reinterpret_cast<const char*>(&g.BaseVertex),      sizeof(int32_t));
+            f.write(reinterpret_cast<const char*>(&g.IndexByteOffset),         sizeof(uint32_t));
+            f.write(reinterpret_cast<const char*>(&g.IndexCount),              sizeof(uint32_t));
+            f.write(reinterpret_cast<const char*>(&g.BaseVertex),              sizeof(int32_t));
+            f.write(reinterpret_cast<const char*>(glm::value_ptr(g.NodeTransform)), sizeof(glm::mat4));
             writePath(albedo);
             writePath(mr);
             writePath(normal);
@@ -803,23 +873,33 @@ namespace Hominem
         return flags;
     }
 
-    void StaticMesh::Draw(const Ref<Shader> &shader, const glm::mat4 &transform)
+    std::pair<uint32_t, uint64_t> StaticMesh::Draw(
+        const Ref<Shader>& shader, const glm::mat4& actorTransform, const Frustum* frustum)
     {
-        if (!m_VAO || m_DrawGroups.empty()) return;
+        if (!m_VAO || m_DrawGroups.empty()) return { 0, 0 };
 
-        // FBX winding order is not guaranteed — disable culling so both faces render
+        uint32_t drawCalls = 0;
+        uint64_t triangles = 0;
+
         glDisable(GL_CULL_FACE);
 
         shader->Bind();
-        shader->SetMat4("u_Model", transform);
         shader->SetInt("u_Albedo",         0);
         shader->SetInt("u_MetalRoughness", 1);
         shader->SetInt("u_NormalMap",      2);
 
         glBindVertexArray(m_VAO);
 
-        for (const auto &group: m_DrawGroups)
+        for (const auto& group : m_DrawGroups)
         {
+            // Each DrawGroup has its own node transform from the GLTF hierarchy.
+            const glm::mat4 model = actorTransform * group.NodeTransform;
+
+            if (frustum && !frustum->TestAABBTransformed(group.AABBMin, group.AABBMax, model))
+                continue;
+
+            shader->SetMat4("u_Model", model);
+
             (group.Albedo         ? group.Albedo         : GetWhiteTexture())->Bind(0);
             (group.MetalRoughness ? group.MetalRoughness : GetDefaultMetalRoughness())->Bind(1);
             (group.NormalMap      ? group.NormalMap      : GetFlatNormalMap())->Bind(2);
@@ -828,11 +908,16 @@ namespace Hominem
                 GL_TRIANGLES,
                 static_cast<GLsizei>(group.IndexCount),
                 GL_UNSIGNED_INT,
-                reinterpret_cast<void *>(static_cast<size_t>(group.IndexByteOffset)),
+                reinterpret_cast<void*>(static_cast<size_t>(group.IndexByteOffset)),
                 group.BaseVertex);
+
+            drawCalls++;
+            triangles += group.IndexCount / 3;
         }
 
         glBindVertexArray(0);
         glEnable(GL_CULL_FACE);
+
+        return { drawCalls, triangles };
     }
 }
