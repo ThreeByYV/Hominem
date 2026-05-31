@@ -68,7 +68,9 @@ target_link_libraries(ImGui PRIVATE glfw)
 
 add_library(Tracy STATIC Hominem/vendor/tracy/public/TracyClient.cpp)
 target_include_directories(Tracy PUBLIC Hominem/vendor/tracy/public)
-target_compile_definitions(Tracy PUBLIC TRACY_ENABLE TRACY_NO_SYSTEM_TRACING)
+# PRIVATE so TRACY_ENABLE doesn't leak to consumers via PUBLIC interface.
+# Each target opts in explicitly via its own compile definitions below.
+target_compile_definitions(Tracy PRIVATE TRACY_ENABLE TRACY_NO_SYSTEM_TRACING)
 
 add_library(assimp_lib STATIC IMPORTED GLOBAL)
 set_target_properties(assimp_lib PROPERTIES
