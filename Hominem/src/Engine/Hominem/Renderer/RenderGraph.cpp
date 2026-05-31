@@ -31,6 +31,15 @@ void RenderGraph::Resize(uint32_t w, uint32_t h)
 		OnResize(w, h);
 }
 
+void RenderGraph::SetRenderScale(float scale)
+{
+	float clamped = std::max(0.25f, std::min(scale, 1.0f));
+	if (clamped == m_RenderScale) return;
+	m_RenderScale = clamped;
+	if (m_Width > 0 && m_Height > 0)
+		OnResize(m_Width, m_Height);
+}
+
 void RenderGraph::Execute(const RenderFrame& frame)
 {
 	// Only resize FBOs when the viewport is valid — never create a 0-sized FBO.
@@ -49,8 +58,8 @@ void RenderGraph::OnResize(uint32_t w, uint32_t h)
 	m_Height = h;
 	for (auto& [name, entry] : m_FBOs)
 	{
-		uint32_t fw = std::max(1u, (uint32_t)(w * entry.scale));
-		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale));
+		uint32_t fw = std::max(1u, (uint32_t)(w * entry.scale * m_RenderScale));
+		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale * m_RenderScale));
 
 		FramebufferSpecification spec;
 		spec.Width               = fw;

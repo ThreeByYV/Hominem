@@ -2,17 +2,21 @@
 #version 460 core
 
 #ifdef SKINNED
-    // Positions and normals are written by the skinning compute shader before this
-    // draw call. Indexed by gl_VertexID — no VAO vertex fetch for these attributes.
+   // Positions and normals are written by the skinning compute shader before this
+   // draw call. Indexed by gl_VertexID — no VAO vertex fetch for these attributes.
     layout(std430, binding = 4) readonly buffer SkinnedPositions { vec4 u_SkinnedPos[];  };
     layout(std430, binding = 5) readonly buffer SkinnedNormals   { vec4 u_SkinnedNorm[]; };
     layout(location = 1) in vec2 a_TexCoord;
 #else
-    // Static: standard vertex attributes
+    // Model matrices uploaded once per draw call batch; gl_DrawID indexes within the batch,
+    // u_BaseModelIndex offsets to the correct position in the global SSBO.
+    layout(std430, binding = 5) readonly buffer ModelMatrices { mat4 b_Models[]; };
+    uniform int u_BaseModelIndex;
+
     layout(location = 0) in vec3 a_Position;
     layout(location = 1) in vec3 a_Normal;
     layout(location = 2) in vec2 a_TexCoord;
-    layout(location = 3) in vec4 a_Tangent;   // always in VAO; read only when HAS_NORMAL_MAP
+    layout(location = 3) in vec4 a_Tangent;
 #endif
 
 #include "includes/scene_ubo.glsl"
@@ -31,10 +35,11 @@ void main()
     vec4 worldPos = u_Model * u_SkinnedPos[gl_VertexID];
     v_Normal      = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
 #else
-    vec4 worldPos = u_Model * vec4(a_Position, 1.0);
-    v_Normal      = mat3(u_Model) * a_Normal;
+    mat4 model    = b_Models[uint(u_BaseModelIndex) + uint(gl_DrawID)];
+    vec4 worldPos = model * vec4(a_Position, 1.0);
+    v_Normal      = mat3(model) * a_Normal;
 #ifdef HAS_NORMAL_MAP
-    v_Tangent     = vec4(mat3(u_Model) * a_Tangent.xyz, a_Tangent.w);
+    v_Tangent     = vec4(mat3(model) * a_Tangent.xyz, a_Tangent.w);
 #endif
 #endif
 

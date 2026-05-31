@@ -97,9 +97,11 @@ private:
 	void ComputeWorldAABB();
 
 	Material               m_Material;
-	uint32_t               m_VAO = 0;
-	uint32_t               m_VBO = 0;
-	uint32_t               m_IBO = 0;
+	uint32_t               m_VAO               = 0;
+	uint32_t               m_VBO               = 0;
+	uint32_t               m_IBO               = 0;
+	uint32_t               m_ModelMatrixSSBO   = 0;
+	uint32_t               m_DrawCommandBuffer = 0;
 	std::vector<DrawGroup> m_DrawGroups;
 	glm::vec3              m_AABBMin { 0.f };
 	glm::vec3              m_AABBMax { 0.f };

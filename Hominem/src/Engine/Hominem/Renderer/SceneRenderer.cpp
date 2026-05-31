@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "SceneRenderer.h"
+#include "Hominem/Core/Profiler.h"
 
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -56,11 +57,14 @@ void SceneRenderer::SetupPasses()
 
 void SceneRenderer::RenderScene(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
+    m_RenderGraph.SetRenderScale(frame.renderScale);
     m_RenderGraph.Execute(frame);
 }
 
 void SceneRenderer::GeometryPass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     // Bake before BeginScene so the result is visible from the next frame onward.
     if (frame.bakeEnvMap && frame.bakedEnvMapOut)
     {
@@ -74,7 +78,9 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
     const auto hdr = m_RenderGraph.GetFBO("hdr");
     hdr->Bind();
 
-    RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+    // Use the FBO's actual dimensions — may be smaller than viewport when renderScale < 1.
+    const auto& hdrSpec = hdr->GetSpecification();
+    RenderCommand::SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
     RenderCommand::SetScissorEnabled(false);
     RenderCommand::SetClearColor(frame.clearColor);
     RenderCommand::Clear();
@@ -127,14 +133,17 @@ void SceneRenderer::ImGuiPass()
 
 void SceneRenderer::AutoExposurePass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     if (!frame.toneMappingEnabled) return;
     auto hdr = m_RenderGraph.GetFBO("hdr");
+    const auto& spec = hdr->GetSpecification();
     m_AutoExposure.Compute(hdr->GetColorAttachmentRendererID(),
-                           frame.viewportWidth, frame.viewportHeight);
+                           spec.Width, spec.Height);
 }
 
 void SceneRenderer::BloomThresholdPass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     auto bloom = m_RenderGraph.GetFBO("bloom");
     bloom->Bind();
@@ -154,6 +163,7 @@ void SceneRenderer::BloomThresholdPass(const RenderFrame& frame)
 
 void SceneRenderer::BloomBlurHPass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     auto dst = m_RenderGraph.GetFBO("bloom_temp");
     dst->Bind();
@@ -171,6 +181,7 @@ void SceneRenderer::BloomBlurHPass(const RenderFrame& frame)
 
 void SceneRenderer::BloomBlurVPass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     auto dst = m_RenderGraph.GetFBO("bloom");
     dst->Bind();
@@ -188,6 +199,7 @@ void SceneRenderer::BloomBlurVPass(const RenderFrame& frame)
 
 void SceneRenderer::CompositePass(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
     auto hdrFBO = m_RenderGraph.GetFBO("hdr");
     if (!hdrFBO) return;

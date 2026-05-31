@@ -2,6 +2,7 @@
 #include "Renderer3D.h"
 #include "Hominem/Utils/Renderer.h"
 #include "RenderCommand.h"
+#include "Hominem/Core/Profiler.h"
 
 #include <ranges>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -112,6 +113,7 @@ void Renderer3D::ResizeTileBuffers(uint32_t w, uint32_t h)
 
 void Renderer3D::CullLights(const RenderFrame& frame)
 {
+    HMN_PROFILE_FUNCTION();
     ResizeTileBuffers(frame.viewportWidth, frame.viewportHeight);
 
     // Build GPU light list from RenderFrame
@@ -208,6 +210,7 @@ void Renderer3D::EndScene()
 
 void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 {
+    HMN_PROFILE_FUNCTION();
     Ref<Shader> shader = s_Data->OverrideShader;
     if (!shader)
     {
@@ -251,6 +254,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 
 void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 {
+    HMN_PROFILE_FUNCTION();
     Ref<Shader> shader;
     if (s_Data->OverrideShader)
     {

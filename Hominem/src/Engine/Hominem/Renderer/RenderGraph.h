@@ -32,6 +32,11 @@ public:
 	/// Explicitly resize all FBOs to the given dimensions (no-op if unchanged).
 	void Resize(uint32_t w, uint32_t h);
 
+	/// Sets a global render scale (0.25–1.0) applied to all FBO dimensions.
+	/// Call before Execute() each frame; rebuilds FBOs only when scale changes.
+	void  SetRenderScale(float scale);
+	float GetRenderScale() const { return m_RenderScale; }
+
 private:
 	void OnResize(uint32_t w, uint32_t h);
 
@@ -40,8 +45,9 @@ private:
 
 	std::vector<Pass>                         m_Passes;
 	std::unordered_map<std::string, FBOEntry> m_FBOs;
-	uint32_t m_Width  = 0;
-	uint32_t m_Height = 0;
+	uint32_t m_Width       = 0;
+	uint32_t m_Height      = 0;
+	float    m_RenderScale = 1.0f;
 };
 
 }
