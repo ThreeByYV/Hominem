@@ -58,6 +58,9 @@ namespace Hominem {
 		/// Binds a texture to the given texture unit.
 		virtual void BindTexture(uint32_t slot, uint32_t id) = 0;
 
+		virtual const char* GetGPUVendor()   const = 0;
+		virtual const char* GetGPURenderer() const = 0;
+
 		inline static API GetAPI() { return s_API; }
 
 	private:

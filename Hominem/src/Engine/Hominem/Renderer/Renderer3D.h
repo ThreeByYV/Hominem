@@ -90,6 +90,8 @@ public:
     static bool GetDrawAABB()               { return s_DrawAABB; }
     static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
     static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
+    // Returns 0.75 for low-end integrated GPUs, 1.0 otherwise.
+    static float GetRecommendedRenderScale() { return s_RecommendedRenderScale; }
 
     static uint32_t GetDrawCalls()    { return s_DrawCalls; }
     static uint64_t GetTriangles()    { return s_Triangles; }
@@ -130,6 +132,7 @@ private:
     static float              s_NormalLength;
     static bool               s_DrawAABB;
     static bool               s_DebugHeatmap;
+    static float              s_RecommendedRenderScale;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;
     static uint32_t           s_GroupsTotal;

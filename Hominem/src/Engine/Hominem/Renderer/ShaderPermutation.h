@@ -21,15 +21,17 @@ enum ShaderPerm : uint32_t
 // All valid mesh permutations — static (ForwardPlus) and skinned variants.
 // Add a new row here to support a new combination; nothing else needs changing.
 static constexpr uint32_t k_MeshPerms[] = {
+    // Full PBR variants
     ShaderPerm_ForwardPlus,
     ShaderPerm_ForwardPlus | ShaderPerm_HasMetalRoughness,
     ShaderPerm_ForwardPlus | ShaderPerm_HasNormalMap | ShaderPerm_HasMetalRoughness,
     ShaderPerm_ForwardPlus | ShaderPerm_HasNormalMap | ShaderPerm_HasMetalRoughness | ShaderPerm_HasEnvMap,
     ShaderPerm_ForwardPlus | ShaderPerm_HasMetalRoughness | ShaderPerm_HasEnvMap,
     ShaderPerm_ForwardPlus | ShaderPerm_HasEnvMap,
+
+    // Skinned variants (normal maps unsupported — SKINNED path skips TBN/tangent entirely)
     ShaderPerm_Skinned,
     ShaderPerm_Skinned | ShaderPerm_HasMetalRoughness,
-    ShaderPerm_Skinned | ShaderPerm_HasNormalMap | ShaderPerm_HasMetalRoughness,
 };
 
 

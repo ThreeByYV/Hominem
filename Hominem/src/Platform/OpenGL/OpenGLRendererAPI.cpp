@@ -171,4 +171,14 @@ namespace Hominem {
 		glBindTextureUnit(slot, id);
 	}
 
+	const char* OpenGLRendererAPI::GetGPUVendor() const
+	{
+		return (const char*)glGetString(GL_VENDOR);
+	}
+
+	const char* OpenGLRendererAPI::GetGPURenderer() const
+	{
+		return (const char*)glGetString(GL_RENDERER);
+	}
+
 }

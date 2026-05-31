@@ -43,16 +43,16 @@ void SceneRenderer::SetupPasses()
 {
     // HDR has 2 color attachments: [0] = rendered scene, [1] = view-space normals + linear depth
     m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
-    m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA16F, 0.25f);
-    m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA16F, 0.25f);
+    m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f);
+    m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f);
 
     m_RenderGraph.AddPass("scene",          [this](RenderGraph&, const RenderFrame& f) { GeometryPass(f);       });
-    m_RenderGraph.AddPass("imgui",          [this](RenderGraph&, const RenderFrame&  ) { ImGuiPass();           });
     m_RenderGraph.AddPass("auto_exposure",  [this](RenderGraph&, const RenderFrame& f) { AutoExposurePass(f);   });
     m_RenderGraph.AddPass("bloom_threshold",[this](RenderGraph&, const RenderFrame& f) { BloomThresholdPass(f); });
     m_RenderGraph.AddPass("bloom_blur_h",   [this](RenderGraph&, const RenderFrame& f) { BloomBlurHPass(f);     });
     m_RenderGraph.AddPass("bloom_blur_v",   [this](RenderGraph&, const RenderFrame& f) { BloomBlurVPass(f);     });
     m_RenderGraph.AddPass("composite",      [this](RenderGraph&, const RenderFrame& f) { CompositePass(f);      });
+    m_RenderGraph.AddPass("imgui",          [this](RenderGraph&, const RenderFrame& f) { ImGuiPass(f);          });
 }
 
 void SceneRenderer::RenderScene(const RenderFrame& frame)
@@ -118,15 +118,17 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
     hdr->Unbind();
 }
 
-void SceneRenderer::ImGuiPass()
+void SceneRenderer::ImGuiPass(const RenderFrame& frame)
 {
     if (m_WaitImGui) m_WaitImGui();
 
-    m_RenderGraph.GetFBO("hdr")->Bind();
+    // Render directly into the back buffer (no FBO bound) at full window resolution.
+    // This must run after composite so the viewport is correct and UI is unaffected
+    // by render scale.
+    RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
     ImGui_ImplOpenGL3_NewFrame();
     if (ImDrawData* drawData = ImGui::GetDrawData())
         ImGui_ImplOpenGL3_RenderDrawData(drawData);
-    m_RenderGraph.GetFBO("hdr")->Unbind();
 
     if (m_NotifyImGui) m_NotifyImGui();
 }

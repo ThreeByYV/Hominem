@@ -92,7 +92,6 @@ uniform float     u_Metalness;
     uniform float u_PointLightRadii[MAX_POINT_LIGHTS];
 #endif
 
-
 void main()
 {
     vec4 albedoSample = texture(u_Albedo, v_TexCoord);

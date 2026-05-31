@@ -103,6 +103,9 @@ namespace Hominem {
 			s_RendererAPI->BindTexture(slot, id);
 		}
 
+		inline static const char* GetGPUVendor()   { return s_RendererAPI->GetGPUVendor();   }
+		inline static const char* GetGPURenderer() { return s_RendererAPI->GetGPURenderer(); }
+
 	private:
 		static RendererAPI* s_RendererAPI;
 	};

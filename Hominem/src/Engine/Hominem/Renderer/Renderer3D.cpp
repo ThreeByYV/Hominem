@@ -30,8 +30,9 @@ namespace {
     Renderer3D::SceneData* Renderer3D::s_Scene        = nullptr;
     bool                   Renderer3D::s_DrawNormals   = false;
     float                  Renderer3D::s_NormalLength  = 0.1f;
-    bool                   Renderer3D::s_DrawAABB      = false;
-    bool                   Renderer3D::s_DebugHeatmap  = false;
+    bool                   Renderer3D::s_DrawAABB               = false;
+    bool                   Renderer3D::s_DebugHeatmap            = false;
+    float                  Renderer3D::s_RecommendedRenderScale  = 1.0f;
     uint32_t               Renderer3D::s_DrawCalls     = 0;
     uint64_t               Renderer3D::s_Triangles     = 0;
     uint32_t               Renderer3D::s_GroupsTotal   = 0;
@@ -72,6 +73,23 @@ void Renderer3D::Init()
     s_Data->DebugVAO->SetIndexBuffer(s_Data->DebugIBO);
 }
 
+static bool DetectLowEndGPU()
+{
+    const char* renderer = RenderCommand::GetGPURenderer();
+    const char* vendor   = RenderCommand::GetGPUVendor();
+    if (!renderer || !vendor) return false;
+    std::string r(renderer), v(vendor);
+    // Intel integrated (HD/UHD) — Arc is discrete and handles PBR fine
+    if (v.find("Intel") != std::string::npos)
+    {
+        if (r.find("Arc") != std::string::npos) return false;
+        if (r.find("HD ") != std::string::npos || r.find("UHD ") != std::string::npos ||
+            r.find("HD Graphics") != std::string::npos || r.find("UHD Graphics") != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
 void Renderer3D::InitForwardPlus()
 {
     HMN_CORE_ASSERT(s_Data, "Renderer3D::InitForwardPlus called before Init()");
@@ -87,6 +105,12 @@ void Renderer3D::InitForwardPlus()
     s_Data->MeshVariants = ShaderPermutationSet::Create(
         "engine://Shaders/mesh.glsl",
         k_MeshPerms, std::size(k_MeshPerms));
+
+    if (DetectLowEndGPU())
+    {
+        s_RecommendedRenderScale = 0.80f;
+        HMN_CORE_INFO("Renderer3D: low-end integrated GPU detected — recommended render scale 0.80");
+    }
 
     HMN_CORE_INFO("Renderer3D: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
                   MAX_LIGHTS, TILE_SIZE);
