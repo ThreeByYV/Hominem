@@ -20,11 +20,18 @@ namespace Hominem {
 
 }
 
-//Core log macros
-#define HMN_CORE_TRACE(...)      ::Hominem::Log::GetCoreLogger()->trace(__VA_ARGS__)
-#define HMN_CORE_INFO(...)       ::Hominem::Log::GetCoreLogger()->info(__VA_ARGS__)
-#define HMN_CORE_WARN(...)       ::Hominem::Log::GetCoreLogger()->warn(__VA_ARGS__)
-#define HMN_CORE_ERROR(...)      ::Hominem::Log::GetCoreLogger()->error(__VA_ARGS__)
-#define HMN_CORE_CRITICAL(...)   ::Hominem::Log::GetCoreLogger()->critical(__VA_ARGS__)
+#ifndef HMN_DIST
+    #define HMN_CORE_TRACE(...)    ::Hominem::Log::GetCoreLogger()->trace(__VA_ARGS__)
+    #define HMN_CORE_INFO(...)     ::Hominem::Log::GetCoreLogger()->info(__VA_ARGS__)
+    #define HMN_CORE_WARN(...)     ::Hominem::Log::GetCoreLogger()->warn(__VA_ARGS__)
+    #define HMN_CORE_ERROR(...)    ::Hominem::Log::GetCoreLogger()->error(__VA_ARGS__)
+    #define HMN_CORE_CRITICAL(...) ::Hominem::Log::GetCoreLogger()->critical(__VA_ARGS__)
+#else
+    #define HMN_CORE_TRACE(...)    (void)0
+    #define HMN_CORE_INFO(...)     (void)0
+    #define HMN_CORE_WARN(...)     (void)0
+    #define HMN_CORE_ERROR(...)    (void)0
+    #define HMN_CORE_CRITICAL(...) (void)0
+#endif
 
 
