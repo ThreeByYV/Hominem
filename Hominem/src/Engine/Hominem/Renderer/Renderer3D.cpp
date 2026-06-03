@@ -31,6 +31,10 @@ namespace {
     bool                   Renderer3D::s_DrawNormals   = false;
     float                  Renderer3D::s_NormalLength  = 0.1f;
     bool                   Renderer3D::s_DrawAABB               = false;
+    bool                   Renderer3D::s_DrawBoneWeights        = false;
+    int                    Renderer3D::s_DisplayBoneIndex       = 0;
+    bool                   Renderer3D::s_ToonShading            = false;
+    float                  Renderer3D::s_OutlineThickness       = 0.02f;
     bool                   Renderer3D::s_DebugHeatmap            = false;
     float                  Renderer3D::s_RecommendedRenderScale  = 1.0f;
     uint32_t               Renderer3D::s_DrawCalls     = 0;
@@ -54,6 +58,9 @@ void Renderer3D::Init()
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
+    s_Data->BoneWeightShader     = Shader::Create("engine://Shaders/bone_weight.glsl");
+    s_Data->ToonShader           = Shader::Create("engine://Shaders/toon_skinned.glsl");
+    s_Data->ToonOutlineShader    = Shader::Create("engine://Shaders/toon_outline.glsl");
     s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
     s_Data->DebugSphereShader    = s_Data->ShaderLibrary->Get("debug_sphere");
 
@@ -235,6 +242,22 @@ void Renderer3D::EndScene()
 void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 {
     HMN_PROFILE_FUNCTION();
+
+    if (s_DrawBoneWeights && s_Data->BoneWeightShader)
+    {
+        // Light culling overwrites bindings 3 and 4 — restore the mesh SSBOs before drawing.
+        mesh.DispatchSkinning({});
+        s_Data->BoneWeightShader->Bind();
+        s_Data->BoneWeightShader->SetMat4("u_Model", transform);
+        s_Data->BoneWeightShader->SetInt("u_Albedo", 0);
+        s_Data->BoneWeightShader->SetFloat4("u_Color", glm::vec4(1.f));
+        s_Data->BoneWeightShader->SetInt("gDisplayBoneIndex", s_DisplayBoneIndex);
+        mesh.Render(s_Data->BoneWeightShader);
+        s_DrawCalls += mesh.GetSubmeshCount();
+        s_Triangles += mesh.GetIndexCount() / 3;
+        return;
+    }
+
     Ref<Shader> shader = s_Data->OverrideShader;
     if (!shader)
     {
@@ -263,7 +286,28 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
         shader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
     }
 
-    mesh.Render(shader);
+    if (s_ToonShading && s_Data->ToonShader)
+    {
+        // Toon shading — must upload light uniforms onto the toon shader directly
+        s_Data->ToonShader->Bind();
+        s_Data->ToonShader->SetMat4("u_Model", transform);
+        s_Data->ToonShader->SetInt("u_Albedo", 0);
+        s_Data->ToonShader->SetInt("u_PointLightCount", lightCount);
+        for (int i = 0; i < lightCount; i++)
+        {
+            const auto& l   = s_Scene->Lights[i];
+            const std::string idx = "[" + std::to_string(i) + "]";
+            s_Data->ToonShader->SetFloat3("u_PointLightPositions"  + idx, l.Position);
+            s_Data->ToonShader->SetFloat3("u_PointLightColors"     + idx, l.Color);
+            s_Data->ToonShader->SetFloat ("u_PointLightIntensities"+ idx, l.Intensity);
+            s_Data->ToonShader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
+        }
+        mesh.Render(s_Data->ToonShader);
+    }
+    else
+    {
+        mesh.Render(shader);
+    }
     s_DrawCalls += mesh.GetSubmeshCount();
     s_Triangles += mesh.GetIndexCount() / 3;
 

@@ -23,7 +23,7 @@ Player::Player(const PlayerConfig& config)
 
 void Player::OnCreate()
 {
-	m_Mesh = CreateRef<StaticMesh>();
+	m_Mesh = SkinnedMesh::Create();
 
 	const std::string meshPath = "Resources/Textures/beige.glb";
 	if (!m_Mesh->LoadFromFile(meshPath))
@@ -32,6 +32,9 @@ void Player::OnCreate()
 		return;
 	}
 	HMN_CORE_INFO("Player: Loaded mesh from {}", meshPath);
+
+	m_Mesh->LoadAdditionalAnimation("Resources/Textures/Idle.fbx");
+	m_Mesh->LoadAdditionalAnimation("Resources/Textures/Running.fbx");
 
 	auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
 	if (!world)
@@ -102,16 +105,41 @@ void Player::OnUpdate(Timestep ts)
 
 	m_Body->SetLinearVelocity(velocity);
 	Position = m_Body->GetPosition();
-
+	m_AnimTime += ts;
 }
 
 void Player::OnBuildRenderFrame(RenderFrame& frame)
 {
 	if (!m_Mesh) return;
-	if (!frame.frustum3D.TestAABBTransformed(
-			m_Mesh->GetAABBMin(), m_Mesh->GetAABBMax(), GetTransform()))
-		return;
-	frame.staticMeshes.push_back({ m_Mesh, GetTransform() });
+
+	int boneCount = m_Mesh->GetBoneCount();
+	uint32_t animCount = m_Mesh->GetAnimationCount();
+
+	// Base GLB has 0 anims. Additional anims: index 1 = Idle.fbx, index 2 = Running.fbx
+	if (boneCount > 0 && animCount >= 2)
+	{
+		m_BoneTransforms.resize(boneCount);
+		float speed = m_Body ? glm::abs(m_Body->GetLinearVelocity().x) : 0.f;
+		float blend = glm::clamp(speed / m_Config.Movement.Speed, 0.f, 1.f);
+		m_Mesh->GetBoneTransformsBlended(m_AnimTime, m_BoneTransforms, 1, 2, blend, true);
+
+		auto bones = frame.AllocBones(boneCount);
+		std::copy(m_BoneTransforms.begin(), m_BoneTransforms.end(), bones.begin());
+		frame.meshes.push_back({ m_Mesh, GetTransform(), bones });
+	}
+	else if (boneCount > 0 && animCount == 1)
+	{
+		m_BoneTransforms.resize(boneCount);
+		m_Mesh->GetBoneTransformsBlended(m_AnimTime, m_BoneTransforms, 1, 1, 1.f, true);
+
+		auto bones = frame.AllocBones(boneCount);
+		std::copy(m_BoneTransforms.begin(), m_BoneTransforms.end(), bones.begin());
+		frame.meshes.push_back({ m_Mesh, GetTransform(), bones });
+	}
+	else
+	{
+		frame.meshes.push_back({ m_Mesh, GetTransform(), {} });
+	}
 }
 
 void Player::OnDestroy() {}

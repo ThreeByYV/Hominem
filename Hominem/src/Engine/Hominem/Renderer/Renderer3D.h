@@ -46,6 +46,9 @@ struct Renderer3DStorage
     Ref<ShaderPermutationSet> MeshVariants;         // mesh.glsl permutations
     Ref<Shader>               NormalsShader;        // normals_debug.glsl (static)
     Ref<Shader>               NormalsSkinnedShader; // normals_debug.glsl + SKINNED
+    Ref<Shader>               BoneWeightShader;     // bone_weight.glsl
+    Ref<Shader>               ToonShader;           // toon_skinned.glsl
+    Ref<Shader>               ToonOutlineShader;    // toon_outline.glsl
     Ref<Shader>        DebugAABBShader;
     Ref<Shader>        DebugSphereShader;
     Ref<VertexArray>   DebugVAO;
@@ -90,6 +93,14 @@ public:
     static bool GetDrawAABB()               { return s_DrawAABB; }
     static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
     static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
+    static void SetDrawBoneWeights(bool v)   { s_DrawBoneWeights = v; }
+    static bool GetDrawBoneWeights()         { return s_DrawBoneWeights; }
+    static void SetToonShading(bool v)       { s_ToonShading = v; }
+    static bool GetToonShading()             { return s_ToonShading; }
+    static void SetOutlineThickness(float v) { s_OutlineThickness = v; }
+    static float GetOutlineThickness()       { return s_OutlineThickness; }
+    static void SetDisplayBoneIndex(int i)  { s_DisplayBoneIndex = i; }
+    static int  GetDisplayBoneIndex()       { return s_DisplayBoneIndex; }
     // Returns 0.75 for low-end integrated GPUs, 1.0 otherwise.
     static float GetRecommendedRenderScale() { return s_RecommendedRenderScale; }
 
@@ -131,6 +142,10 @@ private:
     static bool               s_DrawNormals;
     static float              s_NormalLength;
     static bool               s_DrawAABB;
+    static bool               s_DrawBoneWeights;
+    static int                s_DisplayBoneIndex;
+    static bool               s_ToonShading;
+    static float              s_OutlineThickness;
     static bool               s_DebugHeatmap;
     static float              s_RecommendedRenderScale;
     static uint32_t           s_DrawCalls;

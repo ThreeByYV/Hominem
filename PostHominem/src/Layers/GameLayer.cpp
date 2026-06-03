@@ -29,6 +29,10 @@ void GameLayer::OnAttach()
 	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
 	m_GameMode->OnEnter(*m_ActiveScene);
 
+	// Bake a cubemap from the room center — used for IBL reflections on shiny/metallic surfaces.
+	// The bake runs on the render thread during the first frame, reflections activate automatically.
+	m_ActiveScene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
+
 	WorldConfig cfg;
 	if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
 	{
@@ -271,6 +275,18 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 
 	if (e.GetKeyCode() == HMN_KEY_H)
 		Renderer3D::SetDebugHeatmap(!Renderer3D::GetDebugHeatmap());
+
+	if (e.GetKeyCode() == HMN_KEY_T)
+		Renderer3D::SetToonShading(!Renderer3D::GetToonShading());
+
+	if (e.GetKeyCode() == HMN_KEY_O)
+		Renderer3D::SetDrawBoneWeights(!Renderer3D::GetDrawBoneWeights());
+
+	if (e.GetKeyCode() == HMN_KEY_LEFT_BRACKET && Renderer3D::GetDrawBoneWeights())
+		Renderer3D::SetDisplayBoneIndex(std::max(0, Renderer3D::GetDisplayBoneIndex() - 1));
+
+	if (e.GetKeyCode() == HMN_KEY_RIGHT_BRACKET && Renderer3D::GetDrawBoneWeights())
+		Renderer3D::SetDisplayBoneIndex(Renderer3D::GetDisplayBoneIndex() + 1);
 
 	if (e.GetKeyCode() == HMN_KEY_P)
 		m_ShowPerfPanel = !m_ShowPerfPanel;

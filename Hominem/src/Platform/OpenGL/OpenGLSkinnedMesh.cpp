@@ -226,18 +226,20 @@ namespace Hominem {
 		glCreateBuffers(1, &m_InBoneDataSSBO);
 		glNamedBufferData(m_InBoneDataSSBO, sizeof(VertexBoneData) * vertCount, m_VertexBoneData.data(), GL_STATIC_DRAW);
 
-		// Updated per frame.
+		// At least one identity bone so the compute shader never reads OOB on a no-skeleton mesh.
+		uint32_t allocBones = std::max(boneCount, 1u);
+		std::vector<glm::mat4> identityMats(allocBones, glm::mat4(1.0f));
 		glCreateBuffers(1, &m_BoneSSBO);
-		glNamedBufferData(m_BoneSSBO, sizeof(glm::mat4) * boneCount, nullptr, GL_DYNAMIC_DRAW);
+		glNamedBufferData(m_BoneSSBO, sizeof(glm::mat4) * allocBones, identityMats.data(), GL_DYNAMIC_DRAW);
 
-		// GPU-to-GPU only — compute writes, vertex shader reads, CPU never touches.
+		// Initialised with rest-pose so no-animation renders correctly without a dispatch.
 		glCreateBuffers(1, &m_OutPosSSBO);
-		glNamedBufferData(m_OutPosSSBO, sizeof(glm::vec4) * vertCount, nullptr, GL_DYNAMIC_COPY);
+		glNamedBufferData(m_OutPosSSBO, sizeof(glm::vec4) * vertCount, pos4.data(), GL_DYNAMIC_COPY);
 
 		glCreateBuffers(1, &m_OutNormSSBO);
-		glNamedBufferData(m_OutNormSSBO, sizeof(glm::vec4) * vertCount, nullptr, GL_DYNAMIC_COPY);
+		glNamedBufferData(m_OutNormSSBO, sizeof(glm::vec4) * vertCount, norm4.data(), GL_DYNAMIC_COPY);
 
-		m_ComputeShader = ComputeShader::Create("Resources/Shaders/skinning.comp");
+		m_ComputeShader = ComputeShader::Create("engine://Shaders/skinning.comp");
 		m_BoneCache.reserve(boneCount);
 	}
 
@@ -251,16 +253,20 @@ namespace Hominem {
 
 	void OpenGLSkinnedMesh::DispatchSkinning(std::span<const glm::mat4> bones)
 	{
-		if (!m_VAO || !m_ComputeShader || bones.empty()) return;
+		if (!m_VAO || !m_ComputeShader) return;
+
+		// Always bind outputs and bone data so vertex + bone-weight shaders can read them.
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, m_InBoneDataSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, m_OutPosSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, m_OutNormSSBO);
+
+		if (bones.empty()) return;
 
 		glNamedBufferSubData(m_BoneSSBO, 0, sizeof(glm::mat4) * bones.size(), bones.data());
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_BoneSSBO);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_InPosSSBO);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_InNormSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, m_InBoneDataSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, m_OutPosSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, m_OutNormSSBO);
 
 		m_ComputeShader->Bind();
 		m_ComputeShader->SetUint("u_VertexCount", static_cast<uint32_t>(m_Geometry.Positions.size()));
@@ -374,6 +380,27 @@ namespace Hominem {
 		}
 	}
 
+	Ref<Texture2D> OpenGLSkinnedMesh::LoadTexture(const aiMaterial* mat, aiTextureType type, const std::string& dir)
+	{
+		if (mat->GetTextureCount(type) == 0) return nullptr;
+
+		aiString texPath;
+		if (mat->GetTexture(type, 0, &texPath) != AI_SUCCESS) return nullptr;
+
+		if (texPath.C_Str()[0] == '*')
+		{
+			const aiTexture* tex = m_pScene->GetEmbeddedTexture(texPath.C_Str());
+			if (!tex) return nullptr;
+			if (tex->mHeight == 0)
+				return Texture2D::CreateFromMemory(reinterpret_cast<const uint8_t*>(tex->pcData), tex->mWidth);
+			Ref<Texture2D> t = Texture2D::Create(tex->mWidth, tex->mHeight, TextureFormat::RGBA8);
+			t->SetData(tex->pcData, tex->mWidth * tex->mHeight * sizeof(aiTexel));
+			return t;
+		}
+
+		return Texture2D::Create(dir + "/" + texPath.C_Str());
+	}
+
 	bool OpenGLSkinnedMesh::LoadMaterials(const aiScene* pScene, const std::string& filepath)
 	{
 		size_t lastSlash = filepath.find_last_of("/\\");
@@ -385,20 +412,14 @@ namespace Hominem {
 
 		for (uint32_t i = 0; i < pScene->mNumMaterials; i++)
 		{
-			m_Materials[i] = nullptr;
-
-			const aiMaterial* mat = pScene->mMaterials[i];
-			if (mat->GetTextureCount(aiTextureType_DIFFUSE) == 0) continue;
-
-			aiString texPath;
-			if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) != AI_SUCCESS)
-			{
-				allLoaded = false;
-				continue;
-			}
-
-			m_Materials[i] = Texture2D::Create(dir + "/" + texPath.data);
+			m_Materials[i] = LoadTexture(pScene->mMaterials[i], aiTextureType_DIFFUSE, dir);
 			if (!m_Materials[i]) allLoaded = false;
+
+			if (i == 0)
+			{
+				m_Material.NormalMap         = LoadTexture(pScene->mMaterials[i], aiTextureType_NORMALS,   dir);
+				m_Material.MetalRoughnessMap = LoadTexture(pScene->mMaterials[i], aiTextureType_METALNESS, dir);
+			}
 		}
 
 		return allLoaded;

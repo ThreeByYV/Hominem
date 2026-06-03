@@ -2,7 +2,7 @@
 
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Core/Timestep.h"
-#include "Hominem/Renderer/StaticMesh.h"
+#include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Physics/Rigidbody.h"
 #include "Hominem/Physics/Collider.h"
 #include "Game/WorldConfig.h"
@@ -50,10 +50,13 @@ public:
 private:
 	PlayerConfig m_Config;
 
-	Hominem::Ref<Hominem::StaticMesh>  m_Mesh;
+	Hominem::Ref<Hominem::SkinnedMesh> m_Mesh;
 
 	Hominem::Ref<Hominem::Rigidbody>   m_Body;
 	Hominem::Ref<Hominem::BoxCollider> m_Collider;
+
+	float m_AnimTime      = 0.f;
+	std::vector<glm::mat4> m_BoneTransforms;
 
 	float m_DebugLogTimer = 0.f;
 	int   m_DebugLogCount = -1;
