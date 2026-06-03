@@ -91,6 +91,7 @@ namespace Hominem {
 		void ExtractGeometry(const aiScene* pScene);
 		void ExtractSubmesh(const aiMesh* pMesh, uint32_t submeshIndex);
 		bool LoadMaterials(const aiScene* pScene, const std::string& filepath);
+		Ref<Texture2D> LoadTexture(const aiMaterial* mat, aiTextureType type, const std::string& dir);
 
 		// Unit scale correction — scales translation column of every bone matrix to match
 		// vertex positions that were already converted from file units to metres.
