@@ -52,7 +52,8 @@ public:
 			BootstrapFromAABB();
 
 		// Player — spawn position comes from config (or bootstrapped above).
-		m_Player = &scene.SpawnActor<Player>(m_Config.Player);
+		// Hand over the background-loaded mesh so OnCreate doesn't stall the main thread.
+		m_Player = &scene.SpawnActor<Player>(m_Config.Player, Player::PreloadedMesh());
 		if (m_Player)
 			m_Player->Scale = m_Config.Player.Scale;
 
@@ -177,6 +178,19 @@ public:
 		}
 
 		if (m_Player) m_Player->OnImGuiRender();
+	}
+
+	void SnapCameraToPlayer() override { m_Camera.Snap(); }
+
+	glm::vec3 ResolveEyeTarget(const glm::vec3& fallback) const override
+	{
+		if (!m_Player) return fallback;
+		auto* mesh = m_Player->GetMesh();
+		if (!mesh)    return fallback;
+		auto mat = mesh->GetBoneWorldTransform("mixamorig:Head");
+		if (!mat)     return fallback;
+		// GlobalTransform is in mesh-local space; bring to world space via the player transform.
+		return glm::vec3(m_Player->GetTransform() * glm::vec4(glm::vec3((*mat)[3]), 1.0f));
 	}
 
 	PlayerDebugInfo GetPlayerDebugInfo() const override

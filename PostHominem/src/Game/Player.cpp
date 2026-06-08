@@ -3,6 +3,7 @@
 
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
+#include "Hominem/Core/AsyncLoad.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Physics/PhysicsTypes.h"
@@ -13,28 +14,55 @@
 
 using namespace Hominem;
 
-Player::Player(const PlayerConfig& config)
-	: m_Config(config)
+Player::Player(const PlayerConfig& config, Ref<SkinnedMesh> preloadedMesh)
+	: m_Config(config), m_Mesh(std::move(preloadedMesh))
 {
 	Position = m_Config.Spawn.Position;
 	Scale    = m_Config.Spawn.Scale;
 	Rotation = glm::vec3(0.f, glm::radians(90.f), 0.f);
 }
 
-void Player::OnCreate()
+Ref<SkinnedMesh> Player::LoadMesh()
 {
-	m_Mesh = SkinnedMesh::Create();
+	auto mesh = SkinnedMesh::Create();
 
-	const std::string meshPath = "Resources/Textures/beige.glb";
-	if (!m_Mesh->LoadFromFile(meshPath))
+	const std::string meshPath = "Resources/Textures/Idle.fbx";
+	if (!mesh->LoadFromFile(meshPath))
 	{
 		HMN_CORE_ERROR("Player: Failed to load mesh from {}", meshPath);
-		return;
+		return nullptr;
 	}
-	HMN_CORE_INFO("Player: Loaded mesh from {}", meshPath);
 
-	m_Mesh->LoadAdditionalAnimation("Resources/Textures/Idle.fbx");
-	m_Mesh->LoadAdditionalAnimation("Resources/Textures/Running.fbx");
+	mesh->LoadAdditionalAnimation("Resources/Textures/Idle.fbx");
+	mesh->LoadAdditionalAnimation("Resources/Textures/Running.fbx");
+	return mesh;
+}
+
+namespace { AsyncLoad<SkinnedMesh> s_MeshPreload; }
+
+void Player::BeginPreload()
+{
+	HMN_CORE_INFO("Player: preloading mesh on a background thread");
+	s_MeshPreload.Begin([]() -> Ref<SkinnedMesh>
+	{
+		auto mesh = Player::LoadMesh();
+		if (mesh) HMN_CORE_INFO("Player: preloaded mesh ready");
+		else      HMN_CORE_ERROR("Player: preload failed");
+		return mesh;
+	});
+}
+
+Ref<SkinnedMesh> Player::PreloadedMesh() { return s_MeshPreload.TryGet(); }
+
+void Player::OnCreate()
+{
+	// Preloaded via BeginPreload in the common case; fall back to a synchronous
+	// load (stalls the main thread for a few seconds) only if it wasn't ready.
+	if (!m_Mesh)
+	{
+		HMN_CORE_WARN("Player: mesh not preloaded, loading synchronously on the main thread");
+		m_Mesh = LoadMesh();
+	}
 
 	auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
 	if (!world)
@@ -72,15 +100,6 @@ void Player::OnCreate()
 void Player::OnUpdate(Timestep ts)
 {
 	if (!m_Body) return;
-
-	m_DebugLogTimer += ts;
-	if (m_DebugLogTimer < 3.f && static_cast<int>(m_DebugLogTimer / 0.5f) != m_DebugLogCount)
-	{
-		m_DebugLogCount = static_cast<int>(m_DebugLogTimer / 0.5f);
-		HMN_CORE_INFO("Player pos ({:.2f},{:.2f},{:.2f})  vel ({:.2f},{:.2f},{:.2f})",
-			Position.x, Position.y, Position.z,
-			m_Body->GetLinearVelocity().x, m_Body->GetLinearVelocity().y, m_Body->GetLinearVelocity().z);
-	}
 
 	bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
 	bool pressingD = Input::IsKeyPressed(HMN_KEY_D);

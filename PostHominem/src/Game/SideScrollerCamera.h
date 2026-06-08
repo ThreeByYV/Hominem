@@ -51,6 +51,13 @@ public:
     Config& GetConfig()                     { return m_Cfg; }
     float   GetCameraZ()             const  { return m_CamZ; }
 
+    void Snap()
+    {
+        if (!m_Target || !m_Pos) return;
+        m_Pos->x = m_Target->Position.x;
+        m_Pos->y = m_Target->Position.y + m_YOffset + m_Cfg.YBias;
+    }
+
     void OnUpdate(Hominem::Timestep ts)
     {
         if (!m_Target || !m_Pos) return;

@@ -13,8 +13,21 @@
 class Player : public Hominem::Actor
 {
 public:
-	explicit Player(const PlayerConfig& config);
+	/// @param preloadedMesh  Optional fully-built skinned mesh (from PreloadedMesh()) to
+	///   skip the multi-second synchronous Assimp import in OnCreate.
+	explicit Player(const PlayerConfig& config,
+	                Hominem::Ref<Hominem::SkinnedMesh> preloadedMesh = nullptr);
+
 	~Player() override = default;
+
+	/// Builds the player's skinned mesh with animations.
+	static Hominem::Ref<Hominem::SkinnedMesh> LoadMesh();
+
+	/// Starts LoadMesh() on a background thread at launch (call once from main).
+	static void BeginPreload();
+
+	/// Non-blocking; the preloaded mesh once ready, else nullptr (falls back to a sync load).
+	static Hominem::Ref<Hominem::SkinnedMesh> PreloadedMesh();
 
 	void OnCreate()  override;
 	void OnUpdate(Hominem::Timestep ts) override;
@@ -34,6 +47,7 @@ public:
 		Scale = cfg.Scale;
 	}
 
+	Hominem::SkinnedMesh* GetMesh() const { return m_Mesh.get(); }
 	glm::vec3 GetVelocity() const { return m_Body ? m_Body->GetLinearVelocity() : glm::vec3(0.f); }
 	bool      IsMoving()    const { return m_Body && glm::abs(m_Body->GetLinearVelocity().x) > 0.01f; }
 
@@ -57,7 +71,4 @@ private:
 
 	float m_AnimTime      = 0.f;
 	std::vector<glm::mat4> m_BoneTransforms;
-
-	float m_DebugLogTimer = 0.f;
-	int   m_DebugLogCount = -1;
 };
