@@ -42,6 +42,7 @@ private:
     Ref<Shader> m_ThresholdShader;
     Ref<Shader> m_BlurShader;
     Ref<Shader> m_CompositeShader;
+    Ref<Shader> m_SkyboxShader;
 };
 
 }

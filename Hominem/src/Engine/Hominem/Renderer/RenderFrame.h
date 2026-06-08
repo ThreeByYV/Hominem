@@ -13,6 +13,7 @@
 #include "Hominem/Renderer/StaticMesh.h"
 #include "Hominem/Renderer/Frustum.h"
 #include "Hominem/Renderer/FrameArena.h"
+#include "Hominem/Renderer/Skybox.h"
 
 namespace Hominem {
 
@@ -48,6 +49,7 @@ namespace Hominem {
 		Ref<SkinnedMesh>        mesh;
 		glm::mat4               transform { 1.f };
 		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
+		Ref<Shader>             overrideShader; // null = use scene default
 	};
 
 	enum class LightType : uint32_t { Point = 0, Spot = 1 };
@@ -109,6 +111,10 @@ namespace Hominem {
 		uint32_t  viewportHeight = 0;
 
 		bool debugLights = false;
+
+		// Skybox — HDR equirectangular background drawn behind the scene. Null = no skybox.
+		Ref<Skybox> skybox;
+		float       skyboxIntensity = 1.f;
 
 		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by Renderer3D
 		Ref<TextureCube> envMap;

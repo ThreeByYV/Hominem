@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <optional>
 
 #include <assimp/scene.h>
 #include <glm/glm.hpp>
@@ -44,6 +45,9 @@ namespace Hominem {
 	{
 		glm::mat4 OffsetMatrix;
 		glm::mat4 FinalTransformation;
+		/// World-space joint transform, updated each call to GetBoneTransforms*.
+		/// Translation column gives the joint's 3D position in model/world space.
+		glm::mat4 GlobalTransform{ 1.f };
 
 		BoneInfo(const glm::mat4& offset);
 	};
@@ -76,6 +80,30 @@ namespace Hominem {
 		int GetNumBones() const { return static_cast<int>(m_BoneInfo.size()); }
 		int GetBoneCount() const { return static_cast<int>(m_BoneInfo.size()); }
 		bool HasBones() const { return !m_BoneInfo.empty(); }
+
+		std::vector<std::string> GetBoneNames() const
+		{
+			std::vector<std::string> names;
+			names.reserve(m_BoneNameToIndexMap.size());
+			for (const auto& [name, idx] : m_BoneNameToIndexMap)
+				names.push_back(name);
+			return names;
+		}
+
+		/// @brief Returns the world-space transform of the named bone joint after
+		///        the last GetBoneTransforms* call. Returns nullopt if the bone
+		///        doesn't exist (e.g. mesh has no skeleton, or wrong name).
+		std::optional<glm::mat4> GetBoneWorldTransform(const std::string& name) const;
+
+		/// Extra local-space rotation injected at a named joint during GetBoneTransforms
+		/// (anim-0 path only). Multiplied AFTER the animated local transform, so child
+		/// bones follow, e.g. rotate "mixamorig:RightArm" to make the whole arm reach.
+		/// Set per-actor before each GetBoneTransforms call (cheap; transient).
+		void SetBonePoseOverride(const std::string& boneName, const glm::mat4& localRotation)
+		{
+			m_BonePoseOverrides[boneName] = localRotation;
+		}
+		void ClearPoseOverrides() { m_BonePoseOverrides.clear(); }
 
 		void SetScene(const aiScene* pScene) { m_pScene = pScene; }
 		void AddAdditionalScene(const aiScene* pScene)
@@ -139,6 +167,8 @@ namespace Hominem {
 
 		ChannelMap              m_MainChannelMap;
 		std::vector<ChannelMap> m_AdditionalChannelMaps;
+
+		std::unordered_map<std::string, glm::mat4> m_BonePoseOverrides;
 	};
 
 }

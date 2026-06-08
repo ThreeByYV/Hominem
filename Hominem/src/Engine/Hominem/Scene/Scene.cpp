@@ -47,7 +47,20 @@ namespace Hominem {
 		glm::mat4 proj           = m_Camera.GetProjectionMatrix();
 		glm::mat4 viewProjection = proj * view;
 
-		frame.viewProjection2D = viewProjection;
+		// Perspective matrices warp full-screen 2D quads into 3D space, so give
+		// perspective scenes a separate screen-space ortho projection for 2D content.
+		if (m_Camera.GetProjectionType() == SceneCamera::ProjectionType::Perspective)
+		{
+			const float aspect = (m_ViewportHeight > 0)
+				? (float)m_ViewportWidth / (float)m_ViewportHeight : 1.f;
+			constexpr float kOverlayHeight = 2.0f; // matches MenuLayer/PlayLevel ortho size
+			frame.viewProjection2D = glm::ortho(-kOverlayHeight * aspect * 0.5f, kOverlayHeight * aspect * 0.5f,
+			                                     -kOverlayHeight * 0.5f,         kOverlayHeight * 0.5f, -1.f, 1.f);
+		}
+		else
+		{
+			frame.viewProjection2D = viewProjection;
+		}
 		frame.viewProjection3D = viewProjection;
 		frame.view3D           = view;
 		frame.proj3D           = proj;
@@ -59,6 +72,7 @@ namespace Hominem {
 
 		// Sort static meshes by key: groups same shader + same mesh together,
 		// minimising redundant shader/texture binds on the render thread.
+		//todo: why does the scene knwo about shaders? feel like scene should be higher lvl then shaders
 		std::sort(frame.staticMeshes.begin(), frame.staticMeshes.end(),
 			[](const StaticMeshDraw& a, const StaticMeshDraw& b) {
 				return a.sortKey < b.sortKey;

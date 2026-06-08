@@ -27,4 +27,11 @@ namespace Hominem::FileUtils {
 		return std::filesystem::exists(path);
 	}
 
+	inline std::filesystem::file_time_type LastWriteTime(const std::filesystem::path& path)
+	{
+		std::error_code ec;
+		auto t = std::filesystem::last_write_time(path, ec);
+		return ec ? std::filesystem::file_time_type{} : t;
+	}
+
 }
