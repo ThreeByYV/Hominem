@@ -38,6 +38,14 @@ namespace Hominem {
 	{
 	}
 
+	std::optional<glm::mat4> Skeleton::GetBoneWorldTransform(const std::string& name) const
+	{
+		auto it = m_BoneNameToIndexMap.find(name);
+		if (it == m_BoneNameToIndexMap.end())
+			return std::nullopt;
+		return m_BoneInfo[it->second].GlobalTransform;
+	}
+
 	void Skeleton::ParseFromScene(const aiScene* pScene,
 		const std::vector<uint32_t>& meshBaseVertices,
 		std::vector<VertexBoneData>& vertexBones)
@@ -158,8 +166,9 @@ namespace Hominem {
 			? m_pScene->mAnimations[0]->mTicksPerSecond : 25.0f);
 		float timeInTicks = animationTimeSec * ticksPerSecond;
 
-		// Loop the animation
-		float animationTimeTicks = fmod(timeInTicks, static_cast<float>(m_pScene->mAnimations[0]->mDuration));
+		// Loop the animation; guard fmod(x, 0) on a zero-duration clip (would be NaN).
+		const float duration = static_cast<float>(m_pScene->mAnimations[0]->mDuration);
+		float animationTimeTicks = duration > 0.0f ? fmod(timeInTicks, duration) : 0.0f;
 
 		ReadNodeHierarchy(animationTimeTicks, m_pScene->mRootNode, glm::mat4(1.0f), disableRootMotion);
 
@@ -337,6 +346,7 @@ namespace Hominem {
 		if (m_BoneNameToIndexMap.contains(nodeName))
 		{
 			uint32_t boneIndex = m_BoneNameToIndexMap[nodeName];
+			m_BoneInfo[boneIndex].GlobalTransform     = globalTransform;
 			m_BoneInfo[boneIndex].FinalTransformation =
 				m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
 		}
@@ -441,6 +451,15 @@ namespace Hominem {
 			nodeTransform = trans * rot * scale;
 		}
 
+		// Optional pose override: an extra local rotation at this joint (e.g. raise an
+		// arm). Applied after the animated transform so descendant bones follow.
+		if (!m_BonePoseOverrides.empty())
+		{
+			auto it = m_BonePoseOverrides.find(nodeName);
+			if (it != m_BonePoseOverrides.end())
+				nodeTransform = nodeTransform * it->second;
+		}
+
 		// Accumulate parent transforms to get global transform
 		glm::mat4 globalTransform = parentTransform * nodeTransform;
 
@@ -456,6 +475,7 @@ namespace Hominem {
 			// 1. OffsetMatrix: Transform vertex from mesh space to bone's local space
 			// 2. GlobalTransform: Apply bone's animated world transform
 			// 3. GlobalInverse: Transform back from world space to mesh space
+			m_BoneInfo[boneIndex].GlobalTransform     = globalTransform;
 			m_BoneInfo[boneIndex].FinalTransformation =
 				m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
 		}
@@ -526,6 +546,7 @@ namespace Hominem {
 		if (m_BoneNameToIndexMap.contains(nodeName))
 		{
 			uint32_t boneIndex = m_BoneNameToIndexMap[nodeName];
+			m_BoneInfo[boneIndex].GlobalTransform     = globalTransform;
 			m_BoneInfo[boneIndex].FinalTransformation =
 				m_GlobalInverseTransform * globalTransform * m_BoneInfo[boneIndex].OffsetMatrix;
 		}
@@ -597,7 +618,12 @@ namespace Hominem {
 		float t1 = static_cast<float>(keys[index].mTime);
 		float t2 = static_cast<float>(keys[nextIndex].mTime);
 		float deltaTime = t2 - t1;
-		float factor = glm::clamp((animationTimeTicks - t1) / deltaTime, 0.0f, 1.0f);
+		// Guard against duplicate/zero-spaced keyframes: deltaTime 0 makes factor NaN
+		// (0/0), which propagates through the bone matrix and explodes the mesh into a
+		// full-screen triangle. Mixamo base clips often have such keys.
+		float factor = (deltaTime > 0.0f)
+			? glm::clamp((animationTimeTicks - t1) / deltaTime, 0.0f, 1.0f)
+			: 0.0f;
 
 		interpolateFunc(out, keys[index].mValue, keys[nextIndex].mValue, factor);
 	}

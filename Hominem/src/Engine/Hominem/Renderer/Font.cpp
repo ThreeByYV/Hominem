@@ -76,6 +76,27 @@ namespace Hominem {
         msdfgen::deinitializeFreetype(ft);
     }
 
+	float Font::MeasureWidth(const std::string& text) const
+	{
+		const auto& fontGeometry = m_Data->FontGeometry;
+		const auto& metrics      = fontGeometry.getMetrics();
+		const double fsScale     = 1.0 / (metrics.ascenderY - metrics.descenderY);
+
+		double x = 0.0;
+		for (size_t i = 0; i < text.size(); i++)
+		{
+			auto glyph = fontGeometry.getGlyph(text[i]);
+			if (!glyph) glyph = fontGeometry.getGlyph('?');
+			if (!glyph) continue;
+
+			double advance = glyph->getAdvance();
+			if (i + 1 < text.size())
+				fontGeometry.getAdvance(advance, text[i], text[i + 1]);
+			x += fsScale * advance;
+		}
+		return (float)x;
+	}
+
 	Ref<Font> Font::GetDefaultFont()
 	{
 		static Ref<Font> DefaultFont;

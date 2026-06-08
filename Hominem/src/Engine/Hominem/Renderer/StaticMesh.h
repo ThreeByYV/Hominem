@@ -35,7 +35,8 @@ public:
 	const Material& GetMaterial() const              { return m_Material; }
 	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-	uint32_t GetPermutationFlags() const;
+	bool HasNormalMap()      const;
+	bool HasMetalRoughness() const;
 
 	size_t   GetDrawGroupCount() const { return m_DrawGroups.size(); }
 	uint64_t GetTriangleCount()  const

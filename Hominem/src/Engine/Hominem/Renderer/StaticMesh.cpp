@@ -859,15 +859,18 @@ namespace Hominem
             (GLsizeiptr)(maxGroups * 5 * sizeof(uint32_t)), nullptr, GL_DYNAMIC_DRAW);
     }
 
-    uint32_t StaticMesh::GetPermutationFlags() const
+    bool StaticMesh::HasNormalMap() const
     {
-        uint32_t flags = ShaderPerm_ForwardPlus; // static meshes always use Forward+
         for (const auto& g : m_DrawGroups)
-        {
-            if (g.HasRealNormalMap)      flags |= ShaderPerm_HasNormalMap;
-            if (g.HasRealMetalRoughness) flags |= ShaderPerm_HasMetalRoughness;
-        }
-        return flags;
+            if (g.HasRealNormalMap) return true;
+        return false;
+    }
+
+    bool StaticMesh::HasMetalRoughness() const
+    {
+        for (const auto& g : m_DrawGroups)
+            if (g.HasRealMetalRoughness) return true;
+        return false;
     }
 
     std::pair<uint32_t, uint64_t> StaticMesh::Draw(

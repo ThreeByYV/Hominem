@@ -135,6 +135,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/imgui
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/glm
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/stb_image
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/tinyexr
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/entt/include
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdfgen
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen
@@ -163,6 +164,18 @@ target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
 set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
 target_compile_options(stb_image PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
+# tinyexr — HDR/EXR loader (stb_image-style single header). Uses the project's
+# existing zlib (assimp's zlibstatic) via TINYEXR_USE_MINIZ=0 in tinyexr.cpp.
+add_library(tinyexr STATIC Hominem/vendor/tinyexr/tinyexr.cpp)
+target_include_directories(tinyexr PUBLIC Hominem/vendor/tinyexr)
+target_include_directories(tinyexr PRIVATE
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/contrib/zlib
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib
+)
+target_link_libraries(tinyexr PRIVATE zlib_lib)
+set_target_properties(tinyexr PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+target_compile_options(tinyexr PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
+
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
     "Hominem/src/Engine/*.cpp"
     "Hominem/src/Engine/*.h"
@@ -187,7 +200,7 @@ target_precompile_headers(Hominem PRIVATE
 target_compile_definitions(Hominem PRIVATE ${COMMON_DEFINES})
 
 target_link_libraries(Hominem PUBLIC
-    glfw Glad ImGui stb_image msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer
+    glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer
 )
 
 if(MSVC)

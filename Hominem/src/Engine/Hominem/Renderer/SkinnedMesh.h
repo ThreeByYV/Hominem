@@ -3,6 +3,7 @@
 #include <vector>
 #include <span>
 #include <string>
+#include <optional>
 
 #include <glm/glm.hpp>
 
@@ -49,6 +50,12 @@ namespace Hominem {
 
 		virtual Skeleton&       GetSkeleton()       = 0;
 		virtual const Skeleton& GetSkeleton() const = 0;
+
+		/// @brief World-space transform of the named bone joint after the last animation update.
+		/// Returns nullopt when the mesh has no skeleton or the bone name is not found —
+		/// callers should fall back to a hardcoded position in that case.
+		virtual std::optional<glm::mat4>  GetBoneWorldTransform(const std::string& name) const = 0;
+		virtual std::vector<std::string>  GetBoneNames() const = 0;
 
 		const Material& GetMaterial() const              { return m_Material; }
 		void            SetMaterial(const Material& mat) { m_Material = mat; }

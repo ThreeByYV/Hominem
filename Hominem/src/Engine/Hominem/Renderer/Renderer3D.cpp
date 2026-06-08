@@ -34,7 +34,6 @@ namespace {
     bool                   Renderer3D::s_DrawBoneWeights        = false;
     int                    Renderer3D::s_DisplayBoneIndex       = 0;
     bool                   Renderer3D::s_ToonShading            = false;
-    float                  Renderer3D::s_OutlineThickness       = 0.02f;
     bool                   Renderer3D::s_DebugHeatmap            = false;
     float                  Renderer3D::s_RecommendedRenderScale  = 1.0f;
     uint32_t               Renderer3D::s_DrawCalls     = 0;
@@ -55,12 +54,12 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/composite.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/bloom_threshold.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/bloom_blur.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/skybox.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/silhouette.glsl");
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
     s_Data->BoneWeightShader     = Shader::Create("engine://Shaders/bone_weight.glsl");
-    s_Data->ToonShader           = Shader::Create("engine://Shaders/toon_skinned.glsl");
-    s_Data->ToonOutlineShader    = Shader::Create("engine://Shaders/toon_outline.glsl");
     s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
     s_Data->DebugSphereShader    = s_Data->ShaderLibrary->Get("debug_sphere");
 
@@ -109,9 +108,9 @@ void Renderer3D::InitForwardPlus()
 
     s_Data->LightCullingShader = ComputeShader::Create("engine://Shaders/light_culling.comp");
 
-    s_Data->MeshVariants = ShaderPermutationSet::Create(
+    s_Data->MeshVariants = ShaderVariantSet::Create(
         "engine://Shaders/mesh.glsl",
-        k_MeshPerms, std::size(k_MeshPerms));
+        GetAllVariants());
 
     if (DetectLowEndGPU())
     {
@@ -242,6 +241,7 @@ void Renderer3D::EndScene()
 void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 {
     HMN_PROFILE_FUNCTION();
+    const Material& mat0 = mesh.GetMaterial();
 
     if (s_DrawBoneWeights && s_Data->BoneWeightShader)
     {
@@ -262,15 +262,21 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     if (!shader)
     {
         HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded");
-        uint32_t perm = ResolvePermutation(ShaderPerm_Skinned, k_MeshPerms, std::size(k_MeshPerms));
-        shader = s_Data->MeshVariants->GetVariant(perm);
+        const bool hasNM = mat0.NormalMap      != nullptr;
+        const bool hasMR = mat0.MetalRoughnessMap != nullptr;
+        const bool toon  = s_ToonShading;
+        std::string name = toon ? "skinned_toon" : "skinned_pbr";
+        if (hasNM && hasMR) name += "_nm_mr";
+        else if (hasNM)     name += "_nm";
+        else if (hasMR)     name += "_mr";
+        shader = s_Data->MeshVariants->Get(name);
     }
     HMN_CORE_ASSERT(shader, "Renderer3D: no shader for skinned mesh");
 
     shader->Bind();
     shader->SetInt("u_Albedo", 0);
     shader->SetMat4("u_Model", transform);
-    const Material& mat = mesh.GetMaterial();
+    const Material& mat = mat0;
     shader->SetFloat("u_Roughness", mat.Roughness);
     shader->SetFloat("u_Metalness", mat.Metalness);
 
@@ -286,28 +292,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
         shader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
     }
 
-    if (s_ToonShading && s_Data->ToonShader)
-    {
-        // Toon shading — must upload light uniforms onto the toon shader directly
-        s_Data->ToonShader->Bind();
-        s_Data->ToonShader->SetMat4("u_Model", transform);
-        s_Data->ToonShader->SetInt("u_Albedo", 0);
-        s_Data->ToonShader->SetInt("u_PointLightCount", lightCount);
-        for (int i = 0; i < lightCount; i++)
-        {
-            const auto& l   = s_Scene->Lights[i];
-            const std::string idx = "[" + std::to_string(i) + "]";
-            s_Data->ToonShader->SetFloat3("u_PointLightPositions"  + idx, l.Position);
-            s_Data->ToonShader->SetFloat3("u_PointLightColors"     + idx, l.Color);
-            s_Data->ToonShader->SetFloat ("u_PointLightIntensities"+ idx, l.Intensity);
-            s_Data->ToonShader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
-        }
-        mesh.Render(s_Data->ToonShader);
-    }
-    else
-    {
-        mesh.Render(shader);
-    }
+    mesh.Render(shader);
     s_DrawCalls += mesh.GetSubmeshCount();
     s_Triangles += mesh.GetIndexCount() / 3;
 
@@ -331,10 +316,19 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     else
     {
         HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded — was InitForwardPlus() called?");
-        uint32_t perm = mesh.GetPermutationFlags();  // includes ShaderPerm_ForwardPlus
-        if (s_Scene->EnvMapID != 0u) perm |= ShaderPerm_HasEnvMap;
-        perm   = ResolvePermutation(perm, k_MeshPerms, std::size(k_MeshPerms));
-        shader = s_Data->MeshVariants->GetVariant(perm);
+        const bool hasNM  = mesh.HasNormalMap();
+        const bool hasMR  = mesh.HasMetalRoughness();
+        const bool hasEnv = s_Scene->EnvMapID != 0u;
+        const bool toon   = s_ToonShading;
+        std::string name  = toon ? "static_toon" : "static_pbr";
+        if (hasNM && hasMR && hasEnv) name += "_nm_mr_env";
+        else if (hasNM && hasMR)      name += "_nm_mr";
+        else if (hasMR && hasEnv)     name += "_mr_env";
+        else if (hasNM && hasEnv)     name += "_nm_env";
+        else if (hasNM)               name += "_nm";
+        else if (hasMR)               name += "_mr";
+        else if (hasEnv)              name += "_env";
+        shader = s_Data->MeshVariants->Get(name);
     }
     HMN_CORE_ASSERT(shader, "Renderer3D::DrawStaticMesh: no shader variant available");
 

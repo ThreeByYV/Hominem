@@ -42,13 +42,11 @@ static_assert(sizeof(SceneUBOData) == 160, "SceneUBOData size mismatch — check
 struct Renderer3DStorage
 {
     Ref<ShaderLibrary> ShaderLibrary;
-    Ref<Shader>               OverrideShader;       // optional scene-wide override
-    Ref<ShaderPermutationSet> MeshVariants;         // mesh.glsl permutations
+    Ref<Shader>            OverrideShader;   // optional scene-wide override
+    Ref<ShaderVariantSet>  MeshVariants;    // mesh.glsl named variants
     Ref<Shader>               NormalsShader;        // normals_debug.glsl (static)
     Ref<Shader>               NormalsSkinnedShader; // normals_debug.glsl + SKINNED
     Ref<Shader>               BoneWeightShader;     // bone_weight.glsl
-    Ref<Shader>               ToonShader;           // toon_skinned.glsl
-    Ref<Shader>               ToonOutlineShader;    // toon_outline.glsl
     Ref<Shader>        DebugAABBShader;
     Ref<Shader>        DebugSphereShader;
     Ref<VertexArray>   DebugVAO;
@@ -97,8 +95,6 @@ public:
     static bool GetDrawBoneWeights()         { return s_DrawBoneWeights; }
     static void SetToonShading(bool v)       { s_ToonShading = v; }
     static bool GetToonShading()             { return s_ToonShading; }
-    static void SetOutlineThickness(float v) { s_OutlineThickness = v; }
-    static float GetOutlineThickness()       { return s_OutlineThickness; }
     static void SetDisplayBoneIndex(int i)  { s_DisplayBoneIndex = i; }
     static int  GetDisplayBoneIndex()       { return s_DisplayBoneIndex; }
     // Returns 0.75 for low-end integrated GPUs, 1.0 otherwise.
@@ -115,11 +111,7 @@ public:
     static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
 
     static Ref<ShaderLibrary> GetShaderLibrary() { return s_Data->ShaderLibrary; }
-    static void ReloadVariants()
-    {
-        if (s_Data->MeshVariants)
-            s_Data->MeshVariants->ReloadAll();
-    }
+    static void ReloadVariants() { if (s_Data->MeshVariants) s_Data->MeshVariants->ReloadAll(); }
 
 private:
     static void CullLights(const RenderFrame& frame);
@@ -145,7 +137,6 @@ private:
     static bool               s_DrawBoneWeights;
     static int                s_DisplayBoneIndex;
     static bool               s_ToonShading;
-    static float              s_OutlineThickness;
     static bool               s_DebugHeatmap;
     static float              s_RecommendedRenderScale;
     static uint32_t           s_DrawCalls;

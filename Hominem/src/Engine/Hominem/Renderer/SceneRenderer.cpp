@@ -30,6 +30,7 @@ void SceneRenderer::Init()
     m_ThresholdShader = Renderer3D::GetShaderLibrary()->Get("bloom_threshold");
     m_BlurShader      = Renderer3D::GetShaderLibrary()->Get("bloom_blur");
     m_CompositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
+    m_SkyboxShader    = Renderer3D::GetShaderLibrary()->Get("skybox");
 }
 
 void SceneRenderer::Shutdown()
@@ -85,6 +86,41 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
     RenderCommand::SetClearColor(frame.clearColor);
     RenderCommand::Clear();
 
+    // Paint the background before any content. Depth disabled so it fills
+    // every pixel; the 3D pass later overwrites wherever geometry is drawn.
+    if (m_SkyboxShader && frame.skybox && frame.skybox->GetRendererID() != 0)
+    {
+        RenderCommand::SetDepthTestEnabled(false);
+        m_SkyboxShader->Bind();
+        m_SkyboxShader->SetInt  ("u_Equirect",    0);
+        m_SkyboxShader->SetMat4 ("u_InvViewProj", glm::inverse(frame.viewProjection3D));
+        m_SkyboxShader->SetFloat3("u_CamPos",     frame.cameraWorldPos);
+        m_SkyboxShader->SetFloat("u_Intensity",   frame.skyboxIntensity);
+        RenderCommand::BindTexture(0, frame.skybox->GetRendererID());
+        RenderCommand::DrawFullscreenTriangle();
+    }
+
+    RenderCommand::SetDepthTestEnabled(true);
+    Renderer3D::BeginScene(frame);
+
+    for (const auto& sm : frame.staticMeshes)
+        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+
+    for (const auto& m : frame.meshes)
+    {
+        if (m.overrideShader) Renderer3D::SetOverrideShader(m.overrideShader);
+        m.mesh->DispatchSkinning(m.bones);
+        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
+        if (m.overrideShader) Renderer3D::ClearOverrideShader();
+    }
+
+    Renderer3D::EndScene();
+
+    if (frame.debugLights && !frame.lights.empty())
+        Renderer3D::DrawDebugLights(frame.lights);
+
+    // 2D overlay pass last for screen-space content (fades, captions, HUD) must
+    // composite on top of 3D geometry, not be overdrawn by it.
     RenderCommand::SetDepthTestEnabled(false);
     Renderer2D::BeginScene(frame.viewProjection2D);
 
@@ -97,23 +133,6 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
         Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
 
     Renderer2D::EndScene();
-
-    RenderCommand::SetDepthTestEnabled(true);
-    Renderer3D::BeginScene(frame);
-
-    for (const auto& sm : frame.staticMeshes)
-        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
-
-    for (const auto& m : frame.meshes)
-    {
-        m.mesh->DispatchSkinning(m.bones);
-        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
-    }
-
-    Renderer3D::EndScene();
-
-    if (frame.debugLights && !frame.lights.empty())
-        Renderer3D::DrawDebugLights(frame.lights);
 
     hdr->Unbind();
 }
@@ -202,6 +221,7 @@ void SceneRenderer::BloomBlurVPass(const RenderFrame& frame)
 void SceneRenderer::CompositePass(const RenderFrame& frame)
 {
     HMN_PROFILE_FUNCTION();
+
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
     auto hdrFBO = m_RenderGraph.GetFBO("hdr");
     if (!hdrFBO) return;
