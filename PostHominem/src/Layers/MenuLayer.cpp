@@ -2,6 +2,8 @@
 #include "MenuLayer.h"
 #include "SandboxLayer.h"
 #include "GameLayer.h"
+#include "CutsceneLayer.h"
+#include "LoadingLayer.h"
 
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
@@ -53,7 +55,7 @@ void MenuLayer::OnUpdate(Timestep ts)
 {
 	if (Input::IsKeyPressed(HMN_KEY_2))
 	{
-		TransitionTo<GameLayer>();
+		TransitionTo<LoadingLayer>();
 		return;
 	}
 

@@ -7,6 +7,8 @@
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Game/Level.h"
 #include "Game/WorldConfig.h"
+#include "Hominem/Events/MouseEvent.h"
+#include <glm/glm.hpp>
 
 class GameLayer : public Hominem::Layer
 {
@@ -20,9 +22,26 @@ public:
 	void OnImGuiRender()                             override;
 	void OnEvent(Hominem::Event& e)                  override;
 
+
+	static inline bool      s_SkipIntro  = false;
+	static inline glm::vec3 s_EyeTarget  = { 0.084f, 0.8f, 40.0f };
+
 private:
 	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
+	bool OnMouseMoved(Hominem::MouseMovedEvent& e);
+
+	enum class IntroPhase { Wait, ZoomIn, Flash, ZoomOut, Done };
+	IntroPhase  m_IntroPhase  = IntroPhase::Wait;
+	float       m_IntroTimer  = 0.f;
+	glm::vec3   m_IntroFromPos{ 0.f };
+	float       m_IntroFromZoom = 10.f;
+
+	static constexpr glm::vec3 k_EyeTarget  = { 0.084f, 0.8f, 29.0f };
+	static constexpr float     k_EyeZoom    = 0.08f;  // ortho size at peak
+	static constexpr float     k_WaitDur    = 2.5f;   // seconds of normal play before zoom starts
+	static constexpr float     k_ZoomDur    = 0.7f;   // seconds to zoom in/out
+	static constexpr float     k_FlashDur   = 0.15f;  // white hold before cut
 
 	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
 	Hominem::Scope<Level>           m_GameMode;

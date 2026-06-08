@@ -1,6 +1,7 @@
 #include "hmnpch.h"
 #include "GameLayer.h"
 #include "MenuLayer.h"
+#include "CutsceneLayer.h"
 
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
@@ -10,6 +11,7 @@
 #include "Game/FactoryLevel.h"
 
 #include <imgui.h>
+
 
 using namespace Hominem;
 
@@ -29,8 +31,33 @@ void GameLayer::OnAttach()
 	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
 	m_GameMode->OnEnter(*m_ActiveScene);
 
-	// Bake a cubemap from the room center — used for IBL reflections on shiny/metallic surfaces.
-	// The bake runs on the render thread during the first frame, reflections activate automatically.
+	if (s_SkipIntro)
+	{
+		// Snap camera to the player so the zoom-out lands on the normal gameplay view,
+		// not the config's initial off-screen camera position.
+		m_GameMode->SnapCameraToPlayer();
+
+		// Re-resolve in case Wait phase never ran (e.g. key-1 shortcut direct to cutscene).
+		s_EyeTarget   = m_GameMode->ResolveEyeTarget(k_EyeTarget);
+		s_EyeTarget.z = k_EyeTarget.z;
+
+		m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
+		m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
+
+		m_ActiveScene->GetCameraPosition() = s_EyeTarget;
+		m_ActiveScene->GetCamera().SetOrthographicSize(k_EyeZoom);
+		m_IntroPhase = IntroPhase::ZoomOut;
+	}
+	else
+	{
+		m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
+		m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
+		m_IntroPhase    = IntroPhase::Wait;
+	}
+	m_IntroTimer = 0.f;
+	s_SkipIntro  = false;
+
+	// Bake a cube map from the room center will be used for IBL reflections on shiny/metallic surfaces.
 	m_ActiveScene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
 
 	WorldConfig cfg;
@@ -66,8 +93,69 @@ void GameLayer::OnDetach()
 void GameLayer::OnUpdate(Timestep ts)
 {
 	Application::Get().GetAudioSystem().UpdateMusic();
-	m_ActiveScene->OnUpdate(ts);
-	m_GameMode->OnUpdate(ts);
+
+	if (m_IntroPhase == IntroPhase::Done || m_IntroPhase == IntroPhase::Wait)
+	{
+		m_ActiveScene->OnUpdate(ts);
+		m_GameMode->OnUpdate(ts);
+
+		if (m_IntroPhase == IntroPhase::Wait)
+		{
+			m_IntroTimer += ts;
+			if (m_IntroTimer >= k_WaitDur)
+			{
+				// Resolve the head-bone world XY; keep Z pinned to k_EyeTarget.z so the
+			// camera stays 2 units behind the player's Z plane and the player remains visible.
+			s_EyeTarget   = m_GameMode->ResolveEyeTarget(k_EyeTarget);
+			s_EyeTarget.z = k_EyeTarget.z;
+
+				// Snapshot where the camera is now so ZoomIn starts from the live position.
+				m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
+				m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
+				m_IntroPhase    = IntroPhase::ZoomIn;
+				m_IntroTimer    = 0.f;
+			}
+		}
+	}
+	else if (m_IntroPhase == IntroPhase::ZoomIn)
+	{
+		m_IntroTimer += ts;
+		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
+		const float ease = n * n * (3.f - 2.f * n); // smoothstep
+
+		// Only X/Y track the eye; Z is pinned to the scene depth so geometry stays in frame.
+		m_ActiveScene->GetCameraPosition() = glm::mix(m_IntroFromPos, s_EyeTarget, ease);
+		m_ActiveScene->GetCamera().SetOrthographicSize(
+			glm::mix(m_IntroFromZoom, k_EyeZoom, ease));
+
+		if (n >= 1.f)
+		{
+			m_IntroPhase = IntroPhase::Flash;
+			m_IntroTimer = 0.f;
+		}
+	}
+	else if (m_IntroPhase == IntroPhase::Flash)
+	{
+		m_IntroTimer += ts;
+		if (m_IntroTimer >= k_FlashDur)
+		{
+			m_IntroPhase = IntroPhase::Done;
+			TransitionTo<CutsceneLayer>();
+		}
+	}
+	else if (m_IntroPhase == IntroPhase::ZoomOut)
+	{
+		m_IntroTimer += ts;
+		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
+		const float ease = n * n * (3.f - 2.f * n);
+
+		m_ActiveScene->GetCameraPosition() = glm::mix(s_EyeTarget, m_IntroFromPos, ease);
+		m_ActiveScene->GetCamera().SetOrthographicSize(
+			glm::mix(k_EyeZoom, m_IntroFromZoom, ease));
+
+		if (n >= 1.f)
+			m_IntroPhase = IntroPhase::Done;
+	}
 
 	m_FrameTimeMs = ts.GetMilliseconds();
 	m_FPS         = ts > 0.f ? 1.f / ts : 0.f;
@@ -87,6 +175,14 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 	if (m_ActiveScene)
 		m_ActiveScene->BuildRenderFrame(frame);
+
+	if (m_IntroPhase == IntroPhase::Flash)
+	{
+		QuadDraw q;
+		q.transform = glm::scale(glm::mat4(1.f), { 1000.f, 1000.f, 1.f });
+		q.color     = { 1.f, 1.f, 1.f, 1.f };
+		frame.quads.push_back(std::move(q));
+	}
 }
 
 void GameLayer::OnImGuiRender()
@@ -241,6 +337,7 @@ void GameLayer::OnEvent(Event& e)
 	EventDispatcher dispatcher(e);
 	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(GameLayer::OnWindowResize));
 	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnKeyPressed));
+	dispatcher.Dispatch<MouseMovedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnMouseMoved));
 	m_GameMode->OnEvent(e);
 }
 
@@ -258,6 +355,13 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
 	{
 		TransitionTo<MenuLayer>();
+		return true;
+	}
+
+	if (e.GetKeyCode() == HMN_KEY_1)
+	{
+		s_SkipIntro = false;
+		TransitionTo<CutsceneLayer>();
 		return true;
 	}
 
@@ -293,3 +397,10 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 
 	return false;
 }
+
+bool GameLayer::OnMouseMoved(Hominem::MouseMovedEvent& e)
+{
+	HMN_CORE_INFO("Mouse: x={} y={}", e.GetX(), e.GetY());
+	return false;
+}
+
