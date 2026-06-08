@@ -135,7 +135,10 @@ namespace Hominem {
 			}
 
 			float time      = (float)glfwGetTime();
-			Timestep timestep = time - m_LastFrameTime;
+			// Clamp: a stall (asset load, window drag, breakpoint, OS scheduling) must not
+			// hand layers a huge dt — that skips animations and can blow up physics contacts.
+			constexpr float kMaxFrameTime = 1.0f / 20.0f;
+			Timestep timestep = std::min(time - m_LastFrameTime, kMaxFrameTime);
 			m_LastFrameTime = time;
 
 			for (auto& layer : m_LayerStack)
@@ -153,7 +156,7 @@ namespace Hominem {
 			m_ImGuiLayer->End();       // ImGui::Render() — writes draw data
 			m_RenderThread.SignalImGuiReady();
 
-			// Collect draw commands — pure data, no GL.
+			// Collect draw commands
 			// Wire the write arena so actors can bump-allocate bone matrices.
 			RenderFrame frame;
 			frame.arena    = &m_RenderThread.GetWriteArena();

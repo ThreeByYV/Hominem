@@ -41,6 +41,15 @@ namespace Hominem {
 		Skeleton&       GetSkeleton()       override { return m_Skeleton; }
 		const Skeleton& GetSkeleton() const override { return m_Skeleton; }
 
+		std::optional<glm::mat4> GetBoneWorldTransform(const std::string& name) const override
+		{
+			return m_Skeleton.GetBoneWorldTransform(name);
+		}
+		std::vector<std::string> GetBoneNames() const override
+		{
+			return m_Skeleton.GetBoneNames();
+		}
+
 	private:
 		struct Submesh
 		{

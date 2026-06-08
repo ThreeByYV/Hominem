@@ -216,6 +216,7 @@ namespace Hominem {
 			norm4[i] = glm::vec4(m_Geometry.Normals[i],   0.f);
 		}
 
+		//todo move this to generic buffer class this opengl buffer code
 		// Rest-pose data — uploaded once at load, never changes.
 		glCreateBuffers(1, &m_InPosSSBO);
 		glNamedBufferData(m_InPosSSBO, sizeof(glm::vec4) * vertCount, pos4.data(), GL_STATIC_DRAW);
