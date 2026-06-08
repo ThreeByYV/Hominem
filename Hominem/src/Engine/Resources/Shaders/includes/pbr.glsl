@@ -1,5 +1,4 @@
 // Cook-Torrance PBR — GGX/Smith/Schlick.
-// Shared by forward_plus, skinning, and static_mesh shaders.
 
 const float PI = 3.14159265359;
 
