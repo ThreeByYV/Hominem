@@ -26,15 +26,13 @@ Ref<SkinnedMesh> Player::LoadMesh()
 {
 	auto mesh = SkinnedMesh::Create();
 
-	const std::string meshPath = "Resources/Textures/Idle.fbx";
-	if (!mesh->LoadFromFile(meshPath))
+	const std::string meshPath = "Resources/Textures/beige.glb";
+	if (auto res = mesh->LoadFromFile(meshPath); !res)
 	{
-		HMN_CORE_ERROR("Player: Failed to load mesh from {}", meshPath);
+		HMN_CORE_ERROR("{}", res.error());
 		return nullptr;
 	}
 
-	mesh->LoadAdditionalAnimation("Resources/Textures/Idle.fbx");
-	mesh->LoadAdditionalAnimation("Resources/Textures/Running.fbx");
 	return mesh;
 }
 
@@ -45,7 +43,7 @@ void Player::BeginPreload()
 	HMN_CORE_INFO("Player: preloading mesh on a background thread");
 	s_MeshPreload.Begin([]() -> Ref<SkinnedMesh>
 	{
-		auto mesh = Player::LoadMesh();
+		auto mesh = LoadMesh();
 		if (mesh) HMN_CORE_INFO("Player: preloaded mesh ready");
 		else      HMN_CORE_ERROR("Player: preload failed");
 		return mesh;
@@ -134,7 +132,6 @@ void Player::OnBuildRenderFrame(RenderFrame& frame)
 	int boneCount = m_Mesh->GetBoneCount();
 	uint32_t animCount = m_Mesh->GetAnimationCount();
 
-	// Base GLB has 0 anims. Additional anims: index 1 = Idle.fbx, index 2 = Running.fbx
 	if (boneCount > 0 && animCount >= 2)
 	{
 		m_BoneTransforms.resize(boneCount);

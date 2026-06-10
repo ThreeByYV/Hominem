@@ -12,10 +12,10 @@ namespace CutscenePreload
 		HMN_CORE_INFO("CutscenePreload: loading '{}' on a background thread", meshPath);
 		s_Load.Begin([meshPath]() -> Hominem::Ref<Hominem::StaticMesh>
 		{
-			auto mesh = Hominem::CreateRef<Hominem::StaticMesh>();
-			if (!mesh->LoadFromFile(meshPath))
+			auto mesh = Hominem::StaticMesh::Create();
+			if (auto res = mesh->LoadFromFile(meshPath); !res)
 			{
-				HMN_CORE_ERROR("CutscenePreload: failed to load '{}'", meshPath);
+				HMN_CORE_ERROR("{}", res.error());
 				return nullptr;
 			}
 			HMN_CORE_INFO("CutscenePreload: '{}' ready", meshPath);

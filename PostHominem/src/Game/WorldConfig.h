@@ -13,7 +13,7 @@ struct PlayerMovementConfig
 struct PlayerSpawnConfig
 {
 	glm::vec3 Position = { 0.0f, 1.0f, 3.0f };
-	glm::vec3 Scale    = { 0.01f, 0.01f, 0.01f };
+	glm::vec3 Scale    = { 1.0f, 1.0f, 1.0f }; // meshes import at metres (aiProcess_GlobalScale)
 };
 
 struct PlayerColliderConfig
@@ -29,7 +29,7 @@ struct PlayerConfig
 	PlayerMovementConfig Movement;
 	PlayerSpawnConfig    Spawn;
 	PlayerColliderConfig Collider;
-	glm::vec3            Scale  = { 0.0002f, 0.0002f, 0.0002f };
+	glm::vec3            Scale  = { 1.0f, 1.0f, 1.0f };
 	float                RestY  = 0.06f;   // world-space Y the player body rests at
 };
 

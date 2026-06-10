@@ -67,14 +67,12 @@ in vec2 v_TexCoord;
 #include "includes/pbr.glsl"
 #include "includes/env_mapping.glsl"
 
-uniform sampler2D u_Albedo;      // slot 0 — always present
-uniform float     u_Roughness;   // scalar fallback when no MR texture
-uniform float     u_Metalness;
-
+    uniform sampler2D u_Albedo;      // slot 0
+    uniform float     u_Roughness;   // scalar fallback when no MR texture
+    uniform float     u_Metalness;
 #ifdef HAS_METALROUGHNESS_TEX
     uniform sampler2D u_MetalRoughness; // slot 1
 #endif
-
 #if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
     uniform sampler2D u_NormalMap;      // slot 2
 #endif
@@ -95,7 +93,7 @@ uniform float     u_Metalness;
 void main()
 {
     vec4 albedoSample = texture(u_Albedo, v_TexCoord);
-    vec3 albedo       = albedoSample.rgb;
+    vec3 albedo = albedoSample.rgb;
 
 #ifdef SKINNED
     if (dot(albedo, albedo) < 0.001) albedo = vec3(0.8, 0.6, 0.4);
@@ -116,7 +114,7 @@ void main()
     vT      = normalize(vT - dot(vT, vN) * vN);
     vec3 vB = cross(vN, vT) * v_Tangent.w;
     vec3 normalSample = texture(u_NormalMap, v_TexCoord).xyz * 2.0 - 1.0;
-    normalSample.y = -normalSample.y; // DX → OpenGL normal map convention
+    normalSample.y = -normalSample.y; // DX -> OpenGL normal map convention
     vec3 N  = normalize(mat3(vT, vB, vN) * normalSample);
 #else
     vec3 N = normalize(v_Normal);

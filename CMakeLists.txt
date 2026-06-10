@@ -204,7 +204,7 @@ target_link_libraries(Hominem PUBLIC
 )
 
 if(MSVC)
-    target_compile_options(Hominem PRIVATE /utf-8 /FS /MP)
+    target_compile_options(Hominem PRIVATE /utf-8 /FS /MP /we4834)
 endif()
 
 file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
@@ -227,7 +227,7 @@ target_compile_definitions(PostHominem PRIVATE ${COMMON_DEFINES})
 target_link_libraries(PostHominem PRIVATE Hominem)
 
 if(MSVC)
-    target_compile_options(PostHominem PRIVATE /utf-8 /FS /MP)
+    target_compile_options(PostHominem PRIVATE /utf-8 /FS /MP /we4834)
 
 # In Debug builds, hot-reload reads directly from the source resources folder.
 target_compile_definitions(PostHominem PRIVATE

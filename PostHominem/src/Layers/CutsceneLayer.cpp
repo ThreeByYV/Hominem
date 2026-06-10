@@ -24,6 +24,7 @@ CutsceneLayer::CutsceneLayer()
 std::string CutsceneLayer::CutscenePath()
 {
 	// In Debug, read/write the source copy so editor saves persist across runs.
+	//todo: client shouldn't have to do this should be handled in engine
 #ifdef HMN_SOURCE_RESOURCES_PATH
 	return std::string(HMN_SOURCE_RESOURCES_PATH) + "/Cutscenes/intro.json";
 #else
@@ -46,14 +47,16 @@ void CutsceneLayer::OnAttach()
 		m_Set = &m_Scene->SpawnActor<SceneActor>(std::move(mesh));
 	ApplyFraming();
 
+	//todo i think our meshes should internally do this std::async instead of the client having to
+
 	// Background-load the FBX (Assimp parse is multi-second) so OnAttach never stalls;
 	// SpawnCinematicCharacters runs from OnUpdate once both futures are ready.
 	m_RunMeshFuture = std::async(std::launch::async, []() -> Hominem::Ref<Hominem::SkinnedMesh>
 	{
 		auto mesh = Hominem::SkinnedMesh::Create();
-		if (!mesh->LoadFromFile(k_RunMesh))
+		if (auto res = mesh->LoadFromFile(k_RunMesh); !res)
 		{
-			HMN_CORE_ERROR("CutsceneLayer: failed to load '{}'", k_RunMesh);
+			HMN_CORE_ERROR("{}", res.error());
 			return nullptr;
 		}
 		return mesh;
@@ -61,9 +64,9 @@ void CutsceneLayer::OnAttach()
 	m_IdleMeshFuture = std::async(std::launch::async, []() -> Hominem::Ref<Hominem::SkinnedMesh>
 	{
 		auto mesh = Hominem::SkinnedMesh::Create();
-		if (!mesh->LoadFromFile(k_IdleMesh))
+		if (auto res = mesh->LoadFromFile(k_IdleMesh); !res)
 		{
-			HMN_CORE_ERROR("CutsceneLayer: failed to load '{}'", k_IdleMesh);
+			HMN_CORE_ERROR("{}", res.error());
 			return nullptr;
 		}
 		return mesh;
@@ -119,9 +122,9 @@ void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<Skinn
 		{ { -36.f, 0.f,  1.00f }, radians( 60.f), 1.1f },
 		{ { -31.f, 0.f, -1.65f }, radians( 87.f), 1.3f },
 	};
-	// NOTE: Running.fbx/Idle.fbx are authored in centimetres (a ~180-unit-tall human),
-	// so they need a ~0.01 scale to read as ~1.8 m - same as the player config. Using
-	// metre-sized scales (1.5–2.0) made each silhouette ~270 m tall, filling the frame.
+	// Running.fbx/Idle.fbx are authored in centimetres, but aiProcess_GlobalScale now
+	// converts them to metres at import, so a scale of 1.0 already reads as ~1.8 m tall.
+	// The girl/arm use slightly larger scales purely for foreground framing.
 
 	// Midground runners fleeing down the street - rendered with the normal lit shader
 	// (Silhouette = false) so the fire lights pick them out, not flat black.
@@ -130,7 +133,7 @@ void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<Skinn
 		auto& actor = m_Scene->SpawnActor<SilhouetteCharacterActor>(runMesh);
 		actor.Position   = runners[i].pos;
 		actor.Rotation   = { 0.f, runners[i].rotY, 0.f };
-		actor.Scale      = { 0.01f, 0.01f, 0.01f };
+		actor.Scale      = { 1.0f, 1.0f, 1.0f };
 		actor.AnimSpeed  = runners[i].speed;
 		actor.Silhouette = false;
 		m_Runners[i]     = &actor;
@@ -141,14 +144,14 @@ void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<Skinn
 	m_CenterGirl = &m_Scene->SpawnActor<SilhouetteCharacterActor>(idleMesh);
 	m_CenterGirl->Position        = { -58.2f, 0.05f, -0.75f };
 	m_CenterGirl->Rotation        = { 0.f, radians(115.f), 0.f };
-	m_CenterGirl->Scale           = { 0.019f, 0.019f, 0.019f };
+	m_CenterGirl->Scale           = { 1.9f, 1.9f, 1.9f };
 	m_CenterGirl->RightArmDeg     = { 73.f, -5.f, 156.f }; // reach toward the adult on the right
 	m_CenterGirl->RightForeArmDeg = { 0.f, 0.f, 23.f };
 
 	m_ForegroundArm = &m_Scene->SpawnActor<SilhouetteCharacterActor>(idleMesh);
 	m_ForegroundArm->Position        = { -58.65f, 1.05f, 2.25f };
 	m_ForegroundArm->Rotation        = { 0.f, radians(90.f), 0.f };
-	m_ForegroundArm->Scale           = { 0.026f, 0.026f, 0.026f };
+	m_ForegroundArm->Scale           = { 2.6f, 2.6f, 2.6f };
 	m_ForegroundArm->RightArmDeg     = { 0.f, 0.f, 43.f };
 	m_ForegroundArm->LeftArmDeg      = { 55.f, -176.f, -23.f }; // reach back toward the girl
 	m_ForegroundArm->RightForeArmDeg = { 0.f, 0.f, 2.f };

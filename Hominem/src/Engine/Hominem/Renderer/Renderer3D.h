@@ -41,17 +41,17 @@ static_assert(sizeof(SceneUBOData) == 160, "SceneUBOData size mismatch — check
 
 struct Renderer3DStorage
 {
-    Ref<ShaderLibrary> ShaderLibrary;
-    Ref<Shader>            OverrideShader;   // optional scene-wide override
-    Ref<ShaderVariantSet>  MeshVariants;    // mesh.glsl named variants
-    Ref<Shader>               NormalsShader;        // normals_debug.glsl (static)
-    Ref<Shader>               NormalsSkinnedShader; // normals_debug.glsl + SKINNED
-    Ref<Shader>               BoneWeightShader;     // bone_weight.glsl
-    Ref<Shader>        DebugAABBShader;
-    Ref<Shader>        DebugSphereShader;
-    Ref<VertexArray>   DebugVAO;
-    Ref<VertexBuffer>  DebugVBO;
-    Ref<IndexBuffer>   DebugIBO;
+    Ref<ShaderLibrary>       ShaderLibrary;
+    Ref<Shader>              OverrideShader;   // optional scene-wide override
+    Ref<ShaderVariantSet>    MeshVariants;    // mesh.glsl named variants
+    Ref<Shader>              NormalsShader;        // normals_debug.glsl (static)
+    Ref<Shader>              NormalsSkinnedShader; // normals_debug.glsl + SKINNED
+    Ref<Shader>              BoneWeightShader;     // bone_weight.glsl
+    Ref<Shader>              DebugAABBShader;
+    Ref<Shader>              DebugSphereShader;
+    Ref<VertexArray>         DebugVAO;
+    Ref<VertexBuffer>        DebugVBO;
+    Ref<IndexBuffer>         DebugIBO;
 
     Ref<UniformBuffer> SceneUBO;             // binding 0 — SceneUBOData, uploaded once per frame
 
@@ -97,7 +97,8 @@ public:
     static bool GetToonShading()             { return s_ToonShading; }
     static void SetDisplayBoneIndex(int i)  { s_DisplayBoneIndex = i; }
     static int  GetDisplayBoneIndex()       { return s_DisplayBoneIndex; }
-    // Returns 0.75 for low-end integrated GPUs, 1.0 otherwise.
+
+    // Returns lower value for low-end integrated GPUs, 1.0 otherwise.
     static float GetRecommendedRenderScale() { return s_RecommendedRenderScale; }
 
     static uint32_t GetDrawCalls()    { return s_DrawCalls; }

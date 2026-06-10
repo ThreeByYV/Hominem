@@ -12,7 +12,7 @@ public:
 	explicit SceneActor(std::string meshPath)
 		: m_MeshPath(std::move(meshPath)) {}
 
-	/// Pre-loaded mesh — skips the synchronous LoadFromFile in OnCreate. Used when
+	/// Preloaded mesh — skips the synchronous LoadFromFile in OnCreate. Used when
 	/// the mesh was already loaded on a background thread (e.g. CutscenePreload),
 	/// so spawning the actor doesn't stall the main thread on a big GLB import.
 	explicit SceneActor(Hominem::Ref<Hominem::StaticMesh> mesh)
@@ -21,9 +21,9 @@ public:
 	void OnCreate() override
 	{
 		if (m_Mesh) return;
-		m_Mesh = Hominem::CreateRef<Hominem::StaticMesh>();
-		if (!m_Mesh->LoadFromFile(m_MeshPath))
-			HMN_CORE_ERROR("SceneActor: failed to load '{}'", m_MeshPath);
+		m_Mesh = Hominem::StaticMesh::Create();
+		if (auto res = m_Mesh->LoadFromFile(m_MeshPath); !res)
+			HMN_CORE_ERROR("{}", res.error());
 	}
 
 	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override

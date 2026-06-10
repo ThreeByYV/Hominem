@@ -19,11 +19,11 @@ namespace Hominem {
 		aiProcess_Triangulate      |
 		aiProcess_GenSmoothNormals |
 		aiProcess_FlipUVs          |
-		aiProcess_JoinIdenticalVertices;
+		aiProcess_JoinIdenticalVertices |
+		aiProcess_GlobalScale; // FBX UnitScaleFactor -> metres; scales verts, bones AND anim keys
 
 	OpenGLSkinnedMesh::~OpenGLSkinnedMesh()
 	{
-		ReleaseComputeSSBOs();
 		ReleaseGPUResources();
 	}
 
@@ -46,44 +46,20 @@ namespace Hominem {
 		m_VertexBoneData.clear();
 	}
 
-	bool OpenGLSkinnedMesh::LoadFromFile(const std::string& filepath)
+	std::expected<void, std::string> OpenGLSkinnedMesh::LoadFromFile(const std::string& filepath)
 	{
-		// CPU-only — no GL calls. GPU init queued to run on the render thread.
 		m_AdditionalImporters.clear();
 		m_AdditionalScenes.clear();
 
 		m_pScene = m_Importer.ReadFile(filepath.c_str(), ASSIMP_LOAD_FLAGS);
-
 		if (!m_pScene)
-		{
-			HMN_CORE_ERROR("SkinnedMesh: failed to load '{}': {}", filepath, m_Importer.GetErrorString());
-			return false;
-		}
+			return std::unexpected(std::format("SkinnedMesh: failed to load '{}': {}", filepath, m_Importer.GetErrorString()));
 
 		if (m_pScene->mNumMeshes == 0)
-		{
-			HMN_CORE_ERROR("SkinnedMesh: '{}' contains 0 meshes", filepath);
-			return false;
-		}
+			return std::unexpected(std::format("SkinnedMesh: '{}' contains 0 meshes", filepath));
 
-		// Detect unit scale from FBX metadata (same logic as StaticMesh).
-		m_ScaleToMetres = 1.0f;
-		if (m_pScene->mMetaData)
-		{
-			double unitScale = 1.0;
-			if (m_pScene->mMetaData->Get("UnitScaleFactor", unitScale))
-				m_ScaleToMetres = static_cast<float>(unitScale) * 0.01f;
-		}
-		HMN_CORE_INFO("SkinnedMesh: unit scale {:.4f} (1 file unit = {:.4f} m)",
-			m_ScaleToMetres, m_ScaleToMetres);
-
-		bool success = ParseScene(m_pScene, filepath);
-
-		if (!success)
-		{
-			HMN_CORE_ERROR("SkinnedMesh: ParseScene failed for '{}'", filepath);
-			return false;
-		}
+		if (!ParseScene(m_pScene, filepath))
+			return std::unexpected(std::format("SkinnedMesh: ParseScene failed for '{}'", filepath));
 
 		HMN_CORE_INFO("SkinnedMesh: '{}' — {}anims {}submesh {}bones {}verts {}idx",
 			filepath,
@@ -95,32 +71,26 @@ namespace Hominem {
 			CreateGPUBuffers();
 			UploadToGPU();
 		});
-		return success;
+		return {};
 	}
 
-	bool OpenGLSkinnedMesh::LoadAdditionalAnimation(const std::string& filepath)
+	std::expected<void, std::string> OpenGLSkinnedMesh::LoadAdditionalAnimation(const std::string& filepath)
 	{
 		auto importer = CreateScope<Assimp::Importer>();
 		const aiScene* pScene = importer->ReadFile(filepath.c_str(), ASSIMP_LOAD_FLAGS);
 
 		if (!pScene)
-		{
-			HMN_CORE_ERROR("SkinnedMesh: Failed to load animation '{}': {}", filepath, importer->GetErrorString());
-			return false;
-		}
+			return std::unexpected(std::format("SkinnedMesh: failed to load animation '{}': {}", filepath, importer->GetErrorString()));
 
 		if (pScene->mNumAnimations == 0)
-		{
-			HMN_CORE_WARN("SkinnedMesh: '{}' contains no animations", filepath);
-			return false;
-		}
+			return std::unexpected(std::format("SkinnedMesh: '{}' contains no animations", filepath));
 
 		m_AdditionalScenes.push_back(pScene);
 		m_AdditionalImporters.push_back(std::move(importer));
 		m_Skeleton.AddAdditionalScene(pScene);
 
 		HMN_CORE_INFO("SkinnedMesh: anim '{}' loaded — {} total anims", filepath, GetAnimationCount());
-		return true;
+		return {};
 	}
 
 	uint32_t OpenGLSkinnedMesh::GetAnimationCount() const
@@ -203,7 +173,8 @@ namespace Hominem {
 
 	void OpenGLSkinnedMesh::CreateComputeSSBOs()
 	{
-		ReleaseComputeSSBOs();
+		// Reset existing SSBOs before recreating (safe on reload — Ref<> drops the old GL object).
+		m_InPosSSBO = m_InNormSSBO = m_InBoneDataSSBO = m_BoneSSBO = m_OutPosSSBO = m_OutNormSSBO = nullptr;
 
 		uint32_t vertCount = static_cast<uint32_t>(m_Geometry.Positions.size());
 		uint32_t boneCount = static_cast<uint32_t>(m_Skeleton.GetNumBones());
@@ -216,58 +187,53 @@ namespace Hominem {
 			norm4[i] = glm::vec4(m_Geometry.Normals[i],   0.f);
 		}
 
-		//todo move this to generic buffer class this opengl buffer code
+		const uint32_t vertBytes     = vertCount * (uint32_t)sizeof(glm::vec4);
+		const uint32_t boneDataBytes = vertCount * (uint32_t)sizeof(VertexBoneData);
+
 		// Rest-pose data — uploaded once at load, never changes.
-		glCreateBuffers(1, &m_InPosSSBO);
-		glNamedBufferData(m_InPosSSBO, sizeof(glm::vec4) * vertCount, pos4.data(), GL_STATIC_DRAW);
+		m_InPosSSBO = StorageBuffer::Create(vertBytes);
+		m_InPosSSBO->SetData(pos4.data(), vertBytes);
 
-		glCreateBuffers(1, &m_InNormSSBO);
-		glNamedBufferData(m_InNormSSBO, sizeof(glm::vec4) * vertCount, norm4.data(), GL_STATIC_DRAW);
+		m_InNormSSBO = StorageBuffer::Create(vertBytes);
+		m_InNormSSBO->SetData(norm4.data(), vertBytes);
 
-		glCreateBuffers(1, &m_InBoneDataSSBO);
-		glNamedBufferData(m_InBoneDataSSBO, sizeof(VertexBoneData) * vertCount, m_VertexBoneData.data(), GL_STATIC_DRAW);
+		m_InBoneDataSSBO = StorageBuffer::Create(boneDataBytes);
+		m_InBoneDataSSBO->SetData(m_VertexBoneData.data(), boneDataBytes);
 
 		// At least one identity bone so the compute shader never reads OOB on a no-skeleton mesh.
-		uint32_t allocBones = std::max(boneCount, 1u);
+		uint32_t allocBones      = std::max(boneCount, 1u);
+		uint32_t boneMatrixBytes = allocBones * (uint32_t)sizeof(glm::mat4);
 		std::vector<glm::mat4> identityMats(allocBones, glm::mat4(1.0f));
-		glCreateBuffers(1, &m_BoneSSBO);
-		glNamedBufferData(m_BoneSSBO, sizeof(glm::mat4) * allocBones, identityMats.data(), GL_DYNAMIC_DRAW);
+		m_BoneSSBO = StorageBuffer::Create(boneMatrixBytes);
+		m_BoneSSBO->SetData(identityMats.data(), boneMatrixBytes);
 
 		// Initialised with rest-pose so no-animation renders correctly without a dispatch.
-		glCreateBuffers(1, &m_OutPosSSBO);
-		glNamedBufferData(m_OutPosSSBO, sizeof(glm::vec4) * vertCount, pos4.data(), GL_DYNAMIC_COPY);
+		m_OutPosSSBO = StorageBuffer::Create(vertBytes);
+		m_OutPosSSBO->SetData(pos4.data(), vertBytes);
 
-		glCreateBuffers(1, &m_OutNormSSBO);
-		glNamedBufferData(m_OutNormSSBO, sizeof(glm::vec4) * vertCount, norm4.data(), GL_DYNAMIC_COPY);
+		m_OutNormSSBO = StorageBuffer::Create(vertBytes);
+		m_OutNormSSBO->SetData(norm4.data(), vertBytes);
 
 		m_ComputeShader = ComputeShader::Create("engine://Shaders/skinning.comp");
 		m_BoneCache.reserve(boneCount);
 	}
 
-	void OpenGLSkinnedMesh::ReleaseComputeSSBOs()
-	{
-		GLuint bufs[] = { m_InPosSSBO, m_InNormSSBO, m_InBoneDataSSBO, m_BoneSSBO, m_OutPosSSBO, m_OutNormSSBO };
-		glDeleteBuffers(6, bufs);
-		m_InPosSSBO = m_InNormSSBO = m_InBoneDataSSBO = m_BoneSSBO = m_OutPosSSBO = m_OutNormSSBO = 0;
-		m_ComputeShader.reset();
-	}
-
 	void OpenGLSkinnedMesh::DispatchSkinning(std::span<const glm::mat4> bones)
 	{
-		if (!m_VAO || !m_ComputeShader) return;
+		if (!m_VAO || !m_ComputeShader || !m_InBoneDataSSBO) return;
 
 		// Always bind outputs and bone data so vertex + bone-weight shaders can read them.
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, m_InBoneDataSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, m_OutPosSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, m_OutNormSSBO);
+		m_InBoneDataSSBO->BindBase(3);
+		m_OutPosSSBO->BindBase(4);
+		m_OutNormSSBO->BindBase(5);
 
 		if (bones.empty()) return;
 
-		glNamedBufferSubData(m_BoneSSBO, 0, sizeof(glm::mat4) * bones.size(), bones.data());
+		m_BoneSSBO->SetData(bones.data(), (uint32_t)(bones.size() * sizeof(glm::mat4)));
 
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_BoneSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_InPosSSBO);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_InNormSSBO);
+		m_BoneSSBO->BindBase(0);
+		m_InPosSSBO->BindBase(1);
+		m_InNormSSBO->BindBase(2);
 
 		m_ComputeShader->Bind();
 		m_ComputeShader->SetUint("u_VertexCount", static_cast<uint32_t>(m_Geometry.Positions.size()));
@@ -276,39 +242,21 @@ namespace Hominem {
 		m_ComputeShader->Dispatch(groups); // Dispatch() issues GL_SHADER_STORAGE_BARRIER_BIT — vertex shader reads are safe after this.
 	}
 
-	// Bone matrices are computed in the file's unit space (e.g. cm for Blender FBX).
-	// Vertex positions were already scaled to metres in ExtractSubmesh, so the translation
-	// column of each bone matrix must match. Rotation/scale are unitless — only column 3
-	// (the translation) needs to change: S * M * S_inv scales just the translation by s.
-	void OpenGLSkinnedMesh::ApplyUnitScale(std::vector<glm::mat4>& transforms) const
-	{
-		if (m_ScaleToMetres == 1.0f) return;
-		for (auto& m : transforms)
-		{
-			m[3][0] *= m_ScaleToMetres;
-			m[3][1] *= m_ScaleToMetres;
-			m[3][2] *= m_ScaleToMetres;
-		}
-	}
-
 	void OpenGLSkinnedMesh::GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransforms(timeSeconds, transforms, disableRootMotion);
-		ApplyUnitScale(transforms);
 	}
 
 	void OpenGLSkinnedMesh::GetBoneTransformsBlended(float timeSeconds, std::vector<glm::mat4>& transforms,
 		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransformsBlended(timeSeconds, transforms, startAnimIndex, endAnimIndex, blendFactor, disableRootMotion);
-		ApplyUnitScale(transforms);
 	}
 
 	void OpenGLSkinnedMesh::GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
 		std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		m_Skeleton.GetBoneTransformsBlendedN(samples, transforms, disableRootMotion);
-		ApplyUnitScale(transforms);
 	}
 
 	bool OpenGLSkinnedMesh::ParseScene(const aiScene* pScene, const std::string& filepath)
@@ -366,7 +314,7 @@ namespace Hominem {
 			const aiVector3D& normal = pMesh->mNormals ? pMesh->mNormals[i] : zero;
 			const aiVector3D& uv     = pMesh->HasTextureCoords(0) ? pMesh->mTextureCoords[0][i] : zero;
 
-			m_Geometry.Positions.emplace_back(pos.x * m_ScaleToMetres, pos.y * m_ScaleToMetres, pos.z * m_ScaleToMetres);
+			m_Geometry.Positions.emplace_back(pos.x, pos.y, pos.z); // already metres (aiProcess_GlobalScale)
 			m_Geometry.Normals.emplace_back(normal.x, normal.y, normal.z);
 			m_Geometry.TexCoords.emplace_back(uv.x, uv.y);
 		}
