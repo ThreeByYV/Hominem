@@ -8,6 +8,7 @@
 
 #include "Hominem/Utils/Renderer.h"
 #include "Hominem/Utils/FileUtils.h"
+#include "Hominem/Assets/MaterialTextures.h"
 
 namespace Hominem {
 
@@ -329,27 +330,6 @@ namespace Hominem {
 		}
 	}
 
-	Ref<Texture2D> OpenGLSkinnedMesh::LoadTexture(const aiMaterial* mat, aiTextureType type, const std::string& dir)
-	{
-		if (mat->GetTextureCount(type) == 0) return nullptr;
-
-		aiString texPath;
-		if (mat->GetTexture(type, 0, &texPath) != AI_SUCCESS) return nullptr;
-
-		if (texPath.C_Str()[0] == '*')
-		{
-			const aiTexture* tex = m_pScene->GetEmbeddedTexture(texPath.C_Str());
-			if (!tex) return nullptr;
-			if (tex->mHeight == 0)
-				return Texture2D::CreateFromMemory(reinterpret_cast<const uint8_t*>(tex->pcData), tex->mWidth);
-			Ref<Texture2D> t = Texture2D::Create(tex->mWidth, tex->mHeight, TextureFormat::RGBA8);
-			t->SetData(tex->pcData, tex->mWidth * tex->mHeight * sizeof(aiTexel));
-			return t;
-		}
-
-		return Texture2D::Create(dir + "/" + texPath.C_Str());
-	}
-
 	bool OpenGLSkinnedMesh::LoadMaterials(const aiScene* pScene, const std::string& filepath)
 	{
 		size_t lastSlash = filepath.find_last_of("/\\");
@@ -361,13 +341,13 @@ namespace Hominem {
 
 		for (uint32_t i = 0; i < pScene->mNumMaterials; i++)
 		{
-			m_Materials[i] = LoadTexture(pScene->mMaterials[i], aiTextureType_DIFFUSE, dir);
+			m_Materials[i] = LoadMaterialTexture(pScene, pScene->mMaterials[i], aiTextureType_DIFFUSE, dir);
 			if (!m_Materials[i]) allLoaded = false;
 
 			if (i == 0)
 			{
-				m_Material.NormalMap         = LoadTexture(pScene->mMaterials[i], aiTextureType_NORMALS,   dir);
-				m_Material.MetalRoughnessMap = LoadTexture(pScene->mMaterials[i], aiTextureType_METALNESS, dir);
+				m_Material.NormalMap         = LoadMaterialTexture(pScene, pScene->mMaterials[i], aiTextureType_NORMALS,   dir);
+				m_Material.MetalRoughnessMap = LoadMaterialTexture(pScene, pScene->mMaterials[i], aiTextureType_METALNESS, dir);
 			}
 		}
 
