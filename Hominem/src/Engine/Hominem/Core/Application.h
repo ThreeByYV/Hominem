@@ -39,6 +39,8 @@ namespace Hominem {
 
         inline static Application& Get() { return *s_Instance; }
 
+        void Close() { m_Running = false; }
+
         ~Application();
 
     public:

@@ -130,7 +130,7 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
     Renderer2D::Flush();
 
     for (const auto& t : frame.texts)
-        Renderer2D::DrawString(t.text, t.font, t.transform, t.color);
+        Renderer2D::DrawStringMultiline(t.text, t.font, t.transform, t.color, t.colorRight);
 
     Renderer2D::EndScene();
 

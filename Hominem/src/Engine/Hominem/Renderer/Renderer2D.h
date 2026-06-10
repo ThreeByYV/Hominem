@@ -114,7 +114,17 @@ namespace Hominem {
 		static void DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<Texture2D>& texture, const glm::vec4& tint);
 		static void DrawQuad(const glm::vec3& position, const glm::vec2& size, const Ref<SubTexture2D>& subtexture, const glm::vec4& tint);
 
-		static void DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color);
+		/// colorRight < 0 alpha (the default) means solid `color`; otherwise the string is
+		/// gradiented horizontally from color (left edge) to colorRight (right edge).
+		static void DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform,
+		                       const glm::vec4& color, const glm::vec4& colorRight = glm::vec4(-1.f));
+
+		/// Splits text on '\n' and draws each line below the previous.
+		/// lineSpacing is a multiplier on the glyph height (1.3 = 30% leading).
+		static void DrawStringMultiline(const std::string& text, Ref<Font> font,
+		                                const glm::mat4& baseTransform, const glm::vec4& color,
+		                                const glm::vec4& colorRight = glm::vec4(-1.f),
+		                                float lineSpacing = 1.3f);
 
 		/// Called by RenderThread to submit a quad into the current batch.
 		static void PushQuad(const glm::mat4& transform, const glm::vec4& color,

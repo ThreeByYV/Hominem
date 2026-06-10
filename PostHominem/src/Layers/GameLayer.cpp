@@ -327,8 +327,7 @@ void GameLayer::OnImGuiRender()
 
 bool GameLayer::OnWindowResize(WindowResizeEvent& e)
 {
-	if (m_ActiveScene)
-		m_ActiveScene->OnViewportResize(e.GetWidth(), e.GetHeight());
+	if (m_ActiveScene) m_ActiveScene->OnViewportResize(e.GetWidth(), e.GetHeight());
 	return false;
 }
 

@@ -308,8 +308,12 @@ namespace Hominem {
 		PushQuad(T, q.Color, s_FullUVMin, s_FullUVMax, q.Texture);
 	}
 
-	void Renderer2D::DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform, const glm::vec4& color)
+	void Renderer2D::DrawString(const std::string& string, Ref<Font> font, const glm::mat4& transform,
+	                            const glm::vec4& color, const glm::vec4& colorRight)
 	{
+		const bool gradient   = colorRight.a >= 0.f;
+		const float textWidth = gradient ? font->MeasureWidth(string) : 0.f;
+
 		const auto& fontGeometry = font->GetMSDFData()->FontGeometry;
 		const auto& metrics = fontGeometry.getMetrics();
 		auto fontAtlas = font->GetAtlasTexture();
@@ -356,11 +360,19 @@ namespace Hominem {
 			texCoordMin *= glm::vec2(texelWidth, texelHeight);
 			texCoordMax *= glm::vec2(texelWidth, texelHeight);
 
+			glm::vec4 colorLeft  = color;
+			glm::vec4 colorRightV = color;
+			if (gradient && textWidth > 0.f)
+			{
+				colorLeft    = glm::mix(color, colorRight, glm::clamp(quadMin.x / textWidth, 0.f, 1.f));
+				colorRightV  = glm::mix(color, colorRight, glm::clamp(quadMax.x / textWidth, 0.f, 1.f));
+			}
+
 			TextVertex vertices[4] = {
-				{ glm::vec3(quadMin.x, quadMin.y, 0.0f), color, texCoordMin },
-				{ glm::vec3(quadMax.x, quadMin.y, 0.0f), color, {texCoordMax.x, texCoordMin.y} },
-				{ glm::vec3(quadMax.x, quadMax.y, 0.0f), color, texCoordMax },
-				{ glm::vec3(quadMin.x, quadMax.y, 0.0f), color, {texCoordMin.x, texCoordMax.y} }
+				{ glm::vec3(quadMin.x, quadMin.y, 0.0f), colorLeft,    texCoordMin },
+				{ glm::vec3(quadMax.x, quadMin.y, 0.0f), colorRightV,  {texCoordMax.x, texCoordMin.y} },
+				{ glm::vec3(quadMax.x, quadMax.y, 0.0f), colorRightV,  texCoordMax },
+				{ glm::vec3(quadMin.x, quadMax.y, 0.0f), colorLeft,    {texCoordMin.x, texCoordMax.y} }
 			};
 
 			s_Data->TextVertexBuffer->SetData(vertices, sizeof(vertices));
@@ -372,6 +384,32 @@ namespace Hominem {
 				fontGeometry.getAdvance(advance, character, string[i + 1]);
 
 			x += fsScale * advance;
+		}
+	}
+
+	void Renderer2D::DrawStringMultiline(const std::string& text, Ref<Font> font,
+	                                     const glm::mat4& baseTransform, const glm::vec4& color,
+	                                     const glm::vec4& colorRight, float lineSpacing)
+	{
+		if (text.empty()) return;
+
+		// Y-axis column magnitude = world-space text scale for uniform transforms.
+		const float lineAdvance = glm::length(glm::vec3(baseTransform[1])) * lineSpacing;
+
+		size_t prev = 0;
+		int    row  = 0;
+		for (;;)
+		{
+			const size_t nl   = text.find('\n', prev);
+			const bool   last = (nl == std::string::npos);
+
+			glm::mat4 t = baseTransform;
+			t[3][1] -= row * lineAdvance;
+			DrawString(text.substr(prev, last ? std::string::npos : nl - prev), font, t, color, colorRight);
+
+			if (last) break;
+			prev = nl + 1;
+			++row;
 		}
 	}
 }
