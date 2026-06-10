@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#include "Hominem/Utils/Renderer.h"
+#include "Hominem/Utils/AssimpGlm.h"
 
 namespace Hominem {
 
