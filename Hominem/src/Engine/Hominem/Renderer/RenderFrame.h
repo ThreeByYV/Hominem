@@ -36,8 +36,11 @@ namespace Hominem {
 	{
 		std::string text;
 		Ref<Font>   font;
-		glm::mat4   transform { 1.f };
-		glm::vec4   color     { 1.f };
+		glm::mat4   transform  { 1.f };
+		glm::vec4   color      { 1.f };
+		// alpha < 0 (the default) means solid `color`; otherwise the string gradients
+		// horizontally from `color` (left edge) to `colorRight` (right edge).
+		glm::vec4   colorRight { -1.f, -1.f, -1.f, -1.f };
 	};
 
 	/**
