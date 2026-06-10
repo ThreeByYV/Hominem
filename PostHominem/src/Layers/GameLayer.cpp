@@ -337,7 +337,6 @@ void GameLayer::OnEvent(Event& e)
 	EventDispatcher dispatcher(e);
 	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(GameLayer::OnWindowResize));
 	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnKeyPressed));
-	dispatcher.Dispatch<MouseMovedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnMouseMoved));
 	m_GameMode->OnEvent(e);
 }
 
@@ -395,12 +394,6 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (e.GetKeyCode() == HMN_KEY_P)
 		m_ShowPerfPanel = !m_ShowPerfPanel;
 
-	return false;
-}
-
-bool GameLayer::OnMouseMoved(Hominem::MouseMovedEvent& e)
-{
-	HMN_CORE_INFO("Mouse: x={} y={}", e.GetX(), e.GetY());
 	return false;
 }
 

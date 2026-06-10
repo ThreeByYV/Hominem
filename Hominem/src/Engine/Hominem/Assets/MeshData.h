@@ -32,9 +32,6 @@ struct MeshDrawGroup
     glm::vec3 AABBMin {  FLT_MAX };
     glm::vec3 AABBMax { -FLT_MAX };
     glm::mat4 NodeTransform { 1.f };
-
-    /// Cache source per map: a resolved file path, "color:RRGGBBAA", or "" (none).
-    std::string AlbedoSrc, MRSrc, NormalSrc;
 };
 
 /// CPU-side result of importing a static mesh. Backend-agnostic; a renderer uploads it.
