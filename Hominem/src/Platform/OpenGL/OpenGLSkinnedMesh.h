@@ -100,7 +100,6 @@ namespace Hominem {
 		void ExtractGeometry(const aiScene* pScene);
 		void ExtractSubmesh(const aiMesh* pMesh, uint32_t submeshIndex);
 		bool LoadMaterials(const aiScene* pScene, const std::string& filepath);
-		Ref<Texture2D> LoadTexture(const aiMaterial* mat, aiTextureType type, const std::string& dir);
 
 		// GL handles
 		uint32_t m_VAO                  = 0;

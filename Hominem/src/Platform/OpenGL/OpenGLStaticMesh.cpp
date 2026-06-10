@@ -2,6 +2,7 @@
 #include "OpenGLStaticMesh.h"
 #include "Hominem/Renderer/RenderThread.h"
 #include "Hominem/Renderer/Frustum.h"
+#include "Hominem/Assets/MaterialTextures.h"
 
 #include "Hominem/Core/Profiler.h"
 
@@ -375,100 +376,7 @@ namespace Hominem
         auto& matTextures = matAlbedo;
         auto& matPaths    = matAlbedoPaths;
 
-        // Resolve a texture path from the FBX — tries multiple candidates since FBX files
-        // often store absolute artist-machine paths that won't exist on another machine.
-        auto resolveTexture = [&](const std::string &rawPath) -> std::string
-        {
-            std::string norm = rawPath;
-            std::replace(norm.begin(), norm.end(), '\\', '/');
-
-            std::string filename = norm.substr(norm.find_last_of("/") + 1);
-
-            // Build extension alternatives (.jpg <-> .jpeg, etc.)
-            auto withAltExt = [](const std::string &p) -> std::string
-            {
-                auto dot = p.rfind('.');
-                if (dot == std::string::npos) return "";
-                std::string ext = p.substr(dot + 1);
-                if (ext == "jpg") return p.substr(0, dot + 1) + "jpeg";
-                else if (ext == "jpeg") return p.substr(0, dot + 1) + "jpg";
-                return "";
-            };
-
-            std::vector<std::string> bases = {
-                norm, // absolute or correct relative
-                dir + "/" + norm, // relative to FBX dir
-                dir + "/" + filename, // filename only, next to FBX
-                dir + "/textures/" + filename, // textures/ sibling of FBX
-                dir + "/../textures/" + filename, // textures/ one level up from FBX dir
-            };
-
-            for (const auto &b: bases)
-            {
-                if (std::filesystem::exists(b))
-                    return std::filesystem::path(b).lexically_normal().string();
-                std::string alt = withAltExt(b);
-                if (!alt.empty() && std::filesystem::exists(alt))
-                    return std::filesystem::path(alt).lexically_normal().string();
-            }
-
-            HMN_CORE_WARN("StaticMesh: could not resolve texture '{}' — tried:", rawPath);
-            for (const auto &b: bases)
-                HMN_CORE_WARN("  {}", b);
-            return "";
-        };
-
-        auto makeColorTex = [](aiColor4D c) -> Ref<Texture2D>
-        {
-            uint8_t pixel[4] = {
-                (uint8_t)(glm::clamp(c.r, 0.f, 1.f) * 255),
-                (uint8_t)(glm::clamp(c.g, 0.f, 1.f) * 255),
-                (uint8_t)(glm::clamp(c.b, 0.f, 1.f) * 255),
-                (uint8_t)(glm::clamp(c.a, 0.f, 1.f) * 255)
-            };
-            uint32_t packed;
-            memcpy(&packed, pixel, 4);
-            auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
-            tex->SetData(&packed, 4);
-            tex->QueueUpload();
-            return tex;
-        };
-
-        // Resolve embedded GLB texture — path is "*N" where N indexes scene->mTextures.
-        auto resolveEmbedded = [&](const std::string& rawPath) -> Ref<Texture2D>
-        {
-            if (rawPath.empty() || rawPath[0] != '*') return nullptr;
-            int idx = std::atoi(rawPath.c_str() + 1);
-            if (idx < 0 || idx >= (int)scene->mNumTextures) return nullptr;
-
-            const aiTexture* emb = scene->mTextures[idx];
-            if (emb->mHeight == 0)
-            {
-                // Compressed blob (PNG/JPG) — mWidth holds byte count
-                return Texture2D::CreateFromMemory(
-                    reinterpret_cast<const uint8_t*>(emb->pcData), emb->mWidth);
-            }
-            else
-            {
-                // Raw ARGB8888 uncompressed — convert to RGBA
-                uint32_t numPixels = emb->mWidth * emb->mHeight;
-                std::vector<uint8_t> rgba(numPixels * 4);
-                for (uint32_t p = 0; p < numPixels; p++)
-                {
-                    rgba[p*4+0] = emb->pcData[p].r;
-                    rgba[p*4+1] = emb->pcData[p].g;
-                    rgba[p*4+2] = emb->pcData[p].b;
-                    rgba[p*4+3] = emb->pcData[p].a;
-                }
-                auto tex = Texture2D::Create(emb->mWidth, emb->mHeight, TextureFormat::RGBA8);
-                tex->SetData(rgba.data(), (uint32_t)rgba.size());
-                tex->QueueUpload();
-                return tex;
-            }
-        };
-
-        // Try to find a base-color texture from a material, checking both glTF (BASE_COLOR)
-        // and legacy (DIFFUSE) slots so the same code works for both file formats.
+        // Albedo lives under BASE_COLOR (glTF) or DIFFUSE (legacy/FBX).
         auto findBaseColor = [&](const aiMaterial* mat, aiString& outPath) -> bool
         {
             if (mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
@@ -491,7 +399,7 @@ namespace Hominem
                 if (!raw.empty() && raw[0] == '*')
                 {
                     matPaths[i]    = raw;
-                    matTextures[i] = resolveEmbedded(raw);
+                    matTextures[i] = LoadEmbeddedTexture(scene, raw);
                     if (matTextures[i])
                         HMN_CORE_INFO("StaticMesh: embedded texture [{}] decoded", i);
                     else
@@ -499,7 +407,7 @@ namespace Hominem
                 }
                 else
                 {
-                    std::string resolved = resolveTexture(raw);
+                    std::string resolved = ResolveTexturePath(raw, dir);
                     if (!resolved.empty())
                     {
                         matPaths[i]    = resolved;
@@ -526,7 +434,7 @@ namespace Hominem
                     (uint8_t)(diffuse.b * 255), (uint8_t)(diffuse.a * 255));
 
                 matPaths[i]    = buf;
-                matTextures[i] = makeColorTex(diffuse);
+                matTextures[i] = MakeColorTexture(diffuse);
                 HMN_CORE_INFO("StaticMesh: material [{}] color fallback {}", i, buf);
             }
 
@@ -538,14 +446,14 @@ namespace Hominem
                 std::string raw = nmPath.data;
                 if (!raw.empty() && raw[0] == '*')
                 {
-                    matNormalMaps[i] = resolveEmbedded(raw);
+                    matNormalMaps[i] = LoadEmbeddedTexture(scene, raw);
                     matNormalPaths[i] = raw;
                     if (matNormalMaps[i])
                         HMN_CORE_INFO("StaticMesh: normalMap [{}] embedded", i);
                 }
                 else
                 {
-                    std::string resolved = resolveTexture(raw);
+                    std::string resolved = ResolveTexturePath(raw, dir);
                     if (!resolved.empty())
                     {
                         matNormalMaps[i]  = Texture2D::Create(resolved);
@@ -563,14 +471,14 @@ namespace Hominem
                 std::string raw = mrPath.data;
                 if (!raw.empty() && raw[0] == '*')
                 {
-                    matMetalRoughness[i] = resolveEmbedded(raw);
+                    matMetalRoughness[i] = LoadEmbeddedTexture(scene, raw);
                     matMRPaths[i]        = raw;
                     if (matMetalRoughness[i])
                         HMN_CORE_INFO("StaticMesh: metalRoughness [{}] embedded", i);
                 }
                 else
                 {
-                    std::string resolved = resolveTexture(raw);
+                    std::string resolved = ResolveTexturePath(raw, dir);
                     if (!resolved.empty())
                     {
                         matMetalRoughness[i] = Texture2D::Create(resolved);
