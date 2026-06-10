@@ -10,15 +10,6 @@
 
 namespace Hominem {
 
-    OpenGLStaticMesh::~OpenGLStaticMesh()
-    {
-        if (m_VAO)               { glDeleteVertexArrays(1, &m_VAO);           m_VAO               = 0; }
-        if (m_VBO)               { glDeleteBuffers(1, &m_VBO);                m_VBO               = 0; }
-        if (m_IBO)               { glDeleteBuffers(1, &m_IBO);                m_IBO               = 0; }
-        if (m_ModelMatrixSSBO)   { glDeleteBuffers(1, &m_ModelMatrixSSBO);    m_ModelMatrixSSBO   = 0; }
-        if (m_DrawCommandBuffer) { glDeleteBuffers(1, &m_DrawCommandBuffer);  m_DrawCommandBuffer = 0; }
-    }
-
     std::expected<void, std::string> OpenGLStaticMesh::LoadFromFile(const std::string& path)
     {
         auto result = ImportStaticMesh(path);
@@ -206,5 +197,14 @@ namespace Hominem {
         glEnable(GL_CULL_FACE);
 
         return { drawCalls, triangles };
+    }
+
+    OpenGLStaticMesh::~OpenGLStaticMesh()
+    {
+        if (m_VAO)               { glDeleteVertexArrays(1, &m_VAO);           m_VAO               = 0; }
+        if (m_VBO)               { glDeleteBuffers(1, &m_VBO);                m_VBO               = 0; }
+        if (m_IBO)               { glDeleteBuffers(1, &m_IBO);                m_IBO               = 0; }
+        if (m_ModelMatrixSSBO)   { glDeleteBuffers(1, &m_ModelMatrixSSBO);    m_ModelMatrixSSBO   = 0; }
+        if (m_DrawCommandBuffer) { glDeleteBuffers(1, &m_DrawCommandBuffer);  m_DrawCommandBuffer = 0; }
     }
 }
