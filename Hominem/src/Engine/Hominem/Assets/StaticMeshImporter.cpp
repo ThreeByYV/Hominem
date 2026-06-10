@@ -3,12 +3,13 @@
 #include "MaterialTextures.h"
 
 #include "Hominem/Core/Log.h"
+#include "Hominem/Utils/FileUtils.h"
+#include "Hominem/Utils/AssimpGlm.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <meshoptimizer.h>
-#include <glm/gtc/type_ptr.hpp>
 
 #include <fstream>
 #include <filesystem>
@@ -130,13 +131,11 @@ void OptimizeGeometry(MeshData& data)
     data.Indices  = std::move(newIndices);
 }
 
-Ref<Texture2D> ReadCachedTex(std::ifstream& f)
+// Rebuild a texture from a cache "source" string: a resolved file path, a
+// "color:RRGGBBAA" literal, or "" (none).
+Ref<Texture2D> TextureFromCacheSrc(const std::string& src)
 {
-    uint32_t len = 0;
-    f.read(reinterpret_cast<char*>(&len), sizeof(uint32_t));
-    if (len == 0) return nullptr;
-    std::string src(len, '\0');
-    f.read(src.data(), len);
+    if (src.empty()) return nullptr;
     if (src.size() > 6 && src.substr(0, 6) == "color:")
     {
         unsigned r, g, b, a;
@@ -151,54 +150,35 @@ Ref<Texture2D> ReadCachedTex(std::ifstream& f)
     return Texture2D::Create(src);
 }
 
+struct CacheHeader { uint32_t magic, version, vertCount, idxCount, groupCount; };
+
 bool ReadCache(const std::string& binPath, MeshData& data)
 {
     std::ifstream f(binPath, std::ios::binary);
     if (!f) return false;
 
-    struct Header { uint32_t magic, version, vertCount, idxCount, groupCount; } hdr;
-    f.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
-    if (!f || hdr.magic != k_CacheMagic || hdr.version != k_CacheVersion)
+    CacheHeader hdr;
+    if (!FileUtils::ReadValue(f, hdr) || hdr.magic != k_CacheMagic || hdr.version != k_CacheVersion)
         return false;
 
-    data.Vertices.resize(hdr.vertCount);
-    data.Indices.resize(hdr.idxCount);
-    f.read(reinterpret_cast<char*>(data.Vertices.data()), hdr.vertCount * sizeof(StaticVertex));
-    f.read(reinterpret_cast<char*>(data.Indices.data()),  hdr.idxCount  * sizeof(uint32_t));
+    FileUtils::ReadArray(f, data.Vertices, hdr.vertCount);
+    FileUtils::ReadArray(f, data.Indices,  hdr.idxCount);
 
     data.Groups.clear();
     data.Groups.reserve(hdr.groupCount);
     for (uint32_t i = 0; i < hdr.groupCount; i++)
     {
-        uint32_t offset, count, pathLen;
-        int32_t  baseVertex;
-        f.read(reinterpret_cast<char*>(&offset),     sizeof(uint32_t));
-        f.read(reinterpret_cast<char*>(&count),      sizeof(uint32_t));
-        f.read(reinterpret_cast<char*>(&baseVertex), sizeof(int32_t));
-
+        uint32_t  offset, count;
+        int32_t   baseVertex;
         glm::mat4 nodeTransform(1.f);
-        f.read(reinterpret_cast<char*>(glm::value_ptr(nodeTransform)), sizeof(glm::mat4));
+        FileUtils::ReadValue(f, offset);
+        FileUtils::ReadValue(f, count);
+        FileUtils::ReadValue(f, baseVertex);
+        FileUtils::ReadValue(f, nodeTransform);
 
-        f.read(reinterpret_cast<char*>(&pathLen), sizeof(uint32_t));
-        Ref<Texture2D> albedo;
-        if (pathLen > 0)
-        {
-            std::string src(pathLen, '\0');
-            f.read(src.data(), pathLen);
-            if (src.size() > 6 && src.substr(0, 6) == "color:")
-            {
-                unsigned r, g, b, a;
-                sscanf(src.c_str() + 6, "%02X%02X%02X%02X", &r, &g, &b, &a);
-                uint8_t pixel[4] = { (uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)a };
-                uint32_t packed; memcpy(&packed, pixel, 4);
-                albedo = Texture2D::Create(1, 1, TextureFormat::RGBA8);
-                albedo->SetData(&packed, 4);
-                albedo->QueueUpload();
-            }
-            else albedo = Texture2D::Create(src);
-        }
-        Ref<Texture2D> mr     = ReadCachedTex(f);
-        Ref<Texture2D> normal = ReadCachedTex(f);
+        Ref<Texture2D> albedo = TextureFromCacheSrc(FileUtils::ReadString(f));
+        Ref<Texture2D> mr     = TextureFromCacheSrc(FileUtils::ReadString(f));
+        Ref<Texture2D> normal = TextureFromCacheSrc(FileUtils::ReadString(f));
 
         MeshDrawGroup dg;
         dg.Albedo                = albedo ? albedo : WhiteTexture();
@@ -240,41 +220,25 @@ void WriteCache(const std::string& binPath, const MeshData& data)
     std::ofstream f(binPath, std::ios::binary);
     if (!f) { HMN_CORE_WARN("StaticMesh: cannot write cache '{}'", binPath); return; }
 
-    struct Header { uint32_t magic, version, vertCount, idxCount, groupCount; } hdr = {
+    CacheHeader hdr = {
         k_CacheMagic, k_CacheVersion,
         (uint32_t)data.Vertices.size(), (uint32_t)data.Indices.size(), (uint32_t)data.Groups.size()
     };
-    f.write(reinterpret_cast<const char*>(&hdr), sizeof(hdr));
-    f.write(reinterpret_cast<const char*>(data.Vertices.data()), data.Vertices.size() * sizeof(StaticVertex));
-    f.write(reinterpret_cast<const char*>(data.Indices.data()),  data.Indices.size()  * sizeof(uint32_t));
-
-    auto writeStr = [&](const std::string& p)
-    {
-        uint32_t len = static_cast<uint32_t>(p.size());
-        f.write(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
-        if (len > 0) f.write(p.data(), len);
-    };
+    FileUtils::WriteValue(f, hdr);
+    FileUtils::WriteArray(f, data.Vertices);
+    FileUtils::WriteArray(f, data.Indices);
 
     for (const auto& g : data.Groups)
     {
-        f.write(reinterpret_cast<const char*>(&g.IndexByteOffset),              sizeof(uint32_t));
-        f.write(reinterpret_cast<const char*>(&g.IndexCount),                   sizeof(uint32_t));
-        f.write(reinterpret_cast<const char*>(&g.BaseVertex),                   sizeof(int32_t));
-        f.write(reinterpret_cast<const char*>(glm::value_ptr(g.NodeTransform)), sizeof(glm::mat4));
-        writeStr(g.AlbedoSrc);
-        writeStr(g.MRSrc);
-        writeStr(g.NormalSrc);
+        FileUtils::WriteValue(f, g.IndexByteOffset);
+        FileUtils::WriteValue(f, g.IndexCount);
+        FileUtils::WriteValue(f, g.BaseVertex);
+        FileUtils::WriteValue(f, g.NodeTransform);
+        FileUtils::WriteString(f, g.AlbedoSrc);
+        FileUtils::WriteString(f, g.MRSrc);
+        FileUtils::WriteString(f, g.NormalSrc);
     }
     HMN_CORE_INFO("StaticMesh: wrote cache '{}'", binPath);
-}
-
-glm::mat4 ToGlm(const aiMatrix4x4& m)
-{
-    return glm::mat4(
-        m.a1, m.b1, m.c1, m.d1,
-        m.a2, m.b2, m.c2, m.d2,
-        m.a3, m.b3, m.c3, m.d3,
-        m.a4, m.b4, m.c4, m.d4);
 }
 
 std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData& data)
@@ -303,7 +267,7 @@ std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData&
     std::function<void(const aiNode*, const glm::mat4&)> traverse;
     traverse = [&](const aiNode* node, const glm::mat4& parentTransform)
     {
-        glm::mat4 worldTransform = parentTransform * ToGlm(node->mTransformation);
+        glm::mat4 worldTransform = parentTransform * AiToGlm(node->mTransformation);
         for (uint32_t mi = 0; mi < node->mNumMeshes; mi++)
         {
             const aiMesh* mesh = scene->mMeshes[node->mMeshes[mi]];
@@ -345,7 +309,7 @@ std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData&
     };
     traverse(scene->mRootNode, glm::mat4(1.f));
 
-    // --- materials ---
+    // materials
     std::vector<Ref<Texture2D>> matAlbedo(scene->mNumMaterials);
     std::vector<Ref<Texture2D>> matMR(scene->mNumMaterials);
     std::vector<Ref<Texture2D>> matNormal(scene->mNumMaterials);

@@ -7,9 +7,7 @@
 
 namespace Hominem {
 
-/// Import a static mesh (FBX/OBJ/glTF) into CPU-side MeshData. Geometry is parsed,
-/// meshopt-optimised, and AABBs computed; textures are created (GPU upload queued).
-/// Non-glTF formats are cached to a sibling ".bin" for fast subsequent loads.
+/// Import a static mesh (FBX/OBJ/glTF) into CPU-side MeshData; non-glTF formats cache to a sibling ".bin".
 std::expected<MeshData, std::string> ImportStaticMesh(const std::string& path);
 
 }
