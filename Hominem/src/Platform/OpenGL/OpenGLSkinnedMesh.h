@@ -2,9 +2,7 @@
 
 #include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Renderer/StorageBuffer.h"
-
-#include <assimp/scene.h>
-#include <assimp/Importer.hpp>
+#include "Hominem/Assets/SkinnedMeshData.h"
 
 namespace Hominem {
 
@@ -34,10 +32,10 @@ namespace Hominem {
 
 		bool     HasSkeleton()       const override { return m_Skeleton.HasBones(); }
 		int      GetBoneCount()      const override { return m_Skeleton.GetBoneCount(); }
-		uint32_t GetAnimationCount() const override;
-		uint32_t GetVertexCount()    const override { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Positions.size()); }
-		uint32_t GetIndexCount()     const override { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Indices.size()); }
-		uint32_t GetSubmeshCount()   const override { return m_Geometry.IsEmpty() ? 0 : static_cast<uint32_t>(m_Geometry.Submeshes.size()); }
+		uint32_t GetAnimationCount() const override { return m_Skeleton.GetAnimationCount(); }
+		uint32_t GetVertexCount()    const override { return static_cast<uint32_t>(m_Positions.size()); }
+		uint32_t GetIndexCount()     const override { return static_cast<uint32_t>(m_Indices.size()); }
+		uint32_t GetSubmeshCount()   const override { return static_cast<uint32_t>(m_Submeshes.size()); }
 
 		Skeleton&       GetSkeleton()       override { return m_Skeleton; }
 		const Skeleton& GetSkeleton() const override { return m_Skeleton; }
@@ -52,54 +50,13 @@ namespace Hominem {
 		}
 
 	private:
-		struct Submesh
-		{
-			uint32_t NumIndices    = 0;
-			uint32_t BaseVertex    = 0;
-			uint32_t BaseIndex     = 0;
-			uint32_t MaterialIndex = 0xFFFFFFFF;
-		};
-
-		struct MeshGeometry
-		{
-			std::vector<glm::vec3> Positions;
-			std::vector<glm::vec3> Normals;
-			std::vector<glm::vec2> TexCoords;
-			std::vector<uint32_t>  Indices;
-			std::vector<Submesh>   Submeshes;
-			std::vector<uint32_t>  SubmeshBaseVertices;
-
-			void Clear()
-			{
-				Positions.clear(); Normals.clear(); TexCoords.clear();
-				Indices.clear();   Submeshes.clear(); SubmeshBaseVertices.clear();
-			}
-
-			void Reserve(uint32_t verts, uint32_t indices)
-			{
-				Positions.reserve(verts); Normals.reserve(verts);
-				TexCoords.reserve(verts); Indices.reserve(indices);
-			}
-
-			bool IsEmpty() const { return Positions.empty(); }
-		};
-
 		enum BufferType { INDEX_BUFFER = 0, POSITION_BUFFER, TEXCOORD_BUFFER, NORMAL_BUFFER, BONE_BUFFER, NUM_BUFFERS };
 
-		// GPU resource management
 		void CreateGPUBuffers();
 		void ReleaseGPUResources();
 		void UploadToGPU();
 		void DrawSubmeshes();
-
-		// Compute skinning SSBOs
 		void CreateComputeSSBOs();
-
-		// Assimp loading
-		bool ParseScene(const aiScene* pScene, const std::string& filepath);
-		void ExtractGeometry(const aiScene* pScene);
-		void ExtractSubmesh(const aiMesh* pMesh, uint32_t submeshIndex);
-		bool LoadMaterials(const aiScene* pScene, const std::string& filepath);
 
 		// GL handles
 		uint32_t m_VAO                  = 0;
@@ -112,22 +69,20 @@ namespace Hominem {
 		Ref<StorageBuffer> m_BoneSSBO;
 		Ref<StorageBuffer> m_OutPosSSBO;
 		Ref<StorageBuffer> m_OutNormSSBO;
-
 		Ref<ComputeShader> m_ComputeShader;
 
-		MeshGeometry                  m_Geometry;
-		std::vector<Ref<Texture2D>>   m_Materials;
-		std::vector<VertexBoneData>   m_VertexBoneData;
-		std::vector<glm::mat4>        m_BoneCache;
+		// CPU geometry kept resident for SSBO creation and submesh draw.
+		std::vector<glm::vec3>      m_Positions;
+		std::vector<glm::vec3>      m_Normals;
+		std::vector<glm::vec2>      m_TexCoords;
+		std::vector<uint32_t>       m_Indices;
+		std::vector<SkinnedSubmesh> m_Submeshes;
+		std::vector<VertexBoneData> m_VertexBoneData;
+		std::vector<Ref<Texture2D>> m_Materials;
+		std::vector<glm::mat4>      m_BoneCache;
 
-		Skeleton   m_Skeleton;
+		Skeleton    m_Skeleton;
 		Ref<Shader> m_Shader;
-
-		Assimp::Importer              m_Importer;
-		const aiScene*                m_pScene = nullptr;
-
-		std::vector<Scope<Assimp::Importer>> m_AdditionalImporters;
-		std::vector<const aiScene*>          m_AdditionalScenes;
 	};
 
 }
