@@ -20,7 +20,7 @@ namespace Hominem {
 namespace {
 
 constexpr uint32_t k_CacheMagic   = 0x48534D53u; // "SMSH"
-constexpr uint32_t k_CacheVersion = 7u;          // v7: vertices baked to metres via aiProcess_GlobalScale
+constexpr uint32_t k_CacheVersion = 8u;          // v8: per-material textures, embedded bytes baked in (glTF cacheable)
 
 constexpr unsigned int k_AssimpFlags =
         aiProcess_Triangulate |
@@ -44,11 +44,185 @@ std::string FormatSize(float meters)
     return buf;
 }
 
-bool IsGltf(const std::string& path)
+// A way to rebuild a material texture without the source model: an external
+// path, a solid colour, or embedded image bytes (compressed blob or raw RGBA).
+struct CachedTexture
 {
-    return path.ends_with(".glb")  || path.ends_with(".gltf")
-        || path.ends_with(".GLB")  || path.ends_with(".GLTF");
+    enum class Kind : uint32_t { None = 0, Path, Color, EmbeddedCompressed, EmbeddedRaw };
+    Kind kind = Kind::None;
+    std::string          path;             // Path
+    uint32_t             color = 0;        // Color (packed R,G,B,A bytes)
+    uint32_t             width = 0, height = 0; // EmbeddedRaw
+    std::vector<uint8_t> bytes;            // EmbeddedCompressed blob / EmbeddedRaw pixels
+
+    bool Present() const { return kind != Kind::None; }
+};
+
+struct MaterialTexSet { CachedTexture Albedo, MR, Normal; };
+
+Ref<Texture2D> Realize(const CachedTexture& t)
+{
+    switch (t.kind)
+    {
+        case CachedTexture::Kind::Path:
+            return Texture2D::Create(t.path);
+        case CachedTexture::Kind::Color:
+        {
+            auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+            tex->SetData(&t.color, 4);
+            tex->QueueUpload();
+            return tex;
+        }
+        case CachedTexture::Kind::EmbeddedCompressed:
+            return Texture2D::CreateFromMemory(t.bytes.data(), static_cast<uint32_t>(t.bytes.size()));
+        case CachedTexture::Kind::EmbeddedRaw:
+        {
+            auto tex = Texture2D::Create(t.width, t.height, TextureFormat::RGBA8);
+            tex->SetData(t.bytes.data(), static_cast<uint32_t>(t.bytes.size()));
+            tex->QueueUpload();
+            return tex;
+        }
+        case CachedTexture::Kind::None:
+        default:
+            return nullptr;
+    }
 }
+
+// Describe a raw Assimp texture reference: "*N" embedded (bytes captured) or a file path.
+CachedTexture DescribeRaw(const aiScene* scene, const std::string& raw, const std::string& dir)
+{
+    CachedTexture t;
+    if (raw.empty()) return t;
+
+    if (raw[0] == '*')
+    {
+        const aiTexture* emb = scene->GetEmbeddedTexture(raw.c_str());
+        if (!emb) return t;
+
+        if (emb->mHeight == 0)
+        {
+            // Compressed blob (PNG/JPG) - mWidth is the byte count.
+            t.kind = CachedTexture::Kind::EmbeddedCompressed;
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(emb->pcData);
+            t.bytes.assign(p, p + emb->mWidth);
+        }
+        else
+        {
+            // Raw ARGB8888 -> RGBA.
+            t.kind   = CachedTexture::Kind::EmbeddedRaw;
+            t.width  = emb->mWidth;
+            t.height = emb->mHeight;
+            uint32_t n = emb->mWidth * emb->mHeight;
+            t.bytes.resize(n * 4);
+            for (uint32_t i = 0; i < n; i++)
+            {
+                t.bytes[i * 4 + 0] = emb->pcData[i].r;
+                t.bytes[i * 4 + 1] = emb->pcData[i].g;
+                t.bytes[i * 4 + 2] = emb->pcData[i].b;
+                t.bytes[i * 4 + 3] = emb->pcData[i].a;
+            }
+        }
+        return t;
+    }
+
+    std::string resolved = ResolveTexturePath(raw, dir);
+    if (resolved.empty()) return t;
+    t.kind = CachedTexture::Kind::Path;
+    t.path = resolved;
+    return t;
+}
+
+CachedTexture DescribeTexture(const aiScene* scene, const aiMaterial* mat, aiTextureType type, const std::string& dir)
+{
+    if (mat->GetTextureCount(type) == 0) return {};
+    aiString texPath;
+    if (mat->GetTexture(type, 0, &texPath) != AI_SUCCESS) return {};
+    return DescribeRaw(scene, texPath.C_Str(), dir);
+}
+
+// Albedo: BASE_COLOR (glTF) or DIFFUSE (legacy/FBX) texture, else the material's solid colour.
+CachedTexture DescribeAlbedo(const aiScene* scene, const aiMaterial* mat, const std::string& dir)
+{
+    aiString p;
+    bool found = (mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0 && mat->GetTexture(aiTextureType_BASE_COLOR, 0, &p) == AI_SUCCESS)
+              || (mat->GetTextureCount(aiTextureType_DIFFUSE)    > 0 && mat->GetTexture(aiTextureType_DIFFUSE,    0, &p) == AI_SUCCESS);
+
+    if (found)
+    {
+        CachedTexture t = DescribeRaw(scene, p.C_Str(), dir);
+        if (t.Present()) return t;
+    }
+
+    aiColor4D diffuse(0.7f, 0.7f, 0.7f, 1.f);
+    aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &diffuse);
+    if (diffuse.r == 0 && diffuse.g == 0 && diffuse.b == 0)
+        aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
+
+    uint8_t px[4] = {
+        (uint8_t)(glm::clamp(diffuse.r, 0.f, 1.f) * 255),
+        (uint8_t)(glm::clamp(diffuse.g, 0.f, 1.f) * 255),
+        (uint8_t)(glm::clamp(diffuse.b, 0.f, 1.f) * 255),
+        (uint8_t)(glm::clamp(diffuse.a, 0.f, 1.f) * 255)
+    };
+    CachedTexture t;
+    t.kind = CachedTexture::Kind::Color;
+    memcpy(&t.color, px, 4);
+    return t;
+}
+
+void WriteCachedTexture(std::ostream& os, const CachedTexture& t)
+{
+    FileUtils::WriteValue(os, static_cast<uint32_t>(t.kind));
+    switch (t.kind)
+    {
+        case CachedTexture::Kind::Path:  FileUtils::WriteString(os, t.path); break;
+        case CachedTexture::Kind::Color: FileUtils::WriteValue(os, t.color); break;
+        case CachedTexture::Kind::EmbeddedCompressed:
+            FileUtils::WriteValue(os, static_cast<uint32_t>(t.bytes.size()));
+            FileUtils::WriteArray(os, t.bytes);
+            break;
+        case CachedTexture::Kind::EmbeddedRaw:
+            FileUtils::WriteValue(os, t.width);
+            FileUtils::WriteValue(os, t.height);
+            FileUtils::WriteValue(os, static_cast<uint32_t>(t.bytes.size()));
+            FileUtils::WriteArray(os, t.bytes);
+            break;
+        case CachedTexture::Kind::None:
+        default: break;
+    }
+}
+
+CachedTexture ReadCachedTexture(std::istream& is)
+{
+    CachedTexture t;
+    uint32_t k = 0;
+    FileUtils::ReadValue(is, k);
+    t.kind = static_cast<CachedTexture::Kind>(k);
+    switch (t.kind)
+    {
+        case CachedTexture::Kind::Path:  t.path = FileUtils::ReadString(is); break;
+        case CachedTexture::Kind::Color: FileUtils::ReadValue(is, t.color);  break;
+        case CachedTexture::Kind::EmbeddedCompressed:
+        {
+            uint32_t n = 0; FileUtils::ReadValue(is, n);
+            FileUtils::ReadArray(is, t.bytes, n);
+            break;
+        }
+        case CachedTexture::Kind::EmbeddedRaw:
+        {
+            FileUtils::ReadValue(is, t.width);
+            FileUtils::ReadValue(is, t.height);
+            uint32_t n = 0; FileUtils::ReadValue(is, n);
+            FileUtils::ReadArray(is, t.bytes, n);
+            break;
+        }
+        case CachedTexture::Kind::None:
+        default: break;
+    }
+    return t;
+}
+
+// geometry helpers
 
 void ComputeWorldAABB(MeshData& data)
 {
@@ -131,26 +305,23 @@ void OptimizeGeometry(MeshData& data)
     data.Indices  = std::move(newIndices);
 }
 
-// Rebuild a texture from a cache "source" string: a resolved file path, a
-// "color:RRGGBBAA" literal, or "" (none).
-Ref<Texture2D> TextureFromCacheSrc(const std::string& src)
+// Build runtime draw groups from per-material textures, with the engine defaults as fallback.
+void AssignGroupTextures(MeshDrawGroup& dg, uint32_t matIdx,
+    const std::vector<MaterialTexSet>& materials,
+    const std::vector<Ref<Texture2D>>& albedo,
+    const std::vector<Ref<Texture2D>>& mr,
+    const std::vector<Ref<Texture2D>>& normal)
 {
-    if (src.empty()) return nullptr;
-    if (src.size() > 6 && src.substr(0, 6) == "color:")
-    {
-        unsigned r, g, b, a;
-        sscanf(src.c_str() + 6, "%02X%02X%02X%02X", &r, &g, &b, &a);
-        uint8_t pixel[4] = { (uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)a };
-        uint32_t packed; memcpy(&packed, pixel, 4);
-        auto t = Texture2D::Create(1, 1, TextureFormat::RGBA8);
-        t->SetData(&packed, 4);
-        t->QueueUpload();
-        return t;
-    }
-    return Texture2D::Create(src);
+    dg.Albedo         = (matIdx < albedo.size() && albedo[matIdx]) ? albedo[matIdx] : WhiteTexture();
+    dg.MetalRoughness = (matIdx < mr.size()     && mr[matIdx])     ? mr[matIdx]     : DefaultMetalRoughness();
+    dg.NormalMap      = (matIdx < normal.size() && normal[matIdx]) ? normal[matIdx] : FlatNormalMap();
+    dg.HasRealMetalRoughness = matIdx < materials.size() && materials[matIdx].MR.Present();
+    dg.HasRealNormalMap      = matIdx < materials.size() && materials[matIdx].Normal.Present();
 }
 
-struct CacheHeader { uint32_t magic, version, vertCount, idxCount, groupCount; };
+// --- cache I/O --------------------------------------------------------------
+
+struct CacheHeader { uint32_t magic, version, vertCount, idxCount, matCount, groupCount; };
 
 bool ReadCache(const std::string& binPath, MeshData& data)
 {
@@ -164,32 +335,38 @@ bool ReadCache(const std::string& binPath, MeshData& data)
     FileUtils::ReadArray(f, data.Vertices, hdr.vertCount);
     FileUtils::ReadArray(f, data.Indices,  hdr.idxCount);
 
+    // Materials: one realized texture per material, shared across groups.
+    std::vector<MaterialTexSet>  materials(hdr.matCount);
+    std::vector<Ref<Texture2D>>  matAlbedo(hdr.matCount), matMR(hdr.matCount), matNormal(hdr.matCount);
+    for (uint32_t i = 0; i < hdr.matCount; i++)
+    {
+        materials[i].Albedo = ReadCachedTexture(f);
+        materials[i].MR     = ReadCachedTexture(f);
+        materials[i].Normal = ReadCachedTexture(f);
+        matAlbedo[i] = Realize(materials[i].Albedo);
+        matMR[i]     = Realize(materials[i].MR);
+        matNormal[i] = Realize(materials[i].Normal);
+    }
+
     data.Groups.clear();
     data.Groups.reserve(hdr.groupCount);
     for (uint32_t i = 0; i < hdr.groupCount; i++)
     {
-        uint32_t  offset, count;
+        uint32_t  offset, count, matIdx;
         int32_t   baseVertex;
         glm::mat4 nodeTransform(1.f);
         FileUtils::ReadValue(f, offset);
         FileUtils::ReadValue(f, count);
         FileUtils::ReadValue(f, baseVertex);
         FileUtils::ReadValue(f, nodeTransform);
-
-        Ref<Texture2D> albedo = TextureFromCacheSrc(FileUtils::ReadString(f));
-        Ref<Texture2D> mr     = TextureFromCacheSrc(FileUtils::ReadString(f));
-        Ref<Texture2D> normal = TextureFromCacheSrc(FileUtils::ReadString(f));
+        FileUtils::ReadValue(f, matIdx);
 
         MeshDrawGroup dg;
-        dg.Albedo                = albedo ? albedo : WhiteTexture();
-        dg.MetalRoughness        = mr     ? mr     : DefaultMetalRoughness();
-        dg.NormalMap             = normal ? normal : FlatNormalMap();
-        dg.HasRealMetalRoughness = mr     != nullptr;
-        dg.HasRealNormalMap      = normal != nullptr;
-        dg.IndexByteOffset       = offset;
-        dg.IndexCount            = count;
-        dg.BaseVertex            = baseVertex;
-        dg.NodeTransform         = nodeTransform;
+        AssignGroupTextures(dg, matIdx, materials, matAlbedo, matMR, matNormal);
+        dg.IndexByteOffset = offset;
+        dg.IndexCount      = count;
+        dg.BaseVertex      = baseVertex;
+        dg.NodeTransform   = nodeTransform;
         data.Groups.push_back(std::move(dg));
     }
     if (!f) return false;
@@ -215,33 +392,45 @@ bool ReadCache(const std::string& binPath, MeshData& data)
     return true;
 }
 
-void WriteCache(const std::string& binPath, const MeshData& data)
+void WriteCache(const std::string& binPath, const MeshData& data,
+    const std::vector<MaterialTexSet>& materials,
+    const std::vector<uint32_t>& groupMatIndex)
 {
     std::ofstream f(binPath, std::ios::binary);
     if (!f) { HMN_CORE_WARN("StaticMesh: cannot write cache '{}'", binPath); return; }
 
     CacheHeader hdr = {
         k_CacheMagic, k_CacheVersion,
-        (uint32_t)data.Vertices.size(), (uint32_t)data.Indices.size(), (uint32_t)data.Groups.size()
+        (uint32_t)data.Vertices.size(), (uint32_t)data.Indices.size(),
+        (uint32_t)materials.size(), (uint32_t)data.Groups.size()
     };
     FileUtils::WriteValue(f, hdr);
     FileUtils::WriteArray(f, data.Vertices);
     FileUtils::WriteArray(f, data.Indices);
 
-    for (const auto& g : data.Groups)
+    for (const auto& m : materials)
     {
+        WriteCachedTexture(f, m.Albedo);
+        WriteCachedTexture(f, m.MR);
+        WriteCachedTexture(f, m.Normal);
+    }
+
+    for (size_t i = 0; i < data.Groups.size(); i++)
+    {
+        const auto& g = data.Groups[i];
         FileUtils::WriteValue(f, g.IndexByteOffset);
         FileUtils::WriteValue(f, g.IndexCount);
         FileUtils::WriteValue(f, g.BaseVertex);
         FileUtils::WriteValue(f, g.NodeTransform);
-        FileUtils::WriteString(f, g.AlbedoSrc);
-        FileUtils::WriteString(f, g.MRSrc);
-        FileUtils::WriteString(f, g.NormalSrc);
+        FileUtils::WriteValue(f, groupMatIndex[i]);
     }
     HMN_CORE_INFO("StaticMesh: wrote cache '{}'", binPath);
 }
 
-std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData& data)
+// assimp import
+
+std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData& data,
+    std::vector<MaterialTexSet>& outMaterials, std::vector<uint32_t>& outGroupMatIndex)
 {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path, k_AssimpFlags);
@@ -309,88 +498,20 @@ std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData&
     };
     traverse(scene->mRootNode, glm::mat4(1.f));
 
-    // materials
+    // Describe + realize one texture set per material (shared across groups).
+    outMaterials.resize(scene->mNumMaterials);
     std::vector<Ref<Texture2D>> matAlbedo(scene->mNumMaterials);
     std::vector<Ref<Texture2D>> matMR(scene->mNumMaterials);
     std::vector<Ref<Texture2D>> matNormal(scene->mNumMaterials);
-    std::vector<std::string>    matAlbedoSrc(scene->mNumMaterials);
-    std::vector<std::string>    matMRSrc(scene->mNumMaterials);
-    std::vector<std::string>    matNormalSrc(scene->mNumMaterials);
-
-    // Albedo lives under BASE_COLOR (glTF) or DIFFUSE (legacy/FBX).
-    auto findBaseColor = [&](const aiMaterial* mat, aiString& outPath) -> bool
-    {
-        if (mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
-            return mat->GetTexture(aiTextureType_BASE_COLOR, 0, &outPath) == AI_SUCCESS;
-        if (mat->GetTextureCount(aiTextureType_DIFFUSE) > 0)
-            return mat->GetTexture(aiTextureType_DIFFUSE, 0, &outPath) == AI_SUCCESS;
-        return false;
-    };
-
     for (uint32_t i = 0; i < scene->mNumMaterials; i++)
     {
         const aiMaterial* mat = scene->mMaterials[i];
-
-        aiString aiTexPath;
-        if (findBaseColor(mat, aiTexPath))
-        {
-            std::string raw = aiTexPath.data;
-            if (!raw.empty() && raw[0] == '*')
-            {
-                matAlbedoSrc[i] = raw;
-                matAlbedo[i]    = LoadEmbeddedTexture(scene, raw);
-            }
-            else
-            {
-                std::string resolved = ResolveTexturePath(raw, dir);
-                if (!resolved.empty())
-                {
-                    matAlbedoSrc[i] = resolved;
-                    matAlbedo[i]    = Texture2D::Create(resolved);
-                }
-            }
-        }
-
-        if (!matAlbedo[i])
-        {
-            aiColor4D diffuse(0.7f, 0.7f, 0.7f, 1.f);
-            aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &diffuse);
-            if (diffuse.r == 0 && diffuse.g == 0 && diffuse.b == 0)
-                aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse);
-
-            char buf[20];
-            snprintf(buf, sizeof(buf), "color:%02X%02X%02X%02X",
-                (uint8_t)(diffuse.r * 255), (uint8_t)(diffuse.g * 255),
-                (uint8_t)(diffuse.b * 255), (uint8_t)(diffuse.a * 255));
-            matAlbedoSrc[i] = buf;
-            matAlbedo[i]    = MakeColorTexture(diffuse);
-        }
-
-        aiString nmPath;
-        if (mat->GetTextureCount(aiTextureType_NORMALS) > 0 &&
-            mat->GetTexture(aiTextureType_NORMALS, 0, &nmPath) == AI_SUCCESS)
-        {
-            std::string raw = nmPath.data;
-            if (!raw.empty() && raw[0] == '*') { matNormal[i] = LoadEmbeddedTexture(scene, raw); matNormalSrc[i] = raw; }
-            else
-            {
-                std::string resolved = ResolveTexturePath(raw, dir);
-                if (!resolved.empty()) { matNormal[i] = Texture2D::Create(resolved); matNormalSrc[i] = resolved; }
-            }
-        }
-
-        aiString mrPath;
-        if (mat->GetTextureCount(aiTextureType_METALNESS) > 0 &&
-            mat->GetTexture(aiTextureType_METALNESS, 0, &mrPath) == AI_SUCCESS)
-        {
-            std::string raw = mrPath.data;
-            if (!raw.empty() && raw[0] == '*') { matMR[i] = LoadEmbeddedTexture(scene, raw); matMRSrc[i] = raw; }
-            else
-            {
-                std::string resolved = ResolveTexturePath(raw, dir);
-                if (!resolved.empty()) { matMR[i] = Texture2D::Create(resolved); matMRSrc[i] = resolved; }
-            }
-        }
+        outMaterials[i].Albedo = DescribeAlbedo(scene, mat, dir);
+        outMaterials[i].MR     = DescribeTexture(scene, mat, aiTextureType_METALNESS, dir);
+        outMaterials[i].Normal = DescribeTexture(scene, mat, aiTextureType_NORMALS,   dir);
+        matAlbedo[i] = Realize(outMaterials[i].Albedo);
+        matMR[i]     = Realize(outMaterials[i].MR);
+        matNormal[i] = Realize(outMaterials[i].Normal);
     }
 
     // Sort submeshes by material to minimise texture rebinds, then build draw groups.
@@ -398,22 +519,18 @@ std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData&
 
     data.Groups.clear();
     data.Groups.reserve(rawSubs.size());
+    outGroupMatIndex.clear();
+    outGroupMatIndex.reserve(rawSubs.size());
     for (const auto& sub : rawSubs)
     {
         MeshDrawGroup dg;
-        dg.Albedo                = (sub.matIdx < matAlbedo.size() && matAlbedo[sub.matIdx]) ? matAlbedo[sub.matIdx] : WhiteTexture();
-        dg.MetalRoughness        = (sub.matIdx < matMR.size()     && matMR[sub.matIdx])     ? matMR[sub.matIdx]     : DefaultMetalRoughness();
-        dg.NormalMap             = (sub.matIdx < matNormal.size() && matNormal[sub.matIdx]) ? matNormal[sub.matIdx] : FlatNormalMap();
-        dg.AlbedoSrc             = sub.matIdx < matAlbedoSrc.size() ? matAlbedoSrc[sub.matIdx] : "";
-        dg.MRSrc                 = sub.matIdx < matMRSrc.size()     ? matMRSrc[sub.matIdx]     : "";
-        dg.NormalSrc             = sub.matIdx < matNormalSrc.size() ? matNormalSrc[sub.matIdx] : "";
-        dg.HasRealMetalRoughness = !dg.MRSrc.empty();
-        dg.HasRealNormalMap      = !dg.NormalSrc.empty();
-        dg.IndexByteOffset       = sub.idxOffset * (uint32_t)sizeof(uint32_t);
-        dg.IndexCount            = sub.idxCount;
-        dg.BaseVertex            = sub.baseVertex;
-        dg.NodeTransform         = sub.nodeTransform;
+        AssignGroupTextures(dg, sub.matIdx, outMaterials, matAlbedo, matMR, matNormal);
+        dg.IndexByteOffset = sub.idxOffset * (uint32_t)sizeof(uint32_t);
+        dg.IndexCount      = sub.idxCount;
+        dg.BaseVertex      = sub.baseVertex;
+        dg.NodeTransform   = sub.nodeTransform;
         data.Groups.push_back(std::move(dg));
+        outGroupMatIndex.push_back(sub.matIdx);
     }
 
     OptimizeGeometry(data);
@@ -429,29 +546,24 @@ std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData&
 
 std::expected<MeshData, std::string> ImportStaticMesh(const std::string& path)
 {
-    // glTF/GLB embed textures that can't be re-resolved from a path cache, so skip caching them.
-    const bool canCache = !IsGltf(path);
+    const std::string binPath = path + ".bin";
 
-    if (canCache)
+    if (std::filesystem::exists(binPath))
     {
-        std::string binPath = path + ".bin";
-        if (std::filesystem::exists(binPath))
-        {
-            HMN_CORE_INFO("StaticMesh: loading from cache '{}'", binPath);
-            MeshData cached;
-            if (ReadCache(binPath, cached))
-                return cached;
-            HMN_CORE_WARN("StaticMesh: cache corrupt, re-importing '{}'", path);
-        }
+        HMN_CORE_INFO("StaticMesh: loading from cache '{}'", binPath);
+        MeshData cached;
+        if (ReadCache(binPath, cached))
+            return cached;
+        HMN_CORE_WARN("StaticMesh: cache corrupt, re-importing '{}'", path);
     }
 
     MeshData data;
-    if (auto res = ImportAssimp(path, data); !res)
+    std::vector<MaterialTexSet> materials;
+    std::vector<uint32_t>       groupMatIndex;
+    if (auto res = ImportAssimp(path, data, materials, groupMatIndex); !res)
         return std::unexpected(res.error());
 
-    if (canCache)
-        WriteCache(path + ".bin", data);
-
+    WriteCache(binPath, data, materials, groupMatIndex);
     return data;
 }
 
