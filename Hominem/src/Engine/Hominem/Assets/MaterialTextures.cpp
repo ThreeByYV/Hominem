@@ -115,4 +115,34 @@ Ref<Texture2D> LoadMaterialTexture(const aiScene* scene, const aiMaterial* mat,
     return Texture2D::Create(resolved);
 }
 
+namespace {
+    Ref<Texture2D> MakeSolid(uint32_t rgba)
+    {
+        auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+        tex->SetData(&rgba, sizeof(rgba));
+        tex->QueueUpload();
+        return tex;
+    }
+}
+
+Ref<Texture2D> WhiteTexture()
+{
+    static Ref<Texture2D> s = MakeSolid(0xFFFFFFFFu);
+    return s;
+}
+
+Ref<Texture2D> DefaultMetalRoughness()
+{
+    // R=0, G=128 (roughness 0.5), B=0 (metal 0), A=255
+    static Ref<Texture2D> s = MakeSolid(0xFF008000u);
+    return s;
+}
+
+Ref<Texture2D> FlatNormalMap()
+{
+    // (128,128,255) decodes to normal (0,0,1)
+    static Ref<Texture2D> s = MakeSolid(0xFFFF8080u);
+    return s;
+}
+
 }

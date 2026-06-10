@@ -23,4 +23,11 @@ Ref<Texture2D> MakeColorTexture(const aiColor4D& color);
 Ref<Texture2D> LoadMaterialTexture(const aiScene* scene, const aiMaterial* mat,
                                    aiTextureType type, const std::string& baseDir);
 
+/// 1x1 opaque white. Shared default albedo.
+Ref<Texture2D> WhiteTexture();
+/// 1x1 default metal-roughness (roughness 0.5, metal 0).
+Ref<Texture2D> DefaultMetalRoughness();
+/// 1x1 flat normal map (128,128,255) = no perturbation.
+Ref<Texture2D> FlatNormalMap();
+
 }
