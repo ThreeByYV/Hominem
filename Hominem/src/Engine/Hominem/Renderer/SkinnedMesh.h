@@ -17,13 +17,14 @@ namespace Hominem {
 	class SkinnedMesh : public RefCounted
 	{
 	public:
-		virtual ~SkinnedMesh() = default;
+		~SkinnedMesh() override = default;
 
-		virtual bool LoadFromFile(const std::string& filepath) = 0;
-		virtual bool LoadAdditionalAnimation(const std::string& filepath) = 0;
+		[[nodiscard]] virtual std::expected<void, std::string> LoadFromFile(const std::string& filepath) = 0;
+		[[nodiscard]] virtual std::expected<void, std::string> LoadAdditionalAnimation(const std::string& filepath) = 0;
 
 		virtual void Render(const Ref<Shader>& shader) = 0;
 
+		//todo: we should dispatch in constructor so we cant forget this call and remove then this method
 		/// Upload bone matrices and dispatch GPU skinning compute shader.
 		virtual void DispatchSkinning(std::span<const glm::mat4> bones) = 0;
 

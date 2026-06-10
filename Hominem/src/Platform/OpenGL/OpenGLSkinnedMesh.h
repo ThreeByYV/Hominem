@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hominem/Renderer/SkinnedMesh.h"
+#include "Hominem/Renderer/StorageBuffer.h"
 
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
@@ -13,8 +14,8 @@ namespace Hominem {
 		OpenGLSkinnedMesh()  = default;
 		~OpenGLSkinnedMesh() override;
 
-		bool LoadFromFile(const std::string& filepath) override;
-		bool LoadAdditionalAnimation(const std::string& filepath) override;
+		[[nodiscard]] std::expected<void, std::string> LoadFromFile(const std::string& filepath) override;
+		[[nodiscard]] std::expected<void, std::string> LoadAdditionalAnimation(const std::string& filepath) override;
 
 		void Render(const Ref<Shader>& shader) override;
 		void DispatchSkinning(std::span<const glm::mat4> bones) override;
@@ -93,7 +94,6 @@ namespace Hominem {
 
 		// Compute skinning SSBOs
 		void CreateComputeSSBOs();
-		void ReleaseComputeSSBOs();
 
 		// Assimp loading
 		bool ParseScene(const aiScene* pScene, const std::string& filepath);
@@ -102,21 +102,17 @@ namespace Hominem {
 		bool LoadMaterials(const aiScene* pScene, const std::string& filepath);
 		Ref<Texture2D> LoadTexture(const aiMaterial* mat, aiTextureType type, const std::string& dir);
 
-		// Unit scale correction — scales translation column of every bone matrix to match
-		// vertex positions that were already converted from file units to metres.
-		void ApplyUnitScale(std::vector<glm::mat4>& transforms) const;
-
 		// GL handles
 		uint32_t m_VAO                  = 0;
 		uint32_t m_Buffers[NUM_BUFFERS] = { 0 };
 
-		// Compute SSBO handles
-		uint32_t m_InPosSSBO      = 0;
-		uint32_t m_InNormSSBO     = 0;
-		uint32_t m_InBoneDataSSBO = 0;
-		uint32_t m_BoneSSBO       = 0;
-		uint32_t m_OutPosSSBO     = 0;
-		uint32_t m_OutNormSSBO    = 0;
+		// Compute skinning SSBOs
+		Ref<StorageBuffer> m_InPosSSBO;
+		Ref<StorageBuffer> m_InNormSSBO;
+		Ref<StorageBuffer> m_InBoneDataSSBO;
+		Ref<StorageBuffer> m_BoneSSBO;
+		Ref<StorageBuffer> m_OutPosSSBO;
+		Ref<StorageBuffer> m_OutNormSSBO;
 
 		Ref<ComputeShader> m_ComputeShader;
 
@@ -127,8 +123,6 @@ namespace Hominem {
 
 		Skeleton   m_Skeleton;
 		Ref<Shader> m_Shader;
-
-		float                         m_ScaleToMetres  = 1.0f;
 
 		Assimp::Importer              m_Importer;
 		const aiScene*                m_pScene = nullptr;

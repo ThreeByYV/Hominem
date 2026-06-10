@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLStorageBuffer.h"
+#include "Hominem/Renderer/RenderThread.h"
 #include <glad/glad.h>
 
 namespace Hominem {
@@ -15,7 +16,14 @@ namespace Hominem {
 
 	OpenGLUniformBuffer::~OpenGLUniformBuffer()
 	{
-		glDeleteBuffers(1, &m_RendererID);
+		if (!m_RendererID) return;
+		if (RenderThread::IsOnRenderThread())
+			glDeleteBuffers(1, &m_RendererID);
+		else
+		{
+			uint32_t id = m_RendererID;
+			RenderThread::QueueUpload([id] { glDeleteBuffers(1, &id); });
+		}
 	}
 
 	void OpenGLUniformBuffer::SetData(const void* data, uint32_t size, uint32_t offset)
@@ -38,7 +46,14 @@ namespace Hominem {
 
 	OpenGLStorageBuffer::~OpenGLStorageBuffer()
 	{
-		glDeleteBuffers(1, &m_RendererID);
+		if (!m_RendererID) return;
+		if (RenderThread::IsOnRenderThread())
+			glDeleteBuffers(1, &m_RendererID);
+		else
+		{
+			uint32_t id = m_RendererID;
+			RenderThread::QueueUpload([id] { glDeleteBuffers(1, &id); });
+		}
 	}
 
 	void OpenGLStorageBuffer::SetData(const void* data, uint32_t size, uint32_t offset)

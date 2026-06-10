@@ -4,6 +4,7 @@
 #include "RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
 
+#include <glad/glad.h>
 #include <ranges>
 #include <glm/gtc/matrix_inverse.hpp>
 
@@ -169,7 +170,7 @@ void Renderer3D::CullLights(const RenderFrame& frame)
 
     s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
 
-    const uint32_t zero = 0u;
+    constexpr uint32_t zero = 0u;
     s_Data->GlobalLightCounter->SetData(&zero, sizeof(uint32_t));
 
     s_Data->LightBuffer->BindBase(1);
@@ -231,6 +232,7 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
     if (s_Data->LightCullingShader && !frame.lights.empty())
         CullLights(frame);
 }
+
 
 void Renderer3D::EndScene()
 {
@@ -308,6 +310,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
 void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 {
     HMN_PROFILE_FUNCTION();
+
     Ref<Shader> shader;
     if (s_Data->OverrideShader)
     {
@@ -316,6 +319,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     else
     {
         HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded — was InitForwardPlus() called?");
+
         const bool hasNM  = mesh.HasNormalMap();
         const bool hasMR  = mesh.HasMetalRoughness();
         const bool hasEnv = s_Scene->EnvMapID != 0u;

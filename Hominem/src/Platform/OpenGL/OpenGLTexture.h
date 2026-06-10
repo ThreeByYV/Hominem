@@ -58,7 +58,7 @@ namespace Hominem {
 
 		std::string m_Path;
 		uint32_t m_Width = 0, m_Height = 0;
-		mutable uint32_t m_RendererID = 0;
+		mutable uint32_t  m_RendererID     = 0;
 		GLenum m_InternalFormat = 0, m_DataFormat = 0;
 
 		// CPU-side state held until first Bind() on the render thread

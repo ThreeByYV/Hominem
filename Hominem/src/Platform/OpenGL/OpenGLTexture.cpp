@@ -223,7 +223,6 @@ namespace Hominem {
 		m_PendingPixels.shrink_to_fit();
 	}
 
-
 	void OpenGLTexture2D::QueueUpload()
 	{
 		// Ref constructed from this — keeps object alive until the upload lambda destructs it.
