@@ -1,0 +1,149 @@
+#version 460 core
+
+// One work group = one 16×16 screen tile.
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+struct GPULight
+{
+    vec4 positionAndRadius; // xyz = world pos, w = radius
+    vec4 colorAndIntensity; // xyz = colour,    w = intensity
+    vec4 directionAndType;  // xyz = direction (spot), w = type (0=point 1=spot)
+    vec4 coneAngles;        // x = cos(inner), y = cos(outer)
+};
+
+struct LightGridEntry
+{
+    uint offset;
+    uint count;
+};
+
+uniform mat4 u_View;           
+uniform mat4 u_InvProjection; 
+uniform uint u_NumLights;
+uniform uint u_NumTilesX;
+uniform uint u_NumTilesY;
+uniform uint u_ScreenWidth;
+uniform uint u_ScreenHeight;
+
+
+layout(std430, binding = 1) readonly buffer LightBuffer
+{
+    GPULight lights[];
+};
+
+layout(std430, binding = 2) writeonly buffer LightIndexListBuffer 
+{
+    uint lightIndexList[];
+};
+
+layout(std430, binding = 3) writeonly buffer LightGridBuffer 
+{
+    LightGridEntry lightGrid[];
+};
+
+layout(std430, binding = 4) buffer GlobalLightCounter
+{
+    uint globalLightCounter;
+};
+
+// Shared memory for one set per tile / work group
+shared uint s_TileLightCount;
+shared uint s_TileLightIndices[128]; // MAX_LIGHTS_PER_TILE
+shared uint s_GlobalOffset;
+
+
+// Unproject a 2D NDC point to a view-space position on the near plane (z = -1 NDC).
+vec3 ndcToView(vec2 ndc)
+{
+    vec4 v = u_InvProjection * vec4(ndc, -1.0, 1.0);
+    return v.xyz / v.w;
+}
+
+// Build the 4 side planes (left, right, bottom, top) of this tile's view-space
+// frustum.  All planes pass through the camera origin (D = 0) with inward normals
+void buildTileFrustumPlanes(out vec4 planes[4])
+{
+    uint tileX = gl_WorkGroupID.x;
+    uint tileY = gl_WorkGroupID.y;
+
+    // Tile corners in NDC [-1, 1]
+    vec2 ndcMin = vec2(
+        float(tileX    ) / float(u_NumTilesX) * 2.0 - 1.0,
+        float(tileY    ) / float(u_NumTilesY) * 2.0 - 1.0
+    );
+    vec2 ndcMax = vec2(
+        float(tileX + 1u) / float(u_NumTilesX) * 2.0 - 1.0,
+        float(tileY + 1u) / float(u_NumTilesY) * 2.0 - 1.0
+    );
+
+    // Unproject corners to view space on the near plane
+    vec3 c0 = ndcToView(vec2(ndcMin.x, ndcMin.y)); // BL
+    vec3 c1 = ndcToView(vec2(ndcMax.x, ndcMin.y)); // BR
+    vec3 c2 = ndcToView(vec2(ndcMax.x, ndcMax.y)); // TR
+    vec3 c3 = ndcToView(vec2(ndcMin.x, ndcMax.y)); // TL
+
+    planes[0] = vec4(normalize(cross(c0, c3)), 0.0); // left
+    planes[1] = vec4(normalize(cross(c2, c1)), 0.0); // right
+    planes[2] = vec4(normalize(cross(c1, c0)), 0.0); // bottom
+    planes[3] = vec4(normalize(cross(c3, c2)), 0.0); // top
+}
+
+// Returns true if a sphere overlaps the tile frustum.
+// center is in view space; planes have D=0 i.e they all pass through origin
+bool sphereOverlapsFrustum(vec3 center, float radius, vec4 planes[4])
+{
+    for (int i = 0; i < 4; i++)
+        if (dot(planes[i].xyz, center) < -radius)
+            return false;
+    return true;
+}
+
+void main()
+{
+    uint localIdx = gl_LocalInvocationIndex; // 0..255 within the tile
+
+    // Thread 0 initialises shared state.
+    if (localIdx == 0u)
+        s_TileLightCount = 0u;
+    barrier();
+
+    // Build frustum once, all 256 threads use the same result.
+    vec4 planes[4];
+    buildTileFrustumPlanes(planes);
+
+    // Each thread tests a stride of lights across the full light list.
+    for (uint i = localIdx; i < u_NumLights; i += 256u)
+    {
+        vec3  worldPos = lights[i].positionAndRadius.xyz;
+        float radius   = lights[i].positionAndRadius.w;
+
+        vec3 viewPos = (u_View * vec4(worldPos, 1.0)).xyz;
+
+        if (sphereOverlapsFrustum(viewPos, radius, planes))
+        {
+            uint slot = atomicAdd(s_TileLightCount, 1u);
+            if (slot < 128u)
+                s_TileLightIndices[slot] = i;
+        }
+    }
+
+    barrier();
+
+    // Thread 0 reserves space in the global index list and writes the grid entry.
+    uint tileIdx = gl_WorkGroupID.y * u_NumTilesX + gl_WorkGroupID.x;
+
+    if (localIdx == 0u)
+    {
+        uint count     = min(s_TileLightCount, 128u);
+        s_GlobalOffset = atomicAdd(globalLightCounter, count);
+        lightGrid[tileIdx].offset = s_GlobalOffset;
+        lightGrid[tileIdx].count  = count;
+    }
+
+    barrier();
+
+    // All threads copy the shared light list to the global buffer.
+    uint count = min(s_TileLightCount, 128u);
+    for (uint i = localIdx; i < count; i += 256u)
+        lightIndexList[s_GlobalOffset + i] = s_TileLightIndices[i];
+}

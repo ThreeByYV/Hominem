@@ -1,3 +1,6 @@
+# Machine-local MSBuild overrides
+*.props.user
+
 # Binaries
 **/bin/
 bin-int/
@@ -9,16 +12,24 @@ imgui.ini
 *.cache
 cmake-build-*/
 
+# Generated mesh import caches (<model>.<ext>.bin)
+*.glb.bin
+*.gltf.bin
+*.fbx.bin
+*.obj.bin
+
 # Visual Studio files and folder
 .vs/
 **.sln
+**.slnx
 **.vcxproj
 **.vcxproj.filters
 **.vcxproj.user
 **.csproj
 .vscode/
 .idea/
-
+out/
+tools/
 
 # Directories
 Hominem/vendor/VulkanSDK

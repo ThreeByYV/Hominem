@@ -1,0 +1,37 @@
+#version 460 core
+
+layout(local_size_x = 10, local_size_y = 10) in;
+
+layout(binding = 0) uniform sampler2D u_HDR;
+
+layout(std430, binding = 1) buffer LuminanceOutput {
+    float u_TileSums[];
+};
+
+const uint TILE_PIXELS = 100u;
+shared float s_LogLum[TILE_PIXELS];
+
+void main()
+{
+    ivec2 coord   = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 texSize = textureSize(u_HDR, 0);
+
+    float lum = 0.0;
+    if (coord.x < texSize.x && coord.y < texSize.y)
+    {
+        vec3 hdr = texelFetch(u_HDR, coord, 0).rgb;
+        lum      = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
+    }
+    s_LogLum[gl_LocalInvocationIndex] = log(lum + 0.0001);
+
+    barrier();
+
+    if (gl_LocalInvocationIndex == 0u)
+    {
+        float sum = 0.0;
+        for (uint i = 0u; i < TILE_PIXELS; ++i)
+            sum += s_LogLum[i];
+
+        u_TileSums[gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x] = sum;
+    }
+}
