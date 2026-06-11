@@ -17,6 +17,9 @@ IncludeDir["ImGui"]          = "Hominem/vendor/imgui"
 IncludeDir["ImGuiBackends"]  = "Hominem/vendor/imgui/backends"
 IncludeDir["glm"]            = "Hominem/vendor/glm"
 IncludeDir["stb_image"]      = "Hominem/vendor/stb_image"
+IncludeDir["tinyexr"]        = "Hominem/vendor/tinyexr"
+IncludeDir["zlib"]           = "Hominem/vendor/assimp/contrib/zlib"
+IncludeDir["zlib_build"]     = "Hominem/vendor/assimp/build/contrib/zlib"
 IncludeDir["entt"]           = "Hominem/vendor/entt/include"
 IncludeDir["msdfgen"]        = "Hominem/vendor/msdf-atlas-gen/msdfgen"
 IncludeDir["msdfgen_inc"]    = "Hominem/vendor/msdf-atlas-gen/msdfgen/include"
@@ -47,6 +50,9 @@ VendorIncludes = {
     "%{IncludeDir.ImGuiBackends}",
     "%{IncludeDir.glm}",
     "%{IncludeDir.stb_image}",
+    "%{IncludeDir.tinyexr}",
+    "%{IncludeDir.zlib}",
+    "%{IncludeDir.zlib_build}",
     "%{IncludeDir.entt}",
     "%{IncludeDir.msdfgen}",
     "%{IncludeDir.msdfgen_inc}",
@@ -83,16 +89,22 @@ project "Hominem"
         "Hominem/src/Platform/**.cpp",
         "Hominem/vendor/stb_image/**.h",
         "Hominem/vendor/stb_image/**.cpp",
+        "Hominem/vendor/tinyexr/tinyexr.h",
+        "Hominem/vendor/tinyexr/tinyexr.cpp",
         "Hominem/vendor/glm/glm/**.hpp",
         "Hominem/vendor/glm/glm/**.inl"
     }
 
-    -- stb_image compiles as plain C without a PCH
+    -- stb_image and tinyexr compile as plain TUs without the PCH
     filter "files:**/stb_image/**.cpp"
+        enablepch "Off"
+    filter "files:**/tinyexr/**.cpp"
         enablepch "Off"
     filter {}
 
     defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
+
+    defines { 'HMN_ENGINE_RESOURCES_PATH="' .. _MAIN_SCRIPT_DIR .. '/Hominem/src/Engine/Resources"' }
 
     includedirs
     (
