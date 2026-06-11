@@ -26,6 +26,7 @@ namespace Hominem {
 		inline void SetEventCallback(const EventCallbackFn& callback) override { m_Data.EventCallback = callback; }
 		void SetVSync(bool enabled) override;
 		bool IsVSync() const override;
+		void ToggleFullscreen() override;
 
 	private:
 		virtual void Init(const WindowProps& props);
@@ -47,6 +48,12 @@ namespace Hominem {
 		};
 
 		WindowData m_Data;
+
+		bool m_Fullscreen      = false;
+		int  m_WindowedX       = 100;
+		int  m_WindowedY       = 100;
+		int  m_WindowedWidth   = 1280;
+		int  m_WindowedHeight  = 720;
 	};
 
 }

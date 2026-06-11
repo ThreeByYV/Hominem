@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto-imported by MSBuild for every project in this directory.
+  Survives premake regeneration — do not delete.
+
+  ScanSourcesForModuleDependencies: disables the VS2026 Insiders module scanner
+    that auto-compiles .ixx files and conflicts with the PCH. Harmless on VS2022.
+
+  Machine-specific overrides (e.g. VCToolsVersion) go in Directory.Build.props.user
+    which is gitignored and imported below if present.
+-->
+<Project>
+  <PropertyGroup Label="Globals">
+    <ScanSourcesForModuleDependencies>false</ScanSourcesForModuleDependencies>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.props.user"
+          Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.props.user')" />
+</Project>

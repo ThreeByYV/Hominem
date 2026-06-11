@@ -1,3 +1,6 @@
+[submodule "Hominem/vendor/Box2D"]
+    path = Hominem/vendor/Box2D
+    url  = https://github.com/ThreeByYV/box2d.git
 [submodule "Hominem/vendor/GLFW"]
 	path = Hominem/vendor/GLFW
 	url = https://github.com/ThreeByYV/glfw
@@ -16,3 +19,18 @@
 [submodule "Hominem/vendor/Box2D"]
 	path = Hominem/vendor/Box2D
 	url = https://github.com/ThreeByYV/box2d.git
+[submodule "Hominem/vendor/assimp"]
+	path = Hominem/vendor/assimp
+	url = https://github.com/ThreeByYV/assimp.git
+[submodule "Hominem/vendor/msdf-atlas-gen"]
+	path = Hominem/vendor/msdf-atlas-gen
+	url = https://github.com/ThreeByYV/msdf-atlas-gen.git
+[submodule "Hominem/vendor/miniaudio"]
+	path = Hominem/vendor/miniaudio
+	url = https://github.com/mackron/miniaudio.git
+[submodule "Hominem/vendor/tracy"]
+	path = Hominem/vendor/tracy
+	url = https://github.com/wolfpld/tracy
+[submodule "Hominem/vendor/meshoptimizer"]
+	path = Hominem/vendor/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer.git

@@ -23,6 +23,7 @@ namespace Hominem {
 	private:
 		std::vector<Ref<VertexBuffer>> m_VertexBuffers;
 		Ref<IndexBuffer> m_IndexBuffer;
-		unsigned int m_RendererID;
+		uint32_t m_RendererID  = 0;
+		uint32_t m_AttribIndex = 0; // increments across multiple AddVertexBuffer calls
 	};
 }
