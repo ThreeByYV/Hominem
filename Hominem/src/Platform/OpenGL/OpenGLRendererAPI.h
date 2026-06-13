@@ -17,13 +17,17 @@ namespace Hominem {
 		void DrawIndexed(const Ref<VertexArray>& vertexArray) override;
 		void DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount) override;
 
-		void SetDepthTestEnabled(bool enabled) override;
+		void SetDepthTestEnabled(bool enabled)  override;
+		void SetDepthWriteEnabled(bool enabled) override;
+		void SetBlendMode(BlendMode mode)       override;
+		void SetCullFaceEnabled(bool enabled)   override;
 		void SetScissorEnabled(bool enabled)   override;
 
 		void BindEmptyVAO()                      override;
 		void UnbindVAO()                         override;
 		void DrawArraysIndirect(uint32_t offset) override;
 		void DrawFullscreenTriangle()                        override;
+		void DrawUnitQuad()                                  override;
 		void DrawPoints(uint32_t count, float pointSize)     override;
 		void DrawPatches(uint32_t count, uint32_t patchVertices) override;
 		void SetWireframe(bool enabled)                      override;

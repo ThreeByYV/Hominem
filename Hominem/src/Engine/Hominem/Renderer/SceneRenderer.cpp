@@ -31,6 +31,8 @@ void SceneRenderer::Init()
     m_BlurShader      = Renderer3D::GetShaderLibrary()->Get("bloom_blur");
     m_CompositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
     m_SkyboxShader    = Renderer3D::GetShaderLibrary()->Get("skybox");
+    m_FireQuadShader  = Renderer3D::GetShaderLibrary()->Get("fire_quad");
+    m_SmokeQuadShader = Renderer3D::GetShaderLibrary()->Get("smoke_quad");
 }
 
 void SceneRenderer::Shutdown()
@@ -118,6 +120,70 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
 
     if (frame.debugLights && !frame.lights.empty())
         Renderer3D::DrawDebugLights(frame.lights);
+
+    // Procedural smoke quads — alpha-blended, drawn before the fire quads so the
+    // fire glow shows through the smoke. Depth-tested but doesn't write depth.
+    if (!frame.smokeQuads.empty() && m_SmokeQuadShader)
+    {
+        RenderCommand::SetDepthWriteEnabled(false);
+        RenderCommand::SetBlendMode(BlendMode::Alpha);
+        RenderCommand::SetCullFaceEnabled(false); // smoke quads are flat planes — visible from either side
+        m_SmokeQuadShader->Bind();
+        for (const auto& sq : frame.smokeQuads)
+        {
+            m_SmokeQuadShader->SetMat4  ("u_Model",      sq.transform);
+            m_SmokeQuadShader->SetFloat3("u_ColorDark",  sq.colorDark);
+            m_SmokeQuadShader->SetFloat3("u_ColorLit",   sq.colorLit);
+            m_SmokeQuadShader->SetFloat ("u_Opacity",    sq.opacity);
+            m_SmokeQuadShader->SetFloat ("u_ScrollSpeed",sq.scrollSpeed);
+            m_SmokeQuadShader->SetFloat ("u_Time",       sq.time);
+            m_SmokeQuadShader->SetFloat ("u_Seed",       sq.seed);
+            RenderCommand::DrawUnitQuad();
+        }
+        RenderCommand::SetCullFaceEnabled(true);
+        RenderCommand::SetDepthWriteEnabled(true);
+    }
+
+    // Procedural fire quads — additive, depth-tested against the scene (so they're
+    // occluded by geometry) but don't write depth (so overlapping flames blend cleanly).
+    {
+        static bool s_LoggedFireState = false;
+        if (!s_LoggedFireState && !frame.fireQuads.empty())
+        {
+            HMN_CORE_INFO("Fire: {} quad(s) queued, shader valid = {}",
+                          frame.fireQuads.size(), m_FireQuadShader != nullptr);
+            for (size_t i = 0; i < frame.fireQuads.size(); i++)
+            {
+                const auto& fq = frame.fireQuads[i];
+                HMN_CORE_INFO("Fire[{}]: intensity={:.2f} scrollSpeed={:.2f} pos=({:.2f},{:.2f},{:.2f})",
+                              i, fq.intensity, fq.scrollSpeed,
+                              fq.transform[3][0], fq.transform[3][1], fq.transform[3][2]);
+            }
+            s_LoggedFireState = true;
+        }
+    }
+    if (!frame.fireQuads.empty() && m_FireQuadShader)
+    {
+        RenderCommand::SetDepthWriteEnabled(false);
+        RenderCommand::SetBlendMode(BlendMode::Additive);
+        RenderCommand::SetCullFaceEnabled(false); // fire quads are flat planes — visible from either side
+        m_FireQuadShader->Bind();
+        for (const auto& fq : frame.fireQuads)
+        {
+            m_FireQuadShader->SetMat4  ("u_Model",      fq.transform);
+            m_FireQuadShader->SetFloat3("u_ColorCore",  fq.colorCore);
+            m_FireQuadShader->SetFloat3("u_ColorMid",   fq.colorMid);
+            m_FireQuadShader->SetFloat3("u_ColorEdge",  fq.colorEdge);
+            m_FireQuadShader->SetFloat ("u_Intensity",  fq.intensity);
+            m_FireQuadShader->SetFloat ("u_ScrollSpeed",fq.scrollSpeed);
+            m_FireQuadShader->SetFloat ("u_Time",       fq.time);
+            m_FireQuadShader->SetFloat ("u_Seed",       fq.seed);
+            RenderCommand::DrawUnitQuad();
+        }
+        RenderCommand::SetBlendMode(BlendMode::Alpha);
+        RenderCommand::SetCullFaceEnabled(true);
+        RenderCommand::SetDepthWriteEnabled(true);
+    }
 
     // 2D overlay pass last for screen-space content (fades, captions, HUD) must
     // composite on top of 3D geometry, not be overdrawn by it.

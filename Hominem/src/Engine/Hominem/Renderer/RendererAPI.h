@@ -5,6 +5,8 @@
 
 namespace Hominem {
 
+	enum class BlendMode { Alpha = 0, Additive };
+
 	class RendererAPI
 	{
 	public:
@@ -31,6 +33,15 @@ namespace Hominem {
 		/// Enables or disables the depth test.
 		virtual void SetDepthTestEnabled(bool enabled) = 0;
 
+		/// Enables or disables writing to the depth buffer (depth test can stay enabled).
+		virtual void SetDepthWriteEnabled(bool enabled) = 0;
+
+		/// Selects the colour blend equation for subsequent draws.
+		virtual void SetBlendMode(BlendMode mode) = 0;
+
+		/// Enables or disables back-face culling.
+		virtual void SetCullFaceEnabled(bool enabled) = 0;
+
 		/// Enables or disables the scissor test.
 		virtual void SetScissorEnabled(bool enabled) = 0;
 
@@ -45,6 +56,9 @@ namespace Hominem {
 
 		/// Draws a fullscreen triangle using gl_VertexID — no VBO needed. Use for post-process passes.
 		virtual void DrawFullscreenTriangle() = 0;
+
+		/// Draws a unit quad (-0.5..0.5 in XY, Z=0) using gl_VertexID — no VBO needed.
+		virtual void DrawUnitQuad() = 0;
 
 		/// Draws count vertices as points with the given pixel size.
 		virtual void DrawPoints(uint32_t count, float pointSize) = 0;

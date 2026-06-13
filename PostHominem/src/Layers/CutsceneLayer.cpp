@@ -6,12 +6,14 @@
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Core/MouseButtonCodes.h"
+#include "Hominem/Utils/MathUtils.h"
 #include "Hominem/Cinematics/CutsceneLoader.h"
 #include "Game/Actors/SceneActor.h"
 #include "Game/Actors/SilhouetteCharacterActor.h"
 #include "Game/CutscenePreload.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <imgui.h>
 
 using namespace Hominem;
@@ -46,6 +48,23 @@ void CutsceneLayer::OnAttach()
 	if (auto mesh = CutscenePreload::TryGet())
 		m_Set = &m_Scene->SpawnActor<SceneActor>(std::move(mesh));
 	ApplyFraming();
+
+	// Seed default fire patches so the procedural fire is visible without having
+	// to open the F4 panel; tune/add more there. Each gets a distinct hashed seed
+	// so the FBM noise doesn't scroll in lockstep across patches.
+	auto hashSeed = [](int32_t i) -> float
+	{
+		return (float)(PCG_Hash(i) % 10000u) * 0.01f; // 0..100
+	};
+
+	m_FireInstances.push_back({ { -53.95f, 6.05f, -1.55f }, { 0.f, 90.f, 0.f }, { 20.f, 20.f }, 1.5f, 0.6f, hashSeed(0) });
+	m_FireInstances.push_back({ { -54.65f, 6.30f, -4.05f }, { 0.f, 90.f, 0.f }, { 6.f,  5.f  }, 1.5f, 0.6f, hashSeed(1) });
+	m_FireInstances.push_back({ { -56.55f, 2.50f, -6.30f }, { 0.f, 90.f, 0.f }, { 6.f,  5.f  }, 1.5f, 0.6f, hashSeed(2) });
+
+	// Smoke plumes drift above each fire patch - bigger, slower, alpha-blended.
+	m_SmokeInstances.push_back({ { -53.95f,  6.90f, -1.55f }, { 0.f, 90.f, 0.f }, { 28.f, 24.f }, 0.6f, 0.15f, 28.82f });
+	m_SmokeInstances.push_back({ { -54.65f, 12.00f, -4.05f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 74.66f });
+	m_SmokeInstances.push_back({ { -56.55f,  9.00f, -6.30f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 3.04f  });
 
 	//todo i think our meshes should internally do this std::async instead of the client having to
 
@@ -114,13 +133,13 @@ void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<Skinn
 	// Camera is at (-58.94, 1.26, -0.23) looking in +X. Right = +Z. Ground = Y=0.
 	// All runners share one Running.fbx instance; center girl + foreground arm share Idle.fbx.
 
-	struct RunnerDef { vec3 pos; float rotY; float speed; };
+	struct RunnerDef { vec3 pos; float rotY; vec3 scale; float speed; };
 	const RunnerDef runners[] = {
-		{ { -44.f, 0.f,  0.50f }, radians( 80.f), 1.0f },
-		{ { -41.f, 0.f,  2.50f }, radians(100.f), 1.2f },
-		{ { -39.f, 0.f, -2.00f }, radians(170.f), 0.9f },
-		{ { -36.f, 0.f,  1.00f }, radians( 60.f), 1.1f },
-		{ { -31.f, 0.f, -1.65f }, radians( 87.f), 1.3f },
+		{ { -41.50f, 0.00f, -0.45f }, radians( 80.0f), { 1.f, 1.f, 1.f }, 1.00f },
+		{ { -41.45f, 0.00f,  3.85f }, radians(100.0f), { 3.f, 3.f, 3.f }, 1.20f },
+		{ { -44.20f, 0.00f,  8.80f }, radians( 54.5f), { 3.f, 3.f, 3.f }, 0.90f },
+		{ { -35.55f,-0.75f,  6.75f }, radians( 75.5f), { 3.f, 3.f, 3.f }, 1.10f },
+		{ { -31.00f, 0.00f, -0.15f }, radians( 87.0f), { 1.f, 1.f, 1.f }, 1.30f },
 	};
 	// Running.fbx/Idle.fbx are authored in centimetres, but aiProcess_GlobalScale now
 	// converts them to metres at import, so a scale of 1.0 already reads as ~1.8 m tall.
@@ -133,7 +152,7 @@ void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<Skinn
 		auto& actor = m_Scene->SpawnActor<SilhouetteCharacterActor>(runMesh);
 		actor.Position   = runners[i].pos;
 		actor.Rotation   = { 0.f, runners[i].rotY, 0.f };
-		actor.Scale      = { 1.0f, 1.0f, 1.0f };
+		actor.Scale      = runners[i].scale;
 		actor.AnimSpeed  = runners[i].speed;
 		actor.Silhouette = false;
 		m_Runners[i]     = &actor;
@@ -246,6 +265,9 @@ void CutsceneLayer::UpdateFreeFlyCamera(Timestep ts)
 void CutsceneLayer::OnUpdate(Timestep ts)
 {
 	UpdateFreeFlyCamera(ts);
+	if (m_Scene) m_DebugFly.OnUpdate(ts, *m_Scene);
+	m_FireTime  += ts;
+	m_SmokeTime += ts;
 
 	// Spawn silhouette characters once both background mesh loads complete.
 	if (!m_CharactersSpawned && m_RunMeshFuture.valid() && m_IdleMeshFuture.valid())
@@ -265,7 +287,7 @@ void CutsceneLayer::OnUpdate(Timestep ts)
 
 	// Hand off to gameplay when the cutscene ends (unless we're tuning it in the
 	// editor), or immediately if the player skipped with Esc.
-	const bool wantGame = m_ForceExit || (!m_EditMode && !m_ShowFraming && m_TransitionRequested);
+	const bool wantGame = m_ForceExit || (!m_EditMode && !m_ShowFraming && !m_ShowFire && !m_ShowSmoke && !m_DebugFly.Enabled && m_TransitionRequested);
 	if (wantGame && !m_Transitioning)
 	{
 		m_Transitioning = true;
@@ -305,6 +327,34 @@ void CutsceneLayer::OnBuildRenderFrame(RenderFrame& frame)
 		fireLight({ -36.f, 2.5f, -1.f }, 16.f, 16.f);
 	}
 
+	// Procedural fire quads
+	for (const auto& fi : m_FireInstances)
+	{
+		FireQuadDraw fq;
+		fq.transform = glm::translate(glm::mat4(1.f), fi.pos)
+		             * glm::eulerAngleYXZ(glm::radians(fi.rotDeg.y), glm::radians(fi.rotDeg.x), glm::radians(fi.rotDeg.z))
+		             * glm::scale(glm::mat4(1.f), { fi.size.x, fi.size.y, 1.f });
+		fq.intensity   = fi.intensity;
+		fq.scrollSpeed = fi.scrollSpeed;
+		fq.time        = m_FireTime;
+		fq.seed        = fi.seed;
+		frame.fireQuads.push_back(fq);
+	}
+
+	// Procedural smoke quads
+	for (const auto& si : m_SmokeInstances)
+	{
+		SmokeQuadDraw sq;
+		sq.transform = glm::translate(glm::mat4(1.f), si.pos)
+		             * glm::eulerAngleYXZ(glm::radians(si.rotDeg.y), glm::radians(si.rotDeg.x), glm::radians(si.rotDeg.z))
+		             * glm::scale(glm::mat4(1.f), { si.size.x, si.size.y, 1.f });
+		sq.opacity     = si.opacity;
+		sq.scrollSpeed = si.scrollSpeed;
+		sq.time        = m_SmokeTime;
+		sq.seed        = si.seed;
+		frame.smokeQuads.push_back(sq);
+	}
+
 	// Keep the scene viewport on the live window size - the OnAttach seed can be stale,
 	// which would render the scene into a sub-region of the backbuffer.
 	auto& window = Application::Get().GetWindow();
@@ -336,6 +386,12 @@ void CutsceneLayer::OnImGuiRender()
 
 	if (m_ShowCharacters)
 		CharactersImGui();
+
+	if (m_ShowFire)
+		FireImGui();
+
+	if (m_ShowSmoke)
+		SmokeImGui();
 
 	if (m_ShowFraming)
 	{
@@ -413,6 +469,14 @@ bool CutsceneLayer::OnKeyPressed(KeyPressedEvent& e)
 			m_ShowCharacters = !m_ShowCharacters;
 			return true;
 
+		case HMN_KEY_F4: // toggle the fire-placement panel
+			m_ShowFire = !m_ShowFire;
+			return true;
+
+		case HMN_KEY_F5: // toggle the smoke-placement panel
+			m_ShowSmoke = !m_ShowSmoke;
+			return true;
+
 		default:
 			return false;
 	}
@@ -423,6 +487,7 @@ void CutsceneLayer::OnEvent(Event& e)
 	EventDispatcher dispatcher(e);
 	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(CutsceneLayer::OnWindowResize));
 	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(CutsceneLayer::OnKeyPressed));
+	dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e) { return m_DebugFly.OnKeyPressed(e); });
 }
 
 void CutsceneLayer::CharactersImGui()
@@ -495,6 +560,110 @@ void CutsceneLayer::CharactersImGui()
 		};
 		logChar("CenterGirl",    m_CenterGirl);
 		logChar("ForegroundArm", m_ForegroundArm);
+	}
+
+	ImGui::End();
+}
+
+void CutsceneLayer::FireImGui()
+{
+	ImGui::Begin("Fire Quads (F4)");
+	ImGui::TextDisabled("Procedural fire patches placed in the 3D set (fire_quad.glsl).");
+
+	if (ImGui::Button("Add Fire"))
+		m_FireInstances.emplace_back();
+
+	int removeIndex = -1;
+	for (int i = 0; i < (int)m_FireInstances.size(); i++)
+	{
+		auto& fi = m_FireInstances[i];
+
+		char label[32];
+		std::snprintf(label, sizeof(label), "Fire %d", i + 1);
+		if (!ImGui::CollapsingHeader(label)) continue;
+
+		ImGui::PushID(i);
+		ImGui::DragFloat3("Pos",          &fi.pos.x,    0.05f);
+		ImGui::DragFloat3("Rot (deg)",    &fi.rotDeg.x, 1.f, -180.f, 180.f);
+		ImGui::DragFloat2("Size",         &fi.size.x,   0.05f, 0.1f, 50.f);
+		ImGui::DragFloat ("Intensity",    &fi.intensity,   0.05f, 0.f, 10.f);
+		ImGui::DragFloat ("Scroll Speed", &fi.scrollSpeed, 0.05f, 0.f, 10.f);
+		ImGui::DragFloat ("Seed",         &fi.seed,        0.1f);
+
+		if (ImGui::Button("Remove"))
+			removeIndex = i;
+		ImGui::PopID();
+	}
+
+	if (removeIndex >= 0)
+		m_FireInstances.erase(m_FireInstances.begin() + removeIndex);
+
+	ImGui::Separator();
+	if (ImGui::Button("Log values (bake into defaults)"))
+	{
+		for (int i = 0; i < (int)m_FireInstances.size(); i++)
+		{
+			const auto& fi = m_FireInstances[i];
+			HMN_CORE_INFO("Fire {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
+			              "intensity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
+			              i + 1,
+			              fi.pos.x, fi.pos.y, fi.pos.z,
+			              fi.rotDeg.x, fi.rotDeg.y, fi.rotDeg.z,
+			              fi.size.x, fi.size.y,
+			              fi.intensity, fi.scrollSpeed, fi.seed);
+		}
+	}
+
+	ImGui::End();
+}
+
+void CutsceneLayer::SmokeImGui()
+{
+	ImGui::Begin("Smoke Quads (F5)");
+	ImGui::TextDisabled("Procedural smoke plumes placed in the 3D set (smoke_quad.glsl).");
+
+	if (ImGui::Button("Add Smoke"))
+		m_SmokeInstances.emplace_back();
+
+	int removeIndex = -1;
+	for (int i = 0; i < (int)m_SmokeInstances.size(); i++)
+	{
+		auto& si = m_SmokeInstances[i];
+
+		char label[32];
+		std::snprintf(label, sizeof(label), "Smoke %d", i + 1);
+		if (!ImGui::CollapsingHeader(label)) continue;
+
+		ImGui::PushID(i);
+		ImGui::DragFloat3("Pos",          &si.pos.x,    0.05f);
+		ImGui::DragFloat3("Rot (deg)",    &si.rotDeg.x, 1.f, -180.f, 180.f);
+		ImGui::DragFloat2("Size",         &si.size.x,   0.1f, 0.1f, 100.f);
+		ImGui::DragFloat ("Opacity",      &si.opacity,     0.02f, 0.f, 1.f);
+		ImGui::DragFloat ("Scroll Speed", &si.scrollSpeed, 0.02f, 0.f, 5.f);
+		ImGui::DragFloat ("Seed",         &si.seed,        0.1f);
+
+		if (ImGui::Button("Remove"))
+			removeIndex = i;
+		ImGui::PopID();
+	}
+
+	if (removeIndex >= 0)
+		m_SmokeInstances.erase(m_SmokeInstances.begin() + removeIndex);
+
+	ImGui::Separator();
+	if (ImGui::Button("Log values (bake into defaults)"))
+	{
+		for (int i = 0; i < (int)m_SmokeInstances.size(); i++)
+		{
+			const auto& si = m_SmokeInstances[i];
+			HMN_CORE_INFO("Smoke {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
+			              "opacity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
+			              i + 1,
+			              si.pos.x, si.pos.y, si.pos.z,
+			              si.rotDeg.x, si.rotDeg.y, si.rotDeg.z,
+			              si.size.x, si.size.y,
+			              si.opacity, si.scrollSpeed, si.seed);
+		}
 	}
 
 	ImGui::End();

@@ -86,6 +86,39 @@ namespace Hominem {
 	};
 
 	/**
+	 * Procedural FBM-noise fire effect on a single world-space quad (XY plane,
+	 * -0.5..0.5, transformed by `transform`). Drawn additively after 3D meshes
+	 * so it composites against the scene depth. See fire_quad.glsl.
+	 */
+	struct FireQuadDraw
+	{
+		glm::mat4 transform   { 1.f };
+		glm::vec3 colorCore   { 1.0f, 0.9f,  0.5f  }; // white-hot core
+		glm::vec3 colorMid    { 1.0f, 0.35f, 0.05f }; // orange
+		glm::vec3 colorEdge   { 0.35f, 0.04f, 0.01f}; // deep red, fades to black
+		float     intensity   = 1.0f;
+		float     scrollSpeed = 0.6f;
+		float     time        = 0.f;
+		float     seed        = 0.f;
+	};
+
+	/**
+	 * One procedural smoke "plume" - a flat quad (same unit geometry as FireQuadDraw,
+	 * -0.5..0.5, transformed by `transform`). Drawn alpha-blended before the fire
+	 * quads so the fire glow shows through. See smoke_quad.glsl.
+	 */
+	struct SmokeQuadDraw
+	{
+		glm::mat4 transform   { 1.f };
+		glm::vec3 colorDark   { 0.05f, 0.045f, 0.04f }; // cold smoke, top of plume
+		glm::vec3 colorLit    { 0.55f, 0.25f,  0.10f }; // fire-lit underside
+		float     opacity     = 0.6f;
+		float     scrollSpeed = 0.15f;
+		float     time        = 0.f;
+		float     seed        = 0.f;
+	};
+
+	/**
 	 * Plain-data snapshot of everything one frame needs to render.
 	 * Built on the main thread, consumed by the render thread.
 	 *
@@ -134,6 +167,8 @@ namespace Hominem {
 		std::vector<TextDraw>       texts;
 		std::vector<MeshDraw>       meshes;
 		std::vector<StaticMeshDraw> staticMeshes;
+		std::vector<FireQuadDraw>   fireQuads;
+	std::vector<SmokeQuadDraw>  smokeQuads;
 		std::vector<Light>          lights;
 
 		// Arena backing — set by RenderThread, not owned by this frame.
