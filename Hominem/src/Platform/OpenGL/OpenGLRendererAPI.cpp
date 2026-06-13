@@ -121,6 +121,26 @@ namespace Hominem {
 		else         glDisable(GL_DEPTH_TEST);
 	}
 
+	void OpenGLRendererAPI::SetDepthWriteEnabled(bool enabled)
+	{
+		glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+	}
+
+	void OpenGLRendererAPI::SetBlendMode(BlendMode mode)
+	{
+		switch (mode)
+		{
+			case BlendMode::Additive: glBlendFunc(GL_SRC_ALPHA, GL_ONE);                 break;
+			case BlendMode::Alpha:    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); break;
+		}
+	}
+
+	void OpenGLRendererAPI::SetCullFaceEnabled(bool enabled)
+	{
+		if (enabled) glEnable(GL_CULL_FACE);
+		else         glDisable(GL_CULL_FACE);
+	}
+
 	void OpenGLRendererAPI::SetScissorEnabled(bool enabled)
 	{
 		if (enabled) glEnable(GL_SCISSOR_TEST);
@@ -146,6 +166,12 @@ namespace Hominem {
 	{
 		glBindVertexArray(m_EmptyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+
+	void OpenGLRendererAPI::DrawUnitQuad()
+	{
+		glBindVertexArray(m_EmptyVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
 	void OpenGLRendererAPI::DrawPoints(uint32_t count, float pointSize)

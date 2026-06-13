@@ -4,6 +4,7 @@
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Scene/Scene.h"
+#include "Hominem/Scene/FreeFlyCameraController.h"
 #include "Hominem/Cinematics/Cutscene.h"
 #include "Hominem/Cinematics/CutsceneEditor.h"
 #include "Hominem/Renderer/Skybox.h"
@@ -67,6 +68,37 @@ private:
 	Hominem::Ref<Hominem::Skybox> m_Skybox;
 	float                         m_SkyIntensity = 1.0f;
 
+	/// One procedural fire "patch" placed in the 3D set (see fire_quad.glsl).
+	struct FireInstance
+	{
+		glm::vec3 pos         { -53.35f, 6.05f, -1.55f };
+		glm::vec3 rotDeg      { 0.f, 90.f, 0.f };
+		glm::vec2 size        { 20.f, 20.f };
+		float     intensity   = 1.5f;
+		float     scrollSpeed = 0.6f;
+		float     seed        = 0.f;
+	};
+	std::vector<FireInstance> m_FireInstances;
+	float m_FireTime    = 0.f;
+	bool  m_ShowFire    = false; ///< F4 opens the fire-placement panel.
+	void  FireImGui();
+
+	/// One procedural smoke "plume" placed in the 3D set (see smoke_quad.glsl).
+	struct SmokeInstance
+	{
+		glm::vec3 pos         { -53.35f, 6.05f, -1.55f };
+		glm::vec3 rotDeg      { 0.f, 90.f, 0.f };
+		glm::vec2 size        { 20.f, 20.f };
+		float     opacity     = 0.6f;
+		float     scrollSpeed = 0.15f;
+		float     seed        = 0.f;
+	};
+	std::vector<SmokeInstance> m_SmokeInstances;
+	float m_SmokeTime    = 0.f;
+	bool  m_ShowSmoke    = false; ///< F5 opens the smoke-placement panel.
+	void  SmokeImGui();
+
+	Hominem::FreeFlyCameraController m_DebugFly; ///< F6 toggles free-fly camera without opening the F2 panel.
 	float     m_FlySpeed   = 3.0f;
 	float     m_FlyYaw     = 0.0f;
 	float     m_FlyPitch   = 0.0f;
