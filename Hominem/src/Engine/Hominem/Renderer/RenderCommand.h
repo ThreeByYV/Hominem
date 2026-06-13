@@ -49,6 +49,24 @@ namespace Hominem {
 			s_RendererAPI->SetDepthTestEnabled(enabled);
 		}
 
+		/// Enables or disables writing to the depth buffer (depth test can stay enabled).
+		inline static void SetDepthWriteEnabled(bool enabled)
+		{
+			s_RendererAPI->SetDepthWriteEnabled(enabled);
+		}
+
+		/// Selects the colour blend equation for subsequent draws.
+		inline static void SetBlendMode(BlendMode mode)
+		{
+			s_RendererAPI->SetBlendMode(mode);
+		}
+
+		/// Enables or disables back-face culling.
+		inline static void SetCullFaceEnabled(bool enabled)
+		{
+			s_RendererAPI->SetCullFaceEnabled(enabled);
+		}
+
 		/// Enables or disables the scissor test.
 		inline static void SetScissorEnabled(bool enabled)
 		{
@@ -95,6 +113,12 @@ namespace Hominem {
 		inline static void DrawFullscreenTriangle()
 		{
 			s_RendererAPI->DrawFullscreenTriangle();
+		}
+
+		/// Draws a unit quad (-0.5..0.5 in XY, Z=0) using gl_VertexID — no VBO needed.
+		inline static void DrawUnitQuad()
+		{
+			s_RendererAPI->DrawUnitQuad();
 		}
 
 		/// Binds a texture to the given texture unit.

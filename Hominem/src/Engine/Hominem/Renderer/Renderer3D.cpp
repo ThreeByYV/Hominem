@@ -57,6 +57,8 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/bloom_blur.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/skybox.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/silhouette.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/fire_quad.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/smoke_quad.glsl");
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});

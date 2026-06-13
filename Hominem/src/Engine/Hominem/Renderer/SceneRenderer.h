@@ -43,6 +43,8 @@ private:
     Ref<Shader> m_BlurShader;
     Ref<Shader> m_CompositeShader;
     Ref<Shader> m_SkyboxShader;
+    Ref<Shader> m_FireQuadShader;
+    Ref<Shader> m_SmokeQuadShader;
 };
 
 }
