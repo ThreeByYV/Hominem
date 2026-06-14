@@ -84,9 +84,7 @@ namespace Hominem {
 		glDebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PERFORMANCE, GL_DEBUG_SEVERITY_LOW, 0, nullptr, GL_FALSE);
 #endif
 
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_DEPTH_TEST);
+		ApplyState(PipelineState::DepthTestWriteCull());
 		glCreateVertexArrays(1, &m_EmptyVAO);
 	}
 
@@ -124,6 +122,17 @@ namespace Hominem {
 	void OpenGLRendererAPI::SetDepthWriteEnabled(bool enabled)
 	{
 		glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+	}
+
+	void OpenGLRendererAPI::ApplyState(const PipelineState& s)
+	{
+		s.blend ? glEnable(GL_BLEND) : glDisable(GL_BLEND);
+		if (s.blend)
+			glBlendFunc(GL_SRC_ALPHA, s.blendMode == BlendMode::Additive ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
+		s.depthTest  ? glEnable(GL_DEPTH_TEST)   : glDisable(GL_DEPTH_TEST);
+		s.cullFace   ? glEnable(GL_CULL_FACE)    : glDisable(GL_CULL_FACE);
+		s.scissor    ? glEnable(GL_SCISSOR_TEST) : glDisable(GL_SCISSOR_TEST);
+		glDepthMask(s.depthWrite ? GL_TRUE : GL_FALSE);
 	}
 
 	void OpenGLRendererAPI::SetBlendMode(BlendMode mode)
@@ -205,6 +214,62 @@ namespace Hominem {
 	const char* OpenGLRendererAPI::GetGPURenderer() const
 	{
 		return (const char*)glGetString(GL_RENDERER);
+	}
+
+	uint32_t OpenGLRendererAPI::GenFramebuffer()
+	{
+		uint32_t id; glGenFramebuffers(1, &id); return id;
+	}
+
+	void OpenGLRendererAPI::BindFramebuffer(uint32_t id)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, id);
+	}
+
+	void OpenGLRendererAPI::UnbindFramebuffer()
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	void OpenGLRendererAPI::DeleteFramebuffer(uint32_t id)
+	{
+		glDeleteFramebuffers(1, &id);
+	}
+
+	void OpenGLRendererAPI::AttachCubeFace(uint32_t cubeID, int face, int mip)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		                       GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cubeID, mip);
+	}
+
+	void OpenGLRendererAPI::Attach2DTexture(uint32_t texID)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texID, 0);
+	}
+
+	uint32_t OpenGLRendererAPI::GenRenderbuffer()
+	{
+		uint32_t id; glGenRenderbuffers(1, &id); return id;
+	}
+
+	void OpenGLRendererAPI::BindRenderbuffer(uint32_t id)
+	{
+		glBindRenderbuffer(GL_RENDERBUFFER, id);
+	}
+
+	void OpenGLRendererAPI::RenderbufferDepth(uint32_t width, uint32_t height)
+	{
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+	}
+
+	void OpenGLRendererAPI::AttachRenderbuffer(uint32_t rboID)
+	{
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboID);
+	}
+
+	void OpenGLRendererAPI::DeleteRenderbuffer(uint32_t id)
+	{
+		glDeleteRenderbuffers(1, &id);
 	}
 
 }

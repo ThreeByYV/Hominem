@@ -8,6 +8,9 @@
 #include "VertexArray.h"
 #include "SubTexture2D.h"
 #include "StorageBuffer.h"
+#include "CommandList.h"
+
+#include <optional>
 
 namespace Hominem {
 
@@ -29,7 +32,8 @@ namespace Hominem {
 
 	struct Renderer2DStorage
 	{
-		glm::mat4 ViewProjectionMatrix;
+		glm::mat4              ViewProjectionMatrix;
+		std::optional<CommandList> Cmd;
 
 		static const uint32_t MaxQuads = 10000;
 		Ref<StorageBuffer>     QuadSSBO;

@@ -1,137 +1,104 @@
 #pragma once
 
-#include "RendererAPI.h"
+#include "CommandList.h"
 
 namespace Hominem {
 
-	class RenderCommand
-	{
-	public:
-		/// Initialises the underlying RendererAPI (called once at startup).
-		inline static void Init()
-		{
-			s_RendererAPI->Init();
-		}
+class RenderCommand
+{
+public:
+    inline static void Init()
+    {
+        s_RendererAPI->Init();
+    }
 
-		/// Sets the GL viewport rectangle.
-		inline static void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
-		{
-			s_RendererAPI->SetViewport(x, y, width, height);
-		}
+    /// Sets all rasterizer/blend/depth state and returns a CommandList token to issue draws.
+    /// Every draw call must go through the returned CommandList, you cannot draw without one.
+    inline static CommandList SetPipelineState(const PipelineState& s)
+    {
+        s_RendererAPI->ApplyState(s);
+        return CommandList{ s_RendererAPI };
+    }
 
-		/// Sets the color written by the next Clear() call.
-		inline static void SetClearColor(const glm::vec4& color)
-		{
-			s_RendererAPI->SetClearColor(color);
-		}
+    inline static void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+    {
+        s_RendererAPI->SetViewport(x, y, width, height);
+    }
 
-		/// Clears the color and depth buffers.
-		inline static void Clear()
-		{
-			s_RendererAPI->Clear();
-		}
+    inline static void SetClearColor(const glm::vec4& color)
+    {
+        s_RendererAPI->SetClearColor(color);
+    }
 
-		/// Draws the indexed geometry in the given vertex array.
-		inline static void DrawIndexed(const Ref<VertexArray>& vertexArray)
-		{
-			s_RendererAPI->DrawIndexed(vertexArray);
-		}
+    inline static void Clear()
+    {
+        s_RendererAPI->Clear();
+    }
 
-		/// Draws indexCount indices from the given vertex array as GL_LINES.
-		inline static void DrawIndexedLines(const Ref<VertexArray>& vertexArray, uint32_t indexCount)
-		{
-			s_RendererAPI->DrawIndexedLines(vertexArray, indexCount);
-		}
+    inline static void SetDepthTestEnabled(bool enabled)
+    {
+        s_RendererAPI->SetDepthTestEnabled(enabled);
+    }
 
-		/// Enables or disables the depth test.
-		inline static void SetDepthTestEnabled(bool enabled)
-		{
-			s_RendererAPI->SetDepthTestEnabled(enabled);
-		}
+    inline static void SetDepthWriteEnabled(bool enabled)
+    {
+        s_RendererAPI->SetDepthWriteEnabled(enabled);
+    }
 
-		/// Enables or disables writing to the depth buffer (depth test can stay enabled).
-		inline static void SetDepthWriteEnabled(bool enabled)
-		{
-			s_RendererAPI->SetDepthWriteEnabled(enabled);
-		}
+    inline static void SetBlendMode(BlendMode mode)
+    {
+        s_RendererAPI->SetBlendMode(mode);
+    }
 
-		/// Selects the colour blend equation for subsequent draws.
-		inline static void SetBlendMode(BlendMode mode)
-		{
-			s_RendererAPI->SetBlendMode(mode);
-		}
+    inline static void SetCullFaceEnabled(bool enabled)
+    {
+        s_RendererAPI->SetCullFaceEnabled(enabled);
+    }
 
-		/// Enables or disables back-face culling.
-		inline static void SetCullFaceEnabled(bool enabled)
-		{
-			s_RendererAPI->SetCullFaceEnabled(enabled);
-		}
+    inline static void SetScissorEnabled(bool enabled)
+    {
+        s_RendererAPI->SetScissorEnabled(enabled);
+    }
 
-		/// Enables or disables the scissor test.
-		inline static void SetScissorEnabled(bool enabled)
-		{
-			s_RendererAPI->SetScissorEnabled(enabled);
-		}
+    inline static void SetWireframe(bool enabled)
+    {
+        s_RendererAPI->SetWireframe(enabled);
+    }
 
-		/// Draws count vertices as points with the given pixel size.
-		inline static void DrawPoints(uint32_t count, float pointSize)
-		{
-			s_RendererAPI->DrawPoints(count, pointSize);
-		}
+    inline static void BindEmptyVAO()
+    {
+        s_RendererAPI->BindEmptyVAO();
+    }
 
-		/// Draws count patches for tessellation. patchVertices = vertices per patch.
-		inline static void DrawPatches(uint32_t count, uint32_t patchVertices = 1)
-		{
-			s_RendererAPI->DrawPatches(count, patchVertices);
-		}
+    inline static void UnbindVAO()
+    {
+        s_RendererAPI->UnbindVAO();
+    }
 
-		/// Toggles wireframe polygon mode.
-		inline static void SetWireframe(bool enabled)
-		{
-			s_RendererAPI->SetWireframe(enabled);
-		}
+    inline static void BindTexture(uint32_t slot, uint32_t id)
+    {
+        s_RendererAPI->BindTexture(slot, id);
+    }
 
-		/// Binds the engine-owned empty VAO (required by OpenGL before any draw call).
-		inline static void BindEmptyVAO()
-		{
-			s_RendererAPI->BindEmptyVAO();
-		}
+    inline static const char* GetGPUVendor()   { return s_RendererAPI->GetGPUVendor();   }
+    inline static const char* GetGPURenderer() { return s_RendererAPI->GetGPURenderer(); }
 
-		/// Unbinds the currently bound VAO.
-		inline static void UnbindVAO()
-		{
-			s_RendererAPI->UnbindVAO();
-		}
+    inline static uint32_t GenFramebuffer()                                    { return s_RendererAPI->GenFramebuffer(); }
+    inline static void     BindFramebuffer(uint32_t id)                        { s_RendererAPI->BindFramebuffer(id); }
+    inline static void     UnbindFramebuffer()                                 { s_RendererAPI->UnbindFramebuffer(); }
+    inline static void     DeleteFramebuffer(uint32_t id)                      { s_RendererAPI->DeleteFramebuffer(id); }
+    inline static void     AttachCubeFace(uint32_t cubeID, int face, int mip)  { s_RendererAPI->AttachCubeFace(cubeID, face, mip); }
+    inline static void     Attach2DTexture(uint32_t texID)                     { s_RendererAPI->Attach2DTexture(texID); }
 
-		/// Issues an indirect draw using parameters from the currently bound DrawIndirectBuffer at the given byte offset.
-		inline static void DrawArraysIndirect(uint32_t offset)
-		{
-			s_RendererAPI->DrawArraysIndirect(offset);
-		}
+    inline static uint32_t GenRenderbuffer()                                   { return s_RendererAPI->GenRenderbuffer(); }
+    inline static void     BindRenderbuffer(uint32_t id)                       { s_RendererAPI->BindRenderbuffer(id); }
+    inline static void     RenderbufferDepth(uint32_t width, uint32_t height)  { s_RendererAPI->RenderbufferDepth(width, height); }
+    inline static void     AttachRenderbuffer(uint32_t rboID)                  { s_RendererAPI->AttachRenderbuffer(rboID); }
+    inline static void     DeleteRenderbuffer(uint32_t id)                     { s_RendererAPI->DeleteRenderbuffer(id); }
 
-		/// Draws a fullscreen triangle using gl_VertexID — no VBO needed. Use for post-process passes.
-		inline static void DrawFullscreenTriangle()
-		{
-			s_RendererAPI->DrawFullscreenTriangle();
-		}
-
-		/// Draws a unit quad (-0.5..0.5 in XY, Z=0) using gl_VertexID — no VBO needed.
-		inline static void DrawUnitQuad()
-		{
-			s_RendererAPI->DrawUnitQuad();
-		}
-
-		/// Binds a texture to the given texture unit.
-		inline static void BindTexture(uint32_t slot, uint32_t id)
-		{
-			s_RendererAPI->BindTexture(slot, id);
-		}
-
-		inline static const char* GetGPUVendor()   { return s_RendererAPI->GetGPUVendor();   }
-		inline static const char* GetGPURenderer() { return s_RendererAPI->GetGPURenderer(); }
-
-	private:
-		static RendererAPI* s_RendererAPI;
-	};
+private:
+    static RendererAPI* s_RendererAPI;
+    friend class CommandList;
+};
 
 }

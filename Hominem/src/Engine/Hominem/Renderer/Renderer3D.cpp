@@ -385,16 +385,16 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 
     if (s_DrawAABB && s_Data->DebugAABBShader)
     {
-        s_Data->DebugAABBShader->Bind();
         s_Data->DebugVAO->Bind();
-        RenderCommand::SetDepthTestEnabled(false);
+        auto cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
+        cmd.BindShader(s_Data->DebugAABBShader);
 
         const size_t groupCount = mesh.GetDrawGroupCount();
         for (size_t gi = 0; gi < groupCount; gi++)
         {
-            auto [mn, mx]          = mesh.GetDrawGroupBounds(gi);
-            const glm::mat4 model  = transform * mesh.GetDrawGroupTransform(gi);
-            const bool      visible = s_Scene->CameraFrustum.TestAABBTransformed(mn, mx, model);
+            auto [mn, mx]         = mesh.GetDrawGroupBounds(gi);
+            const glm::mat4 model = transform * mesh.GetDrawGroupTransform(gi);
+            const bool    visible = s_Scene->CameraFrustum.TestAABBTransformed(mn, mx, model);
 
             const glm::vec3 corners[8] = {
                 glm::vec3(model * glm::vec4(mn.x, mn.y, mn.z, 1.f)),
@@ -406,14 +406,14 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
                 glm::vec3(model * glm::vec4(mx.x, mx.y, mx.z, 1.f)),
                 glm::vec3(model * glm::vec4(mn.x, mx.y, mx.z, 1.f)),
             };
-            s_Data->DebugVBO->SetData(corners, sizeof(corners));
-            s_Data->DebugAABBShader->SetFloat4("u_Color",
+            cmd.SetBufferData(s_Data->DebugVBO, corners, sizeof(corners));
+            cmd.SetFloat4(s_Data->DebugAABBShader, "u_Color",
                 visible ? glm::vec4(0.f, 1.f, 0.f, 1.f)
                         : glm::vec4(1.f, 0.f, 0.f, 1.f));
-            RenderCommand::DrawIndexedLines(s_Data->DebugVAO, 24);
+            cmd.DrawIndexedLines(s_Data->DebugVAO, 24);
         }
+        cmd.Submit();
 
-        RenderCommand::SetDepthTestEnabled(true);
         s_Data->DebugVAO->Unbind();
     }
 }
@@ -422,21 +422,21 @@ void Renderer3D::DrawDebugLights(const std::vector<Light>& lights)
 {
     if (lights.empty() || !s_Data->DebugSphereShader) return;
 
-    s_Data->DebugSphereShader->Bind();
-    s_Data->DebugSphereShader->SetFloat("u_TessLevel", 16.f);
     s_Data->DebugVAO->Bind();
+    auto cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
+    cmd.BindShader(s_Data->DebugSphereShader);
+    cmd.SetFloat(s_Data->DebugSphereShader, "u_TessLevel", 16.f);
 
-    RenderCommand::SetDepthTestEnabled(false);
     for (const auto& light : lights)
     {
         glm::vec3 pos = light.Position;
-        s_Data->DebugVBO->SetData(&pos, sizeof(glm::vec3));
-        s_Data->DebugSphereShader->SetFloat4("u_Color", glm::vec4(light.Color, 1.f));
         float gizmoRadius = glm::clamp(light.Radius * 0.08f, 0.05f, 0.4f);
-        s_Data->DebugSphereShader->SetFloat("u_Radius", gizmoRadius);
-        RenderCommand::DrawPatches(1, 1);
+        cmd.SetBufferData(s_Data->DebugVBO, &pos, sizeof(glm::vec3));
+        cmd.SetFloat4(s_Data->DebugSphereShader, "u_Color",  glm::vec4(light.Color, 1.f));
+        cmd.SetFloat (s_Data->DebugSphereShader, "u_Radius", gizmoRadius);
+        cmd.DrawPatches(1, 1);
     }
-    RenderCommand::SetDepthTestEnabled(true);
+    cmd.Submit();
     s_Data->DebugVAO->Unbind();
 }
 

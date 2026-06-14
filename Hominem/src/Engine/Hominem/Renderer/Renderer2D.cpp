@@ -102,6 +102,7 @@ namespace Hominem {
 
 	void Renderer2D::BeginScene(OrthographicCamera& camera)
 	{
+		s_Data->Cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
 		s_Data->ViewProjectionMatrix = camera.GetViewProjectionMatrix();
 		s_Data->QuadBatch.clear();
 		s_Data->TextureGroups.clear();
@@ -112,6 +113,7 @@ namespace Hominem {
 
 	void Renderer2D::BeginScene(Camera& camera, const glm::mat4& transform)
 	{
+		s_Data->Cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
 		glm::mat4 viewProj = camera.GetProjectionMatrix() * glm::inverse(transform);
 		s_Data->ViewProjectionMatrix = viewProj;
 		s_Data->QuadBatch.clear();
@@ -123,6 +125,7 @@ namespace Hominem {
 
 	void Renderer2D::BeginScene(const glm::mat4& viewProjection)
 	{
+		s_Data->Cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
 		s_Data->ViewProjectionMatrix = viewProjection;
 		s_Data->QuadBatch.clear();
 		s_Data->TextureGroups.clear();
@@ -157,21 +160,23 @@ namespace Hominem {
 			static_cast<uint32_t>(sizeof(DrawArraysIndirectCommand) * cmds.size()));
 
 		Ref<Shader> shader = s_Data->OverrideShader ? s_Data->OverrideShader : s_Data->BatchPVPShader;
-		shader->Bind();
-		shader->SetMat4("u_ViewProjection", s_Data->ViewProjectionMatrix);
-		shader->SetInt("u_Texture", 0);
 
 		s_Data->QuadSSBO->BindBase(0);
 		s_Data->IndirectBuffer->Bind();
 		RenderCommand::BindEmptyVAO();
 
+		s_Data->Cmd->BindShader(shader);
+		s_Data->Cmd->SetMat4(shader, "u_ViewProjection", s_Data->ViewProjectionMatrix);
+		s_Data->Cmd->SetInt (shader, "u_Texture", 0);
+
 		for (size_t i = 0; i < s_Data->TextureGroups.size(); i++)
 		{
 			auto& texRef = s_Data->TextureGroups[i].Texture;
-			(texRef ? texRef : s_Data->WhiteTexture)->Bind();
-			RenderCommand::DrawArraysIndirect(
+			s_Data->Cmd->BindTexture(0, (texRef ? texRef : s_Data->WhiteTexture)->GetRendererID());
+			s_Data->Cmd->DrawArraysIndirect(
 				static_cast<uint32_t>(i * sizeof(DrawArraysIndirectCommand)));
 		}
+		s_Data->Cmd->Submit();
 
 		RenderCommand::UnbindVAO();
 		s_Data->IndirectBuffer->Unbind();
@@ -296,7 +301,8 @@ namespace Hominem {
 			q.Shader->SetFloat4("u_Color", q.Color);
 			(q.Texture ? q.Texture : s_Data->WhiteTexture)->Bind();
 			s_Data->QuadVertexArray->Bind();
-			RenderCommand::DrawIndexed(s_Data->QuadVertexArray);
+			s_Data->Cmd->DrawIndexed(s_Data->QuadVertexArray);
+			s_Data->Cmd->Submit();
 			return;
 		}
 
@@ -377,7 +383,8 @@ namespace Hominem {
 
 			s_Data->TextVertexBuffer->SetData(vertices, sizeof(vertices));
 			s_Data->TextVertexArray->Bind();
-			RenderCommand::DrawIndexed(s_Data->TextVertexArray);
+			s_Data->Cmd->DrawIndexed(s_Data->TextVertexArray);
+			s_Data->Cmd->Submit(); // vertex data changes per glyph - submit before next SetData
 
 			double advance = glyph->getAdvance();
 			if (i < string.size() - 1)

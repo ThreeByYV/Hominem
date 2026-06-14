@@ -1,13 +1,14 @@
 #include "hmnpch.h"
 #include "RenderGraph.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/RenderCommand.h"
 #include <algorithm>
 
 namespace Hominem {
 
-void RenderGraph::AddPass(std::string name, PassFn fn)
+void RenderGraph::AddPass(std::string name, PipelineState state, PassFn fn)
 {
-	m_Passes.push_back({ std::move(name), std::move(fn) });
+	m_Passes.push_back({ std::move(name), state, std::move(fn) });
 }
 
 void RenderGraph::AddFBO(std::string name, FramebufferFormat format, float scale, uint32_t numColorAttachments)
@@ -49,7 +50,11 @@ void RenderGraph::Execute(const RenderFrame& frame)
 			OnResize(frame.viewportWidth, frame.viewportHeight);
 
 	for (auto& pass : m_Passes)
-		pass.fn(*this, frame);
+	{
+		auto cmd = RenderCommand::SetPipelineState(pass.state);
+		pass.fn(*this, frame, cmd);
+		cmd.Submit();
+	}
 }
 
 void RenderGraph::OnResize(uint32_t w, uint32_t h)
