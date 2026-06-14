@@ -37,9 +37,14 @@ namespace Hominem {
 
 		virtual uint32_t GetRendererID() const = 0;
 
-		// Allocates the GL cubemap storage for a CreateEmpty() texture. Must be
-		// called on the render thread before the texture is used as a render
-		// target or sampled. Safe to call multiple times (no-op if already created).
+		// Number of mip levels allocated for a CreateEmpty() cube (full chain down
+		// to 1x1). Valid only after EnsureCreated().
+		virtual uint32_t GetMipLevels() const = 0;
+
+		// Allocates the GL cubemap storage for a CreateEmpty() texture, including
+		// the full mip chain down to 1x1. Must be called on the render thread
+		// before the texture is used as a render target or sampled. Safe to call
+		// multiple times (no-op if already created).
 		virtual void EnsureCreated() = 0;
 
 		// Generates a full mip chain from the current face contents (e.g. after

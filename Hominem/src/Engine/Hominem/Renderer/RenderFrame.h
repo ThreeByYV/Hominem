@@ -20,8 +20,9 @@ namespace Hominem {
 	struct BakedEnvMap
 	{
 		std::atomic<bool> ready { false };
-		Ref<TextureCube>  map;        // raw scene cubemap from EnvironmentProbe::Bake
-		Ref<TextureCube>  irradiance; // diffuse irradiance, convolved from map
+		Ref<TextureCube>  map;         // raw scene cubemap from EnvironmentProbe::Bake
+		Ref<TextureCube>  irradiance;  // diffuse irradiance, convolved from map
+		Ref<TextureCube>  prefiltered; // specular prefilter mip chain, convolved from map
 	};
 
 	struct QuadDraw
@@ -155,7 +156,8 @@ namespace Hominem {
 
 		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by Renderer3D
 		Ref<TextureCube> envMap;
-		Ref<TextureCube> irradianceMap; // diffuse IBL, sampled alongside envMap
+		Ref<TextureCube> irradianceMap;   // diffuse IBL, sampled alongside envMap
+		Ref<TextureCube> prefilteredMap;  // specular IBL mip chain, sampled alongside envMap
 		float            envMapIntensity = 0.f;
 		float            eta             = 0.667f;
 		float            fresnelPower    = 5.f;

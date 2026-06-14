@@ -134,4 +134,59 @@ Ref<TextureCube> EnvironmentProbe::ConvolveIrradiance(const Ref<TextureCube>& so
     return cube;
 }
 
+Ref<TextureCube> EnvironmentProbe::PrefilterSpecular(const Ref<TextureCube>& source, uint32_t resolution)
+{
+    RenderThread::AssertRenderThread();
+
+    auto cube = TextureCube::CreateEmpty(resolution);
+    cube->EnsureCreated();
+
+    auto shader = Renderer3D::GetShaderLibrary()->Get("prefilter_convolve");
+    HMN_CORE_ASSERT(shader, "EnvironmentProbe: prefilter_convolve shader not loaded");
+
+    // Color-only FBO, no depth needed for a fullscreen-triangle convolution.
+    uint32_t fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    const glm::mat4 proj      = glm::perspective(glm::radians(90.f), 1.f, 0.1f, 10.f);
+    const uint32_t  mipLevels = cube->GetMipLevels();
+
+    RenderCommand::SetDepthTestEnabled(false);
+    shader->Bind();
+    shader->SetInt("u_EnvMap", 0);
+    RenderCommand::BindTexture(0, source->GetRendererID());
+
+    for (uint32_t mip = 0; mip < mipLevels; mip++)
+    {
+        const uint32_t mipRes     = std::max(1u, resolution >> mip);
+        const float    roughness  = (mipLevels > 1) ? (float)mip / (float)(mipLevels - 1) : 0.f;
+        shader->SetFloat("u_Roughness", roughness);
+
+        for (int face = 0; face < 6; face++)
+        {
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                                   cube->GetRendererID(), mip);
+
+            glViewport(0, 0, (GLsizei)mipRes, (GLsizei)mipRes);
+
+            const glm::mat4 view   = glm::lookAt(glm::vec3(0.f), s_FaceTargets[face], s_FaceUps[face]);
+            const glm::mat4 invVP  = glm::inverse(proj * view);
+            shader->SetMat4("u_InvViewProj", invVP);
+
+            RenderCommand::DrawFullscreenTriangle();
+        }
+    }
+
+    RenderCommand::SetDepthTestEnabled(true);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+
+    HMN_CORE_INFO("EnvironmentProbe: prefiltered {}x{} specular cubemap, {} mips",
+                  resolution, resolution, mipLevels);
+
+    return cube;
+}
+
 }

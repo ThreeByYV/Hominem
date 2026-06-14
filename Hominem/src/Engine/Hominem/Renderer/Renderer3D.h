@@ -123,8 +123,9 @@ private:
     struct SceneData
     {
         std::vector<Light> Lights;
-        uint32_t EnvMapID        = 0;
-        uint32_t IrradianceMapID = 0;
+        uint32_t EnvMapID         = 0;
+        uint32_t IrradianceMapID  = 0;
+        uint32_t PrefilteredMapID = 0;
         float    EnvMapIntensity = 0.f;
         float    ETA             = 0.667f;
         float    FresnelPower    = 5.f;

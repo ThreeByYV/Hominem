@@ -60,6 +60,7 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/fire_quad.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/smoke_quad.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/irradiance_convolve.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/prefilter_convolve.glsl");
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
@@ -200,10 +201,11 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
 {
     HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
 
-    const uint32_t envID     = frame.envMap ? frame.envMap->GetRendererID() : 0u;
-    s_Scene->EnvMapID        = envID;
-    s_Scene->IrradianceMapID = frame.irradianceMap ? frame.irradianceMap->GetRendererID() : 0u;
-    s_Scene->EnvMapIntensity = (envID != 0u) ? frame.envMapIntensity : 0.f;
+    const uint32_t envID      = frame.envMap ? frame.envMap->GetRendererID() : 0u;
+    s_Scene->EnvMapID         = envID;
+    s_Scene->IrradianceMapID  = frame.irradianceMap  ? frame.irradianceMap->GetRendererID()  : 0u;
+    s_Scene->PrefilteredMapID = frame.prefilteredMap ? frame.prefilteredMap->GetRendererID() : 0u;
+    s_Scene->EnvMapIntensity  = (envID != 0u) ? frame.envMapIntensity : 0.f;
     s_Scene->ETA             = frame.eta;
     s_Scene->FresnelPower    = frame.fresnelPower;
     s_Scene->Lights          = frame.lights;
@@ -347,6 +349,8 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
         RenderCommand::BindTexture(3, s_Scene->EnvMapID);
         if (s_Scene->IrradianceMapID != 0u)
             RenderCommand::BindTexture(4, s_Scene->IrradianceMapID);
+        if (s_Scene->PrefilteredMapID != 0u)
+            RenderCommand::BindTexture(5, s_Scene->PrefilteredMapID);
     }
 
     const Material& mat = mesh.GetMaterial();
