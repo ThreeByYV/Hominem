@@ -110,6 +110,7 @@ namespace Hominem {
 		case TextureFormat::RGB8:  m_InternalFormat = GL_RGB8;  m_DataFormat = GL_RGB;  break;
 		case TextureFormat::RGBA8: m_InternalFormat = GL_RGBA8; m_DataFormat = GL_RGBA; break;
 		case TextureFormat::RED8:  m_InternalFormat = GL_R8;    m_DataFormat = GL_RED;  break;
+		case TextureFormat::RG16F: m_InternalFormat = GL_RG16F; m_DataFormat = GL_RG;   break;
 		default: HMN_CORE_ASSERT(false, "Unsupported texture format!"); break;
 		}
 		// GPU upload deferred to UploadToGPU(), triggered lazily from Bind().
@@ -236,6 +237,13 @@ namespace Hominem {
 
 		m_PendingPixels.clear();
 		m_PendingPixels.shrink_to_fit();
+	}
+
+	void OpenGLTexture2D::EnsureCreated()
+	{
+		RenderThread::AssertRenderThread();
+		if (m_RendererID) return;
+		UploadToGPU();
 	}
 
 	void OpenGLTexture2D::QueueUpload()

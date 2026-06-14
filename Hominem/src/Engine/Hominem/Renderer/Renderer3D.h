@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Shader.h"
+#include "Texture.h"
 #include "ShaderPermutation.h"
 #include "Buffer.h"
 #include "VertexArray.h"
@@ -52,6 +53,8 @@ struct Renderer3DStorage
     Ref<VertexArray>         DebugVAO;
     Ref<VertexBuffer>        DebugVBO;
     Ref<IndexBuffer>         DebugIBO;
+
+    Ref<Texture2D>     BRDFLUT;              // slot 6, RG16F split-sum (scale, bias) LUT, baked once at startup
 
     Ref<UniformBuffer> SceneUBO;             // binding 0 — SceneUBOData, uploaded once per frame
 

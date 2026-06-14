@@ -189,4 +189,34 @@ Ref<TextureCube> EnvironmentProbe::PrefilterSpecular(const Ref<TextureCube>& sou
     return cube;
 }
 
+Ref<Texture2D> EnvironmentProbe::BakeBRDFLUT(uint32_t resolution)
+{
+    RenderThread::AssertRenderThread();
+
+    auto lut = Texture2D::Create(resolution, resolution, TextureFormat::RG16F);
+    lut->EnsureCreated();
+
+    auto shader = Renderer3D::GetShaderLibrary()->Get("brdf_lut");
+    HMN_CORE_ASSERT(shader, "EnvironmentProbe: brdf_lut shader not loaded");
+
+    uint32_t fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, lut->GetRendererID(), 0);
+
+    glViewport(0, 0, (GLsizei)resolution, (GLsizei)resolution);
+
+    RenderCommand::SetDepthTestEnabled(false);
+    shader->Bind();
+    RenderCommand::DrawFullscreenTriangle();
+    RenderCommand::SetDepthTestEnabled(true);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+
+    HMN_CORE_INFO("EnvironmentProbe: baked {}x{} BRDF LUT", resolution, resolution);
+
+    return lut;
+}
+
 }

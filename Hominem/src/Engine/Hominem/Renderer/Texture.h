@@ -10,7 +10,8 @@ namespace Hominem {
 		None = 0,
 		RGB8,
 		RGBA8,
-		RED8
+		RED8,
+		RG16F
 	};
 
 	enum class TextureWrap { Repeat, ClampToEdge, MirroredRepeat };
@@ -66,6 +67,13 @@ namespace Hominem {
 
 		virtual void SetWrapS(TextureWrap wrap) = 0;
 		virtual void SetWrapT(TextureWrap wrap) = 0;
+
+		virtual uint32_t GetRendererID() const = 0;
+
+		// Allocates the GL texture storage immediately (no pending pixel data).
+		// Must be called on the render thread before use as a render target.
+		// Safe to call multiple times (no-op if already created).
+		virtual void EnsureCreated() = 0;
 	};
 
 }
