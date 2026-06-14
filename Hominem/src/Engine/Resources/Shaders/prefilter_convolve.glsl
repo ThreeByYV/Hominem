@@ -1,7 +1,6 @@
 #type vertex
 #version 450 core
 
-// Fullscreen triangle, positions generated from gl_VertexID, no VBO.
 out vec2 v_NDC;
 
 void main()
@@ -34,6 +33,7 @@ const uint SAMPLE_COUNT = 64u;
 void main()
 {
     vec4 worldFar = u_InvViewProj * vec4(v_NDC, 1.0, 1.0);
+    if (abs(worldFar.w) < 1e-5) { FragColor = vec4(0.0); return; }
     vec3 N = normalize(worldFar.xyz / worldFar.w);
     vec3 V = N;
 
@@ -49,7 +49,7 @@ void main()
         float NdotL = max(dot(N, L), 0.0);
         if (NdotL > 0.0)
         {
-            prefiltered += texture(u_EnvMap, L).rgb * NdotL;
+            prefiltered += textureLod(u_EnvMap, L, 0.0).rgb * NdotL;
             totalWeight += NdotL;
         }
     }

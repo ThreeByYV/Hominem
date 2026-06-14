@@ -84,7 +84,7 @@ namespace Hominem {
     }
 
     std::pair<uint32_t, uint64_t> OpenGLStaticMesh::Draw(
-        const Ref<Shader>& shader, const glm::mat4& actorTransform, const Frustum* frustum)
+        const Ref<Shader>& shader, const glm::mat4& actorTransform, CommandList& cmd, const Frustum* frustum)
     {
         HMN_PROFILE_FUNCTION();
         if (!m_VAO || m_DrawGroups.empty()) return { 0, 0 };
@@ -137,26 +137,26 @@ namespace Hominem {
         if (tl_cmds.empty()) return { 0, 0 };
 
         // Upload all model matrices to SSBO at binding 5.
-        glNamedBufferSubData(m_ModelMatrixSSBO, 0,
-            (GLsizeiptr)(tl_matrices.size() * sizeof(glm::mat4)), tl_matrices.data());
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, m_ModelMatrixSSBO);
+        cmd.UpdateBufferSubData(m_ModelMatrixSSBO, tl_matrices.data(),
+            (uint32_t)(tl_matrices.size() * sizeof(glm::mat4)), 0);
+        cmd.BindShaderStorageBufferBase(m_ModelMatrixSSBO, 5);
 
         // Upload all draw commands.
-        glNamedBufferSubData(m_DrawCommandBuffer, 0,
-            (GLsizeiptr)(tl_cmds.size() * sizeof(DrawCmd)), tl_cmds.data());
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, m_DrawCommandBuffer);
+        cmd.UpdateBufferSubData(m_DrawCommandBuffer, tl_cmds.data(),
+            (uint32_t)(tl_cmds.size() * sizeof(DrawCmd)), 0);
+        cmd.BindDrawIndirectBuffer(m_DrawCommandBuffer);
 
-        glDisable(GL_CULL_FACE);
-        shader->Bind();
-        glBindVertexArray(m_VAO);
+        cmd.SetCullFaceEnabled(false);
+        cmd.BindShader(shader);
+        cmd.BindVAORaw(m_VAO);
 
         uint32_t drawCalls = 0;
         uint64_t triangles = 0;
 
         // Batch by unique texture triple, bind before each batch.
-        shader->SetInt("u_Albedo",         0);
-        shader->SetInt("u_MetalRoughness", 1);
-        shader->SetInt("u_NormalMap",      2);
+        cmd.SetInt(shader, "u_Albedo",         0);
+        cmd.SetInt(shader, "u_MetalRoughness", 1);
+        cmd.SetInt(shader, "u_NormalMap",      2);
 
         const Texture2D* lastAlbedo = nullptr;
         const Texture2D* lastMR     = nullptr;
@@ -173,18 +173,16 @@ namespace Hominem {
                    tl_batches[batchEnd].normal == tl_batches[batchStart].normal)
                 batchEnd++;
 
-            if (tl_batches[batchStart].albedo != lastAlbedo) { tl_batches[batchStart].albedo->Bind(0); lastAlbedo = tl_batches[batchStart].albedo; }
-            if (tl_batches[batchStart].mr     != lastMR)     { tl_batches[batchStart].mr->Bind(1);     lastMR     = tl_batches[batchStart].mr;     }
-            if (tl_batches[batchStart].normal != lastNormal)  { tl_batches[batchStart].normal->Bind(2); lastNormal = tl_batches[batchStart].normal; }
+            if (tl_batches[batchStart].albedo != lastAlbedo) { cmd.BindTexture(0, tl_batches[batchStart].albedo->GetRendererID()); lastAlbedo = tl_batches[batchStart].albedo; }
+            if (tl_batches[batchStart].mr     != lastMR)     { cmd.BindTexture(1, tl_batches[batchStart].mr->GetRendererID());     lastMR     = tl_batches[batchStart].mr;     }
+            if (tl_batches[batchStart].normal != lastNormal)  { cmd.BindTexture(2, tl_batches[batchStart].normal->GetRendererID()); lastNormal = tl_batches[batchStart].normal; }
 
-            shader->SetInt("u_BaseModelIndex", (int)batchStart);
+            cmd.SetInt(shader, "u_BaseModelIndex", (int)batchStart);
 
-            glMultiDrawElementsIndirect(
-                GL_TRIANGLES,
-                GL_UNSIGNED_INT,
-                reinterpret_cast<const void*>((uintptr_t)(batchStart * sizeof(DrawCmd))),
-                (GLsizei)(batchEnd - batchStart),
-                (GLsizei)sizeof(DrawCmd));
+            cmd.MultiDrawElementsIndirect(
+                (uint32_t)(batchStart * sizeof(DrawCmd)),
+                batchEnd - batchStart,
+                (uint32_t)sizeof(DrawCmd));
 
             for (uint32_t i = batchStart; i < batchEnd; i++)
                 triangles += tl_batches[i].tris;
@@ -192,9 +190,9 @@ namespace Hominem {
             batchStart = batchEnd;
         }
 
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
-        glBindVertexArray(0);
-        glEnable(GL_CULL_FACE);
+        cmd.BindDrawIndirectBuffer(0);
+        cmd.BindVAORaw(0);
+        cmd.SetCullFaceEnabled(true);
 
         return { drawCalls, triangles };
     }

@@ -14,6 +14,16 @@ struct GLFWwindow;
 
 namespace Hominem {
 
+	/// A frame's worth of recorded CommandLists, ready to be submitted by the render thread.
+	/// Built on the main thread via SceneRenderer::Record.
+	struct RecordedFrame
+	{
+		std::vector<CommandList> passCmds;
+		uint32_t                 viewportWidth  = 0;
+		uint32_t                 viewportHeight = 0;
+		float                    renderScale    = 1.0f;
+	};
+
 	class RenderThread
 	{
 	public:
@@ -23,14 +33,20 @@ namespace Hominem {
 		RenderThread(const RenderThread&)            = delete;
 		RenderThread& operator=(const RenderThread&) = delete;
 
-		/// Takes the GL context and starts the render loop.
-		void Start(GLFWwindow* window);
+		/// Takes the GL context and starts the render loop. initialWidth/Height size the
+		/// FBOs before the main thread's first Record() call (queried from Window, not GL).
+		void Start(GLFWwindow* window, uint32_t initialWidth, uint32_t initialHeight);
 
 		/// Signals shutdown and blocks until the render thread exits.
 		void Stop();
 
-		/// Submits a completed frame for rendering. Blocks if the previous frame hasn't been consumed yet.
-		void Submit(RenderFrame&& frame);
+		/// Submits a frame's recorded CommandLists for rendering. Blocks if the previous frame hasn't been consumed yet.
+		void Submit(RecordedFrame&& frame);
+
+		/// Returns the scene renderer — used by the main thread to record CommandLists
+		/// and read the render graph (FBO ids/specs are stable for reading once the
+		/// previous frame's resize, if any, has completed — see ExecuteFrame).
+		SceneRenderer& GetSceneRenderer() { return m_SceneRenderer; }
 
 		/// Returns true when called from the render thread.
 		static bool IsOnRenderThread() { return std::this_thread::get_id() == s_ThreadId; }
@@ -55,31 +71,36 @@ namespace Hominem {
 		/// Call after ImGui::Render() — signals the render thread that draw data is ready to read.
 		void SignalImGuiReady();
 
-		/// Returns the arena the main thread should write into this frame.
-		FrameArena& GetWriteArena()          { return m_Arenas[m_WriteArenaIdx]; }
-
-		/// Returns the index of the current write arena (stored in RenderFrame::arenaIdx).
-		uint8_t     GetWriteArenaIdx() const { return m_WriteArenaIdx; }
+		/// Returns the arena the main thread should write bone matrices into this frame.
+		FrameArena& GetWriteArena() { return m_Arenas[m_WriteArenaIdx]; }
 
 	private:
 		void ThreadFunc();
-		void ExecuteFrame(const RenderFrame& frame);
+		void ExecuteFrame(RecordedFrame& frame);
 
 		GLFWwindow* m_Window = nullptr;
+		uint32_t    m_InitialWidth  = 0;
+		uint32_t    m_InitialHeight = 0;
 		std::thread m_Thread;
 
 		inline static std::thread::id s_ThreadId;
 
+		// Start() blocks until ThreadFunc has run SceneRenderer::Init() and the initial
+		// FBO resize — Record() (main thread) reads FBO ids and must never see nulls.
+		std::mutex              m_InitMutex;
+		std::condition_variable m_InitCV;
+		bool                    m_Initialized = false;
+
 		SceneRenderer           m_SceneRenderer;
-		RenderFrame             m_Frame;
+		RecordedFrame           m_Frame;
 		bool                    m_Consumed = true;
 		bool                    m_Shutdown = false;
 		std::mutex              m_Mutex;
 		std::condition_variable m_ReadyCV;
 		std::condition_variable m_ConsumedCV;
 
-		// Double-buffered arenas: main writes into arenas[m_WriteArenaIdx],
-		// render thread reads from the other. Flipped each Submit().
+		// Double-buffered arenas: main writes into arenas[m_WriteArenaIdx] then resets it
+		// after Record(). Flipped each Submit() so the next frame gets a fresh slot.
 		FrameArena m_Arenas[2];
 		uint8_t    m_WriteArenaIdx = 0;
 

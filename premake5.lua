@@ -158,6 +158,7 @@ project "PostHominem"
     files
     {
         "PostHominem/src/**.h",
+
         "PostHominem/src/**.cpp",
         "PostHominem/src/**.hpp",
         "PostHominem/src/Resources/**"

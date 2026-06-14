@@ -107,19 +107,19 @@ namespace Hominem {
 		CreateComputeSSBOs();
 	}
 
-	void OpenGLSkinnedMesh::Render(const Ref<Shader>& shader)
+	void OpenGLSkinnedMesh::Render(const Ref<Shader>& shader, CommandList& cmd)
 	{
 		if (!m_VAO) return;
 		Ref<Shader> active = shader ? shader : m_Shader;
 		HMN_CORE_ASSERT(active, "SkinnedMesh::Render called without a shader");
 
-		active->Bind();
-		glBindVertexArray(m_VAO);
-		DrawSubmeshes();
-		glBindVertexArray(0);
+		cmd.BindShader(active);
+		cmd.BindVAORaw(m_VAO);
+		DrawSubmeshes(cmd);
+		cmd.BindVAORaw(0);
 	}
 
-	void OpenGLSkinnedMesh::DrawSubmeshes()
+	void OpenGLSkinnedMesh::DrawSubmeshes(CommandList& cmd)
 	{
 		if (m_VAO == 0 || m_Submeshes.empty())
 		{
@@ -130,15 +130,13 @@ namespace Hominem {
 		for (const auto& submesh : m_Submeshes)
 		{
 			if (submesh.MaterialIndex < m_Materials.size() && m_Materials[submesh.MaterialIndex])
-				m_Materials[submesh.MaterialIndex]->Bind(0);
+				cmd.BindTexture(0, m_Materials[submesh.MaterialIndex]->GetRendererID());
 			else
-				glBindTexture(GL_TEXTURE_2D, 0);
+				cmd.BindTexture(0, 0);
 
-			glDrawElementsBaseVertex(
-				GL_TRIANGLES,
+			cmd.DrawElementsBaseVertex(
 				submesh.NumIndices,
-				GL_UNSIGNED_INT,
-				(void*)(sizeof(uint32_t) * submesh.BaseIndex),
+				(uint32_t)(sizeof(uint32_t) * submesh.BaseIndex),
 				submesh.BaseVertex);
 		}
 	}
@@ -190,28 +188,27 @@ namespace Hominem {
 		m_BoneCache.reserve(boneCount);
 	}
 
-	void OpenGLSkinnedMesh::DispatchSkinning(std::span<const glm::mat4> bones)
+	void OpenGLSkinnedMesh::DispatchSkinning(std::span<const glm::mat4> bones, CommandList& cmd)
 	{
 		if (!m_VAO || !m_ComputeShader || !m_InBoneDataSSBO) return;
 
 		// Always bind outputs and bone data so vertex + bone-weight shaders can read them.
-		m_InBoneDataSSBO->BindBase(3);
-		m_OutPosSSBO->BindBase(4);
-		m_OutNormSSBO->BindBase(5);
+		cmd.BindStorageBufferBase(m_InBoneDataSSBO, 3);
+		cmd.BindStorageBufferBase(m_OutPosSSBO,     4);
+		cmd.BindStorageBufferBase(m_OutNormSSBO,    5);
 
 		if (bones.empty()) return;
 
-		m_BoneSSBO->SetData(bones.data(), (uint32_t)(bones.size() * sizeof(glm::mat4)));
+		cmd.SetStorageBufferData(m_BoneSSBO, bones.data(), (uint32_t)(bones.size() * sizeof(glm::mat4)));
 
-		m_BoneSSBO->BindBase(0);
-		m_InPosSSBO->BindBase(1);
-		m_InNormSSBO->BindBase(2);
+		cmd.BindStorageBufferBase(m_BoneSSBO,   0);
+		cmd.BindStorageBufferBase(m_InPosSSBO,  1);
+		cmd.BindStorageBufferBase(m_InNormSSBO, 2);
 
-		m_ComputeShader->Bind();
-		m_ComputeShader->SetUint("u_VertexCount", static_cast<uint32_t>(m_Positions.size()));
+		cmd.ComputeSetUint(m_ComputeShader, "u_VertexCount", static_cast<uint32_t>(m_Positions.size()));
 
 		uint32_t groups = (static_cast<uint32_t>(m_Positions.size()) + 63) / 64;
-		m_ComputeShader->Dispatch(groups); // Dispatch() issues GL_SHADER_STORAGE_BARRIER_BIT.
+		cmd.DispatchCompute(m_ComputeShader, groups); // Dispatch() issues GL_SHADER_STORAGE_BARRIER_BIT.
 	}
 
 	void OpenGLSkinnedMesh::GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms, bool disableRootMotion)

@@ -21,15 +21,6 @@ namespace Hominem {
 		virtual void SetMat4(const std::string& name, const glm::mat4& value) = 0;
 		virtual void SetInt(const std::string& name, int value) = 0;
 
-		virtual int  GetUniformLocation(const std::string& name) const = 0;
-
-		// By-location variants — call after GetUniformLocation to avoid name lookup at submit time.
-		virtual void SetIntLoc   (int loc, int v)               = 0;
-		virtual void SetFloatLoc (int loc, float v)             = 0;
-		virtual void SetFloat3Loc(int loc, const glm::vec3& v)  = 0;
-		virtual void SetFloat4Loc(int loc, const glm::vec4& v)  = 0;
-		virtual void SetMat4Loc  (int loc, const glm::mat4& v)  = 0;
-
 		virtual const std::string& GetName() const = 0;
 
 		virtual void Reload() = 0;

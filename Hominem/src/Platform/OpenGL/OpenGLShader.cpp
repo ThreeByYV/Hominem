@@ -385,30 +385,6 @@ namespace Hominem {
 		UploadUniformMat4(name, value);
 	}
 
-	void OpenGLShader::SetIntLoc(int loc, int v)
-	{
-		glUniform1i(loc, v);
-	}
-
-	void OpenGLShader::SetFloatLoc(int loc, float v)
-	{
-		glUniform1f(loc, v);
-	}
-
-	void OpenGLShader::SetFloat3Loc(int loc, const glm::vec3& v)
-	{
-		glUniform3f(loc, v.x, v.y, v.z);
-	}
-
-	void OpenGLShader::SetFloat4Loc(int loc, const glm::vec4& v)
-	{
-		glUniform4f(loc, v.x, v.y, v.z, v.w);
-	}
-
-	void OpenGLShader::SetMat4Loc(int loc, const glm::mat4& v)
-	{
-		glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(v));
-	}
 
 	void OpenGLShader::UploadUniformInt(const std::string& name, int value)
 	{

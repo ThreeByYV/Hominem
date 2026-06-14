@@ -6,9 +6,11 @@
 
 namespace Hominem {
 
-	void RenderThread::Start(GLFWwindow* window)
+	void RenderThread::Start(GLFWwindow* window, uint32_t initialWidth, uint32_t initialHeight)
 	{
-		m_Window = window;
+		m_Window        = window;
+		m_InitialWidth  = initialWidth;
+		m_InitialHeight = initialHeight;
 
 		m_SceneRenderer.SetImGuiCallbacks(
 			[this]
@@ -27,6 +29,11 @@ namespace Hominem {
 			});
 
 		m_Thread = std::thread(&RenderThread::ThreadFunc, this);
+
+		// Wait for the render thread to finish Init() + the initial FBO resize so the
+		// main thread's first Record() call sees valid (non-null) FBOs.
+		std::unique_lock lock(m_InitMutex);
+		m_InitCV.wait(lock, [this]{ return m_Initialized; });
 	}
 
 	void RenderThread::Stop()
@@ -44,7 +51,7 @@ namespace Hominem {
 		m_Thread.join();
 	}
 
-	void RenderThread::Submit(RenderFrame&& frame)
+	void RenderThread:: Submit(RecordedFrame&& frame)
 	{
 		std::unique_lock lock(m_Mutex);
 		// Block only if render thread hasn't consumed the last frame yet (GPU-bound).
@@ -66,30 +73,41 @@ namespace Hominem {
 
 		m_SceneRenderer.Init();
 
+		// Create FBOs at the window's current size before the main thread's first Record().
+		m_SceneRenderer.GetRenderGraph().Resize(m_InitialWidth, m_InitialHeight);
+
+		{
+			std::lock_guard lock(m_InitMutex);
+			m_Initialized = true;
+		}
+		m_InitCV.notify_one();
+
 		while (true)
 		{
-			RenderFrame frame;
+			RecordedFrame frame;
 			{
 				std::unique_lock lock(m_Mutex);
 				m_ReadyCV.wait(lock, [this]{ return !m_Consumed || m_Shutdown; });
 				if (m_Shutdown) break;
 
-				frame      = std::move(m_Frame);
-				m_Consumed = true;
+				frame = std::move(m_Frame);
+				// Don't signal consumed yet — ExecuteFrame writes GL resource IDs
+				// (QueueUpload, FBO resize) that the main thread reads in Record().
+				// Signal after ExecuteFrame so those writes are visible.
 			}
 
 			ExecuteFrame(frame);
 
-			if (frame.arena)
-				frame.arena->Reset();
-
-			// Swap first — this blocks on VSync, naturally throttling the main thread.
-			// Notifying main before swap lets it spin a full loop iteration while we
-			// wait for VSync, defeating the throttle.
-			glfwSwapBuffers(m_Window);
-
-			// Notify main AFTER swap+VSync so it only wakes once the display is ready.
+			// All GL resource writes are done — main thread can safely call Record()
+			// and read texture/mesh IDs. Signal before swap so main-thread CPU work
+			// (OnUpdate/ImGui/Record) overlaps with the VSync wait below.
+			{
+				std::lock_guard lock(m_Mutex);
+				m_Consumed = true;
+			}
 			m_ConsumedCV.notify_one();
+
+			glfwSwapBuffers(m_Window);
 		}
 
 		m_SceneRenderer.Shutdown();
@@ -118,7 +136,7 @@ namespace Hominem {
 		s_UploadQueue.push_back(std::move(task));
 	}
 
-	void RenderThread::ExecuteFrame(const RenderFrame& frame)
+	void RenderThread::ExecuteFrame(RecordedFrame& frame)
 	{
 		HMN_PROFILE_SCOPE("RenderThread::ExecuteFrame");
 		// Drain pending GPU uploads — swap to avoid holding the lock while executing.
@@ -132,7 +150,15 @@ namespace Hominem {
 				task();
 		}
 
-		m_SceneRenderer.RenderScene(frame);
+		for (auto& cmd : frame.passCmds)
+			cmd.Submit();
+
+		// FBO create/resize needs the GL context, so it happens here (render thread) using
+		// this frame's now-replayed CommandLists. The main thread's next Record() call is
+		// guaranteed (via the consumed-CV handshake below) to see the resized FBOs.
+		auto& graph = m_SceneRenderer.GetRenderGraph();
+		graph.SetRenderScale(frame.renderScale);
+		graph.Resize(frame.viewportWidth, frame.viewportHeight);
 	}
 
 }

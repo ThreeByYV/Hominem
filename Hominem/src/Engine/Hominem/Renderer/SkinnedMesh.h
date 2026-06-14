@@ -10,6 +10,7 @@
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Renderer/Material.h"
+#include "Hominem/Renderer/CommandList.h"
 #include "Skeleton.h"
 
 namespace Hominem {
@@ -22,11 +23,12 @@ namespace Hominem {
 		[[nodiscard]] virtual std::expected<void, std::string> LoadFromFile(const std::string& filepath) = 0;
 		[[nodiscard]] virtual std::expected<void, std::string> LoadAdditionalAnimation(const std::string& filepath) = 0;
 
-		virtual void Render(const Ref<Shader>& shader) = 0;
+		/// Records draw commands for this mesh into cmd.
+		virtual void Render(const Ref<Shader>& shader, CommandList& cmd) = 0;
 
 		//todo: we should dispatch in constructor so we cant forget this call and remove then this method
 		/// Upload bone matrices and dispatch GPU skinning compute shader.
-		virtual void DispatchSkinning(std::span<const glm::mat4> bones) = 0;
+		virtual void DispatchSkinning(std::span<const glm::mat4> bones, CommandList& cmd) = 0;
 
 		virtual void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms,
 			bool disableRootMotion = false) = 0;

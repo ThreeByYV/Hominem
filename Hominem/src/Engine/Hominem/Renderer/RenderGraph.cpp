@@ -41,20 +41,20 @@ void RenderGraph::SetRenderScale(float scale)
 		OnResize(m_Width, m_Height);
 }
 
-void RenderGraph::Execute(const RenderFrame& frame)
+std::vector<CommandList> RenderGraph::Record(const RenderFrame& frame)
 {
-	// Only resize FBOs when the viewport is valid — never create a 0-sized FBO.
-	// Passes always run so the clear fires every frame and the back buffer is never undefined.
-	if (frame.viewportWidth > 0 && frame.viewportHeight > 0)
-		if (frame.viewportWidth != m_Width || frame.viewportHeight != m_Height)
-			OnResize(frame.viewportWidth, frame.viewportHeight);
+	std::vector<CommandList> passCmds;
+	passCmds.reserve(m_Passes.size());
 
 	for (auto& pass : m_Passes)
 	{
-		auto cmd = RenderCommand::SetPipelineState(pass.state);
+		auto cmd = RenderCommand::GetCommandList();
+		cmd.SetPipelineState(pass.state);
 		pass.fn(*this, frame, cmd);
-		cmd.Submit();
+		passCmds.push_back(std::move(cmd));
 	}
+
+	return passCmds;
 }
 
 void RenderGraph::OnResize(uint32_t w, uint32_t h)

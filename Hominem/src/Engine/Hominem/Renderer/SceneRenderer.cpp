@@ -58,152 +58,155 @@ void SceneRenderer::SetupPasses()
     m_RenderGraph.AddPass("imgui",           PipelineState::AlphaBlendNoDepth(),  [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { ImGuiPass(f, cmd);          });
 }
 
-void SceneRenderer::RenderScene(const RenderFrame& frame)
+void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
-    m_RenderGraph.SetRenderScale(frame.renderScale);
-    m_RenderGraph.Execute(frame);
-}
 
-void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& /*baseCmd*/)
-{
-    HMN_PROFILE_FUNCTION();
+    // One-shot env-map bake — heavy immediate GL work, deferred to the render thread via
+    // Invoke (recording happens on the main thread, which has no GL context). Capture `frame`
+    // by value: the original is only valid during recording, not at Submit() time.
     if (frame.bakeEnvMap && frame.bakedEnvMapOut)
     {
-        auto baked       = EnvironmentProbe::Bake(frame.bakeCapPos, frame, frame.bakeResolution);
-        auto irradiance  = EnvironmentProbe::ConvolveIrradiance(baked);
-        auto prefiltered = EnvironmentProbe::PrefilterSpecular(baked);
-        frame.bakedEnvMapOut->map         = std::move(baked);
-        frame.bakedEnvMapOut->irradiance  = std::move(irradiance);
-        frame.bakedEnvMapOut->prefiltered = std::move(prefiltered);
-        frame.bakedEnvMapOut->ready.store(true, std::memory_order_release);
+        cmd.Invoke([frame]() mutable
+        {
+            auto baked       = EnvironmentProbe::Bake(frame.bakeCapPos, frame, frame.bakeResolution);
+            auto irradiance  = EnvironmentProbe::ConvolveIrradiance(baked);
+            auto prefiltered = EnvironmentProbe::PrefilterSpecular(baked);
+            frame.bakedEnvMapOut->map         = std::move(baked);
+            frame.bakedEnvMapOut->irradiance  = std::move(irradiance);
+            frame.bakedEnvMapOut->prefiltered = std::move(prefiltered);
+            frame.bakedEnvMapOut->ready.store(true, std::memory_order_release);
+        });
     }
 
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
 
     const auto hdr = m_RenderGraph.GetFBO("hdr");
-    hdr->Bind();
+    cmd.BindFramebuffer(hdr->GetRendererID());
 
     const auto& hdrSpec = hdr->GetSpecification();
-    RenderCommand::SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
-
-    // Re-establish geometry state here: bake block above leaves state as NoDepthNoCull.
-    auto cmd = RenderCommand::SetPipelineState(PipelineState::DepthTestWriteCull());
-    RenderCommand::SetClearColor(frame.clearColor);
-    RenderCommand::Clear();
+    cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
+    cmd.SetClearColor(frame.clearColor);
+    cmd.Clear();
 
     // Paint the background before any content. Depth disabled so it fills
     // every pixel; the 3D pass later overwrites wherever geometry is drawn.
     if (m_SkyboxShader && frame.skybox && frame.skybox->GetRendererID() != 0)
     {
-        auto skyCmd = RenderCommand::SetPipelineState(PipelineState::NoDepthNoCull());
-        skyCmd.BindShader(m_SkyboxShader);
-        skyCmd.SetInt   (m_SkyboxShader, "u_Equirect",    0);
-        skyCmd.SetMat4  (m_SkyboxShader, "u_InvViewProj", glm::inverse(frame.viewProjection3D));
-        skyCmd.SetFloat3(m_SkyboxShader, "u_CamPos",      frame.cameraWorldPos);
-        skyCmd.SetFloat (m_SkyboxShader, "u_Intensity",   frame.skyboxIntensity);
-        skyCmd.BindTexture(0, frame.skybox->GetRendererID());
-        skyCmd.DrawFullscreenTriangle();
-        skyCmd.Submit();
-        cmd = RenderCommand::SetPipelineState(PipelineState::DepthTestWriteCull());
+        cmd.SetPipelineState(PipelineState::NoDepthNoCull());
+        cmd.BindShader(m_SkyboxShader);
+        cmd.SetInt   (m_SkyboxShader, "u_Equirect",    0);
+        cmd.SetMat4  (m_SkyboxShader, "u_InvViewProj", glm::inverse(frame.viewProjection3D));
+        cmd.SetFloat3(m_SkyboxShader, "u_CamPos",      frame.cameraWorldPos);
+        cmd.SetFloat (m_SkyboxShader, "u_Intensity",   frame.skyboxIntensity);
+        cmd.BindTexture(0, frame.skybox->GetRendererID());
+        cmd.DrawFullscreenTriangle();
+        cmd.SetPipelineState(PipelineState::DepthTestWriteCull());
     }
 
-    Renderer3D::BeginScene(frame);
+    Renderer3D::SceneData scene = Renderer3D::BeginScene(frame, cmd);
 
     for (const auto& sm : frame.staticMeshes)
-        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
 
     for (const auto& m : frame.meshes)
     {
         if (m.overrideShader) Renderer3D::SetOverrideShader(m.overrideShader);
-        m.mesh->DispatchSkinning(m.bones);
-        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform);
+        m.mesh->DispatchSkinning(m.bones, cmd);
+        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform, cmd, scene);
         if (m.overrideShader) Renderer3D::ClearOverrideShader();
     }
 
-    Renderer3D::EndScene();
+    cmd.Invoke([]() { Renderer3D::EndScene(); });
 
     if (frame.debugLights && !frame.lights.empty())
-        Renderer3D::DrawDebugLights(frame.lights);
+        cmd.Invoke([lights = frame.lights]() { Renderer3D::DrawDebugLights(lights); });
 
     // Procedural smoke quads — alpha-blended, drawn before the fire quads so the
     // fire glow shows through the smoke. Depth-tested but doesn't write depth.
     if (!frame.smokeQuads.empty() && m_SmokeQuadShader)
     {
-        auto smokeCmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendDepthTest());
-        smokeCmd.BindShader(m_SmokeQuadShader);
+        cmd.SetPipelineState(PipelineState::AlphaBlendDepthTest());
+        cmd.BindShader(m_SmokeQuadShader);
         for (const auto& sq : frame.smokeQuads)
         {
-            smokeCmd.SetMat4  (m_SmokeQuadShader, "u_Model",       sq.transform);
-            smokeCmd.SetFloat3(m_SmokeQuadShader, "u_ColorDark",   sq.colorDark);
-            smokeCmd.SetFloat3(m_SmokeQuadShader, "u_ColorLit",    sq.colorLit);
-            smokeCmd.SetFloat (m_SmokeQuadShader, "u_Opacity",     sq.opacity);
-            smokeCmd.SetFloat (m_SmokeQuadShader, "u_ScrollSpeed", sq.scrollSpeed);
-            smokeCmd.SetFloat (m_SmokeQuadShader, "u_Time",        sq.time);
-            smokeCmd.SetFloat (m_SmokeQuadShader, "u_Seed",        sq.seed);
-            smokeCmd.DrawUnitQuad();
+            cmd.SetMat4  (m_SmokeQuadShader, "u_Model",       sq.transform);
+            cmd.SetFloat3(m_SmokeQuadShader, "u_ColorDark",   sq.colorDark);
+            cmd.SetFloat3(m_SmokeQuadShader, "u_ColorLit",    sq.colorLit);
+            cmd.SetFloat (m_SmokeQuadShader, "u_Opacity",     sq.opacity);
+            cmd.SetFloat (m_SmokeQuadShader, "u_ScrollSpeed", sq.scrollSpeed);
+            cmd.SetFloat (m_SmokeQuadShader, "u_Time",        sq.time);
+            cmd.SetFloat (m_SmokeQuadShader, "u_Seed",        sq.seed);
+            cmd.DrawUnitQuad();
         }
-        smokeCmd.Submit();
     }
 
     if (!frame.fireQuads.empty() && m_FireQuadShader)
     {
-        auto fireCmd = RenderCommand::SetPipelineState(PipelineState::AdditiveBlendDepthTest());
-        fireCmd.BindShader(m_FireQuadShader);
+        cmd.SetPipelineState(PipelineState::AdditiveBlendDepthTest());
+        cmd.BindShader(m_FireQuadShader);
         for (const auto& fq : frame.fireQuads)
         {
-            fireCmd.SetMat4  (m_FireQuadShader, "u_Model",       fq.transform);
-            fireCmd.SetFloat3(m_FireQuadShader, "u_ColorCore",   fq.colorCore);
-            fireCmd.SetFloat3(m_FireQuadShader, "u_ColorMid",    fq.colorMid);
-            fireCmd.SetFloat3(m_FireQuadShader, "u_ColorEdge",   fq.colorEdge);
-            fireCmd.SetFloat (m_FireQuadShader, "u_Intensity",   fq.intensity);
-            fireCmd.SetFloat (m_FireQuadShader, "u_ScrollSpeed", fq.scrollSpeed);
-            fireCmd.SetFloat (m_FireQuadShader, "u_Time",        fq.time);
-            fireCmd.SetFloat (m_FireQuadShader, "u_Seed",        fq.seed);
-            fireCmd.DrawUnitQuad();
+            cmd.SetMat4  (m_FireQuadShader, "u_Model",       fq.transform);
+            cmd.SetFloat3(m_FireQuadShader, "u_ColorCore",   fq.colorCore);
+            cmd.SetFloat3(m_FireQuadShader, "u_ColorMid",    fq.colorMid);
+            cmd.SetFloat3(m_FireQuadShader, "u_ColorEdge",   fq.colorEdge);
+            cmd.SetFloat (m_FireQuadShader, "u_Intensity",   fq.intensity);
+            cmd.SetFloat (m_FireQuadShader, "u_ScrollSpeed", fq.scrollSpeed);
+            cmd.SetFloat (m_FireQuadShader, "u_Time",        fq.time);
+            cmd.SetFloat (m_FireQuadShader, "u_Seed",        fq.seed);
+            cmd.DrawUnitQuad();
         }
-        fireCmd.Submit();
     }
 
-    // 2D overlay - screen-space content on top of all 3D geometry.
-    Renderer2D::BeginScene(frame.viewProjection2D);
+    // Captured by value: `frame` is only valid during recording, not at Submit() time.
+    cmd.Invoke([this, vp = frame.viewProjection2D, quads = frame.quads, texts = frame.texts]()
+    {
+        Renderer2D::BeginScene(vp);
 
-    for (const auto&[transform, color, uvMin, uvMax, texture] : frame.quads)
-        Renderer2D::PushQuad(transform, color, uvMin, uvMax, texture);
+        for (const auto&[transform, color, uvMin, uvMax, texture] : quads)
+            Renderer2D::PushQuad(transform, color, uvMin, uvMax, texture);
 
-    Renderer2D::Flush();
+        Renderer2D::Flush();
 
-    for (const auto& t : frame.texts)
-        Renderer2D::DrawStringMultiline(t.text, t.font, t.transform, t.color, t.colorRight);
+        for (const auto& t : texts)
+            Renderer2D::DrawStringMultiline(t.text, t.font, t.transform, t.color, t.colorRight);
 
-    Renderer2D::EndScene();
+        Renderer2D::EndScene();
+    });
 
-    hdr->Unbind();
+    cmd.BindFramebuffer(0);
 }
 
-void SceneRenderer::ImGuiPass(const RenderFrame& frame, CommandList& /*cmd*/)
+void SceneRenderer::ImGuiPass(const RenderFrame& frame, CommandList& cmd)
 {
     if (m_WaitImGui) m_WaitImGui();
 
     // Render directly into the back buffer (no FBO bound) at full window resolution.
     // This must run after composite so the viewport is correct and UI is unaffected
     // by render scale.
-    RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
-    ImGui_ImplOpenGL3_NewFrame();
-    if (ImDrawData* drawData = ImGui::GetDrawData())
-        ImGui_ImplOpenGL3_RenderDrawData(drawData);
+    cmd.SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+    cmd.Invoke([this]()
+    {
+        ImGui_ImplOpenGL3_NewFrame();
+        if (ImDrawData* drawData = ImGui::GetDrawData())
+            ImGui_ImplOpenGL3_RenderDrawData(drawData);
 
-    if (m_NotifyImGui) m_NotifyImGui();
+        if (m_NotifyImGui) m_NotifyImGui();
+    });
 }
 
-void SceneRenderer::AutoExposurePass(const RenderFrame& frame, CommandList& /*cmd*/)
+void SceneRenderer::AutoExposurePass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
     if (!frame.toneMappingEnabled) return;
     auto hdr = m_RenderGraph.GetFBO("hdr");
     const auto& spec = hdr->GetSpecification();
-    m_AutoExposure.Compute(hdr->GetColorAttachmentRendererID(),
-                           spec.Width, spec.Height);
+    uint32_t colorAttachment = hdr->GetColorAttachmentRendererID();
+    cmd.Invoke([this, colorAttachment, width = spec.Width, height = spec.Height]()
+    {
+        m_AutoExposure.Compute(colorAttachment, width, height);
+    });
 }
 
 void SceneRenderer::BloomThresholdPass(const RenderFrame& frame, CommandList& cmd)
@@ -211,18 +214,17 @@ void SceneRenderer::BloomThresholdPass(const RenderFrame& frame, CommandList& cm
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     auto bloom = m_RenderGraph.GetFBO("bloom");
-    bloom->Bind();
+    cmd.BindFramebuffer(bloom->GetRendererID());
     auto& spec = bloom->GetSpecification();
-    RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
-    RenderCommand::SetClearColor({ 0.f, 0.f, 0.f, 1.f });
-    RenderCommand::Clear();
+    cmd.SetViewport(0, 0, spec.Width, spec.Height);
+    cmd.SetClearColor({ 0.f, 0.f, 0.f, 1.f });
+    cmd.Clear();
     cmd.BindShader(m_ThresholdShader);
     cmd.SetInt  (m_ThresholdShader, "u_HDR",       0);
     cmd.SetFloat(m_ThresholdShader, "u_Threshold", frame.bloomThreshold);
     cmd.BindTexture(0, m_RenderGraph.GetFBO("hdr")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.Submit(); // submit while bloom FBO is still bound; RenderGraph Submit() will be a no-op
-    bloom->Unbind();
+    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::BloomBlurHPass(const RenderFrame& frame, CommandList& cmd)
@@ -230,16 +232,15 @@ void SceneRenderer::BloomBlurHPass(const RenderFrame& frame, CommandList& cmd)
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     auto dst = m_RenderGraph.GetFBO("bloom_temp");
-    dst->Bind();
+    cmd.BindFramebuffer(dst->GetRendererID());
     auto& spec = dst->GetSpecification();
-    RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
+    cmd.SetViewport(0, 0, spec.Width, spec.Height);
     cmd.BindShader(m_BlurShader);
     cmd.SetInt(m_BlurShader, "u_Src",        0);
     cmd.SetInt(m_BlurShader, "u_Horizontal", 1);
     cmd.BindTexture(0, m_RenderGraph.GetFBO("bloom")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.Submit(); // submit while bloom_temp FBO is still bound
-    dst->Unbind();
+    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::BloomBlurVPass(const RenderFrame& frame, CommandList& cmd)
@@ -247,16 +248,15 @@ void SceneRenderer::BloomBlurVPass(const RenderFrame& frame, CommandList& cmd)
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
     const auto dst = m_RenderGraph.GetFBO("bloom");
-    dst->Bind();
+    cmd.BindFramebuffer(dst->GetRendererID());
     auto& spec = dst->GetSpecification();
-    RenderCommand::SetViewport(0, 0, spec.Width, spec.Height);
+    cmd.SetViewport(0, 0, spec.Width, spec.Height);
     cmd.BindShader(m_BlurShader);
     cmd.SetInt(m_BlurShader, "u_Src",        0);
     cmd.SetInt(m_BlurShader, "u_Horizontal", 0);
     cmd.BindTexture(0, m_RenderGraph.GetFBO("bloom_temp")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.Submit(); // submit while bloom FBO is still bound
-    dst->Unbind();
+    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
@@ -266,7 +266,7 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
     auto hdrFBO = m_RenderGraph.GetFBO("hdr");
     if (!hdrFBO) return;
-    RenderCommand::SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+    cmd.SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
     cmd.BindShader(m_CompositeShader);
     cmd.SetInt  (m_CompositeShader, "u_HDR",               0);
     cmd.SetInt  (m_CompositeShader, "u_Bloom",             1);

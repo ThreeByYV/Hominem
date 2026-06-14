@@ -206,6 +206,38 @@ namespace Hominem {
 		glBindTextureUnit(slot, id);
 	}
 
+	void OpenGLRendererAPI::BindVertexArray(uint32_t vaoID)
+	{
+		glBindVertexArray(vaoID);
+	}
+
+	void OpenGLRendererAPI::DrawElementsBaseVertex(uint32_t indexCount, uint32_t indexByteOffset, int32_t baseVertex)
+	{
+		glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)indexCount, GL_UNSIGNED_INT,
+			reinterpret_cast<const void*>((uintptr_t)indexByteOffset), baseVertex);
+	}
+
+	void OpenGLRendererAPI::UpdateBufferSubData(uint32_t bufferID, const void* data, uint32_t size, uint32_t offset)
+	{
+		glNamedBufferSubData(bufferID, (GLintptr)offset, (GLsizeiptr)size, data);
+	}
+
+	void OpenGLRendererAPI::BindShaderStorageBufferBase(uint32_t bufferID, uint32_t slot)
+	{
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, bufferID);
+	}
+
+	void OpenGLRendererAPI::BindDrawIndirectBuffer(uint32_t bufferID)
+	{
+		glBindBuffer(GL_DRAW_INDIRECT_BUFFER, bufferID);
+	}
+
+	void OpenGLRendererAPI::MultiDrawElementsIndirect(uint32_t byteOffset, uint32_t drawCount, uint32_t stride)
+	{
+		glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,
+			reinterpret_cast<const void*>((uintptr_t)byteOffset), (GLsizei)drawCount, (GLsizei)stride);
+	}
+
 	const char* OpenGLRendererAPI::GetGPUVendor() const
 	{
 		return (const char*)glGetString(GL_VENDOR);

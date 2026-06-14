@@ -18,9 +18,11 @@ public:
 
     void SetImGuiCallbacks(std::function<void()> waitFn, std::function<void()> notifyFn);
 
-    void RenderScene(const RenderFrame& frame);
+    /// Records every pass into a CommandList per pass. You should call it from the main thread.
+    std::vector<CommandList> Record(const RenderFrame& frame) { return m_RenderGraph.Record(frame); }
 
     Ref<Framebuffer> GetFBO(const std::string& name) { return m_RenderGraph.GetFBO(name); }
+    RenderGraph&     GetRenderGraph()                { return m_RenderGraph; }
 
 private:
     void SetupPasses();

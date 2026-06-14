@@ -3,6 +3,7 @@
 #include "Shader.h"
 #include "Texture.h"
 #include "Material.h"
+#include "CommandList.h"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -21,9 +22,10 @@ public:
 
 	[[nodiscard]] virtual std::expected<void, std::string> LoadFromFile(const std::string& path) = 0;
 
-	// Returns {draw calls issued, triangles rendered}.
+	// Records draw commands into cmd. Returns {draw calls issued, triangles rendered}.
 	virtual std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
 	                                            const glm::mat4&   actorTransform,
+	                                            CommandList&       cmd,
 	                                            const Frustum*     frustum = nullptr) = 0;
 
 	virtual bool IsLoaded()        const = 0;

@@ -175,9 +175,8 @@ namespace Hominem {
 	std::vector<SmokeQuadDraw>  smokeQuads;
 		std::vector<Light>          lights;
 
-		// Arena backing — set by RenderThread, not owned by this frame.
-		FrameArena* arena    = nullptr;
-		uint8_t     arenaIdx = 0;
+		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
+		FrameArena* arena = nullptr;
 
 		// Allocate count bone matrices from the arena and return a span.
 		std::span<glm::mat4> AllocBones(size_t count)
