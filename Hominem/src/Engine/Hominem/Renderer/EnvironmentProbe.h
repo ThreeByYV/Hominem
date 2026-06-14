@@ -15,6 +15,12 @@ public:
     static Ref<TextureCube> Bake(const glm::vec3& capturePos,
                                   const RenderFrame& sceneFrame,
                                   uint32_t resolution = 512);
+
+    // Cosine-weighted hemisphere convolution of a baked environment cube into a
+    // small diffuse irradiance cubemap. Must be called on the render thread,
+    // after the source cube has been baked.
+    static Ref<TextureCube> ConvolveIrradiance(const Ref<TextureCube>& source,
+                                                uint32_t resolution = 32);
 };
 
 } // namespace Hominem
