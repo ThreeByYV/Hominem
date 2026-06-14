@@ -1,7 +1,6 @@
 #type vertex
 #version 450 core
 
-// Fullscreen triangle, positions generated from gl_VertexID, no VBO.
 out vec2 v_NDC;
 
 void main()
@@ -30,6 +29,7 @@ const float PI = 3.14159265359;
 void main()
 {
     vec4 worldFar = u_InvViewProj * vec4(v_NDC, 1.0, 1.0);
+    if (abs(worldFar.w) < 1e-5) { FragColor = vec4(0.0); return; }
     vec3 N = normalize(worldFar.xyz / worldFar.w);
 
     vec3 up    = (abs(N.y) < 0.999) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
@@ -42,13 +42,13 @@ void main()
 
     for (float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
     {
-        for (float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+        for (float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)  // only calc for hemisphere only: theta will be in the range [0, pi/2]
         {
             // Spherical to tangent-space, then to world space via N's basis.
             vec3 tangentSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
             vec3 sampleVec     = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
 
-            irradiance += texture(u_EnvMap, sampleVec).rgb * cos(theta) * sin(theta);
+            irradiance += textureLod(u_EnvMap, sampleVec, 0.0).rgb * cos(theta) * sin(theta);
             nrSamples  += 1.0;
         }
     }

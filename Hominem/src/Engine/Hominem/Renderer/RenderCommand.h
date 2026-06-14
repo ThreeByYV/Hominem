@@ -20,6 +20,13 @@ public:
         return CommandList{ s_RendererAPI };
     }
 
+    /// Returns a CommandList with no immediate state change. Use cmd.SetPipelineState(s)
+    /// to record the state change as the first recorded command instead.
+    inline static CommandList GetCommandList()
+    {
+        return CommandList{ s_RendererAPI };
+    }
+
     inline static void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
     {
         s_RendererAPI->SetViewport(x, y, width, height);

@@ -59,4 +59,5 @@ private:
 	float m_BloomStrength      = 1.0f;
 	float m_BloomThreshold     = 0.8f;
 	float m_RenderScale        = 1.0f;
+	float m_EnvMapIntensity    = 1.0f;
 };

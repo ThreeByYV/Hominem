@@ -10,10 +10,10 @@ namespace Hominem {
 	class OpenGLTextureCube : public TextureCube
 	{
 	public:
-		// Main thread: allocate object, no GL calls (ID stays 0 until CreateGL)
 		explicit OpenGLTextureCube(uint32_t resolution);
-		// Main thread: load 6 faces from disk, upload via QueueUpload
+
 		explicit OpenGLTextureCube(const std::array<std::string, 6>& faces);
+
 		~OpenGLTextureCube();
 
 		uint32_t GetWidth()      const override { return m_Resolution; }

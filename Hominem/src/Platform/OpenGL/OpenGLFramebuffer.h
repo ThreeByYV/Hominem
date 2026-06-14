@@ -18,6 +18,7 @@ namespace Hominem {
 		void BlitToDefault(uint32_t screenW, uint32_t screenH) override;
 
 		uint32_t GetColorAttachmentRendererID(uint32_t index = 0) const override { return m_ColorAttachments[index]; }
+		uint32_t GetRendererID() const override { return m_RendererID; }
 		const FramebufferSpecification& GetSpecification() const override { return m_Spec; }
 	private:
 		uint32_t m_RendererID;

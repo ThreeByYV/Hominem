@@ -120,7 +120,7 @@ namespace Hominem {
 		// Hand the GL context to the render thread — all GL calls happen there from now on.
 		GLFWwindow* nativeWindow = static_cast<GLFWwindow*>(m_Window->GetNativeWindow());
 		glfwMakeContextCurrent(nullptr); // release from main thread
-		m_RenderThread.Start(nativeWindow);
+		m_RenderThread.Start(nativeWindow, m_Window->GetWidth(), m_Window->GetHeight());
 
 		while (m_Running)
 		{
@@ -144,10 +144,6 @@ namespace Hominem {
 			for (auto& layer : m_LayerStack)
 				layer->OnUpdate(timestep);
 
-			//todo: I dont think i like how application knows this much abt render thread, imgui and signals for it, anything else can be done?
-
-			// Wait for render thread to finish reading the previous frame's draw data,
-			// then build this frame's ImGui and signal the render thread it can read.
 			m_RenderThread.WaitImGuiConsumed();
 
 			m_ImGuiLayer->Begin();
@@ -159,14 +155,19 @@ namespace Hominem {
 			// Collect draw commands
 			// Wire the write arena so actors can bump-allocate bone matrices.
 			RenderFrame frame;
-			frame.arena    = &m_RenderThread.GetWriteArena();
-			frame.arenaIdx = m_RenderThread.GetWriteArenaIdx();
+			frame.arena = &m_RenderThread.GetWriteArena();
 			for (auto& layer : m_LayerStack)
 				layer->OnBuildRenderFrame(frame);
 
-			// Hand frame to render thread. Main thread continues immediately.
-			// Blocks only if render thread hasn't consumed the previous frame yet (GPU-bound).
-			m_RenderThread.Submit(std::move(frame));
+			// Record every pass into CommandLists; the render thread only replays them.
+			RecordedFrame recorded;
+			recorded.passCmds       = m_RenderThread.GetSceneRenderer().Record(frame);
+			recorded.viewportWidth  = frame.viewportWidth;
+			recorded.viewportHeight = frame.viewportHeight;
+			recorded.renderScale    = frame.renderScale;
+			frame.arena->Reset();
+
+			m_RenderThread.Submit(std::move(recorded));
 
 			m_Window->OnUpdate(); // glfwPollEvents — SwapBuffers moved to render thread
 
@@ -180,14 +181,10 @@ namespace Hominem {
 		glfwMakeContextCurrent(nativeWindow);
 
 		// Detach and destroy all layers now while the context is valid.
-		// LayerStack's destructor is =default so it never calls OnDetach itself,
-		// and m_LayerStack outlives m_Window (declared first = destroyed last),
-		// meaning its destructor would run after the context is gone.
 		for (auto& layer : m_LayerStack)
 			layer->OnDetach();
-		m_LayerStack.Clear(); // destroys layer unique_ptrs (and their GL resources) here
+		m_LayerStack.Clear();
 
-		// Free all Renderer static GL objects (shaders, VAOs, white texture, etc.)
 		Renderer::Shutdown();
 	}
 

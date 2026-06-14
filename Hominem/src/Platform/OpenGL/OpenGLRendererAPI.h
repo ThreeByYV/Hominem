@@ -34,6 +34,13 @@ namespace Hominem {
 		void SetWireframe(bool enabled)                      override;
 		void BindTexture(uint32_t slot, uint32_t id)         override;
 
+		void BindVertexArray(uint32_t vaoID) override;
+		void DrawElementsBaseVertex(uint32_t indexCount, uint32_t indexByteOffset, int32_t baseVertex) override;
+		void UpdateBufferSubData(uint32_t bufferID, const void* data, uint32_t size, uint32_t offset) override;
+		void BindShaderStorageBufferBase(uint32_t bufferID, uint32_t slot) override;
+		void BindDrawIndirectBuffer(uint32_t bufferID) override;
+		void MultiDrawElementsIndirect(uint32_t byteOffset, uint32_t drawCount, uint32_t stride) override;
+
 		const char* GetGPUVendor()   const override;
 		const char* GetGPURenderer() const override;
 

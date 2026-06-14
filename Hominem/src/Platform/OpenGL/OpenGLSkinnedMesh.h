@@ -15,8 +15,8 @@ namespace Hominem {
 		[[nodiscard]] std::expected<void, std::string> LoadFromFile(const std::string& filepath) override;
 		[[nodiscard]] std::expected<void, std::string> LoadAdditionalAnimation(const std::string& filepath) override;
 
-		void Render(const Ref<Shader>& shader) override;
-		void DispatchSkinning(std::span<const glm::mat4> bones) override;
+		void Render(const Ref<Shader>& shader, CommandList& cmd) override;
+		void DispatchSkinning(std::span<const glm::mat4> bones, CommandList& cmd) override;
 
 		void GetBoneTransforms(float timeSeconds, std::vector<glm::mat4>& transforms,
 			bool disableRootMotion = false) override;
@@ -55,7 +55,7 @@ namespace Hominem {
 		void CreateGPUBuffers();
 		void ReleaseGPUResources();
 		void UploadToGPU();
-		void DrawSubmeshes();
+		void DrawSubmeshes(CommandList& cmd);
 		void CreateComputeSSBOs();
 
 		// GL handles
