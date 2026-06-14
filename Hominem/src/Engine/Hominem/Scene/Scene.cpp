@@ -92,10 +92,12 @@ namespace Hominem {
 		// Irradiance is only available from a runtime bake (explicit cubemaps have no convolution).
 		Ref<TextureCube> activeMap;
 		Ref<TextureCube> activeIrradiance;
+		Ref<TextureCube> activePrefiltered;
 		if (m_BakedEnvMap && m_BakedEnvMap->ready.load(std::memory_order_acquire))
 		{
-			activeMap        = m_BakedEnvMap->map;
-			activeIrradiance = m_BakedEnvMap->irradiance;
+			activeMap         = m_BakedEnvMap->map;
+			activeIrradiance  = m_BakedEnvMap->irradiance;
+			activePrefiltered = m_BakedEnvMap->prefiltered;
 		}
 		else if (m_ExplicitEnvMap)
 			activeMap = m_ExplicitEnvMap;
@@ -104,6 +106,7 @@ namespace Hominem {
 		{
 			frame.envMap          = activeMap;
 			frame.irradianceMap   = activeIrradiance;
+			frame.prefilteredMap  = activePrefiltered;
 			frame.envMapIntensity = m_EnvMapIntensity;
 			frame.eta             = m_ETA;
 			frame.fresnelPower    = m_FresnelPower;
