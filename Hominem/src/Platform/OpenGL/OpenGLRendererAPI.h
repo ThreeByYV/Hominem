@@ -7,7 +7,8 @@ namespace Hominem {
 	class OpenGLRendererAPI : public RendererAPI
 	{
 	public:
-		void Init() override;
+		void Init()                          override;
+		void ApplyState(const PipelineState& s) override;
 
 		void SetClearColor(const glm::vec4& color) override;
 		void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) override;
@@ -35,6 +36,19 @@ namespace Hominem {
 
 		const char* GetGPUVendor()   const override;
 		const char* GetGPURenderer() const override;
+
+		uint32_t GenFramebuffer()                                    override;
+		void     BindFramebuffer(uint32_t id)                        override;
+		void     UnbindFramebuffer()                                 override;
+		void     DeleteFramebuffer(uint32_t id)                      override;
+		void     AttachCubeFace(uint32_t cubeID, int face, int mip)  override;
+		void     Attach2DTexture(uint32_t texID)                     override;
+
+		uint32_t GenRenderbuffer()                                   override;
+		void     BindRenderbuffer(uint32_t id)                       override;
+		void     RenderbufferDepth(uint32_t width, uint32_t height)  override;
+		void     AttachRenderbuffer(uint32_t rboID)                  override;
+		void     DeleteRenderbuffer(uint32_t id)                     override;
 
 	private:
 		uint32_t m_EmptyVAO = 0;

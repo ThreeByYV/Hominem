@@ -34,6 +34,12 @@ namespace Hominem {
 		void SetFloat4(const std::string& name, const glm::vec4& value) override;
 		void SetMat4(const std::string& name, const glm::mat4& value) override;
 
+		void SetIntLoc   (int loc, int v)              override;
+		void SetFloatLoc (int loc, float v)            override;
+		void SetFloat3Loc(int loc, const glm::vec3& v) override;
+		void SetFloat4Loc(int loc, const glm::vec4& v) override;
+		void SetMat4Loc  (int loc, const glm::mat4& v) override;
+
 		void UploadUniformInt(const std::string& name, int value);
 
 		void UploadUniformFloat(const std::string& name, float value);

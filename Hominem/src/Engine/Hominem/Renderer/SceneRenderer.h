@@ -25,13 +25,13 @@ public:
 private:
     void SetupPasses();
 
-    void GeometryPass      (const RenderFrame& frame);
-    void ImGuiPass         (const RenderFrame& frame);
-    void AutoExposurePass  (const RenderFrame& frame);
-    void BloomThresholdPass(const RenderFrame& frame);
-    void BloomBlurHPass    (const RenderFrame& frame);
-    void BloomBlurVPass    (const RenderFrame& frame);
-    void CompositePass     (const RenderFrame& frame);
+    void GeometryPass      (const RenderFrame& frame, CommandList& cmd);
+    void ImGuiPass         (const RenderFrame& frame, CommandList& cmd);
+    void AutoExposurePass  (const RenderFrame& frame, CommandList& cmd);
+    void BloomThresholdPass(const RenderFrame& frame, CommandList& cmd);
+    void BloomBlurHPass    (const RenderFrame& frame, CommandList& cmd);
+    void BloomBlurVPass    (const RenderFrame& frame, CommandList& cmd);
+    void CompositePass     (const RenderFrame& frame, CommandList& cmd);
 
     RenderGraph  m_RenderGraph;
     AutoExposure m_AutoExposure;

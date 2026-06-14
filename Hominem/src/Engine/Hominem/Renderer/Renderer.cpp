@@ -44,13 +44,14 @@ namespace Hominem {
 
 	void Renderer::Submit(const Ref<VertexArray>& vertexArray, const Ref<Shader>& shader, const glm::mat4& transform)
 	{
-		//Render handles the step-by-step instructions for VAO, VBO, etc. setup
 		shader->Bind();
 		shader.As<OpenGLShader>()->UploadUniformMat4("u_ViewProjection", m_SceneData->ViewProjectionMatrix);
 		shader.As<OpenGLShader>()->UploadUniformMat4("u_Transform", transform);
 
 		vertexArray->Bind();
 
-		RenderCommand::DrawIndexed(vertexArray);
+		auto cmd = RenderCommand::SetPipelineState(PipelineState::DepthTestWriteCull());
+		cmd.DrawIndexed(vertexArray);
+		cmd.Submit();
 	}
 }

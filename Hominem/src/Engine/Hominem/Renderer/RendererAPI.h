@@ -7,6 +7,24 @@ namespace Hominem {
 
 	enum class BlendMode { Alpha = 0, Additive };
 
+	/// Full rasterizer/output-merger state for one render pass.
+	/// Use RenderCommand::SetPipelineState() at the start of every pass, never rely on inherited state.
+	struct PipelineState
+	{
+		bool      blend      = false;
+		BlendMode blendMode  = BlendMode::Alpha;
+		bool      depthTest  = true;
+		bool      depthWrite = true;
+		bool      cullFace   = true;
+		bool      scissor    = false;
+
+		static constexpr PipelineState DepthTestWriteCull()    { return {}; }
+		static constexpr PipelineState NoDepthNoCull()         { return { false, BlendMode::Alpha,    false, false, false, false }; }
+		static constexpr PipelineState AlphaBlendDepthTest()   { return { true,  BlendMode::Alpha,    true,  false, false, false }; }
+		static constexpr PipelineState AdditiveBlendDepthTest(){ return { true,  BlendMode::Additive, true,  false, false, false }; }
+		static constexpr PipelineState AlphaBlendNoDepth()     { return { true,  BlendMode::Alpha,    false, false, true,  false }; }
+	};
+
 	class RendererAPI
 	{
 	public:
@@ -14,6 +32,9 @@ namespace Hominem {
 
 		/// Initialises the API and creates persistent GL objects (e.g. empty VAO).
 		virtual void Init() = 0;
+
+		/// Sets all rasterizer/blend/depth state at once. Call at the start of every pass.
+		virtual void ApplyState(const PipelineState& s) = 0;
 
 		/// Sets the GL viewport rectangle.
 		virtual void SetViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) = 0;
@@ -74,6 +95,21 @@ namespace Hominem {
 
 		virtual const char* GetGPUVendor()   const = 0;
 		virtual const char* GetGPURenderer() const = 0;
+
+		/// Temporary framebuffer management for off-screen passes (convolution, bake, LUT).
+		virtual uint32_t GenFramebuffer()                                    = 0;
+		virtual void     BindFramebuffer(uint32_t id)                        = 0;
+		virtual void     UnbindFramebuffer()                                 = 0;
+		virtual void     DeleteFramebuffer(uint32_t id)                      = 0;
+		virtual void     AttachCubeFace(uint32_t cubeID, int face, int mip)  = 0;
+		virtual void     Attach2DTexture(uint32_t texID)                     = 0;
+
+		/// Renderbuffer management for depth attachments on temporary framebuffers.
+		virtual uint32_t GenRenderbuffer()                                   = 0;
+		virtual void     BindRenderbuffer(uint32_t id)                       = 0;
+		virtual void     RenderbufferDepth(uint32_t width, uint32_t height)  = 0;
+		virtual void     AttachRenderbuffer(uint32_t rboID)                  = 0;
+		virtual void     DeleteRenderbuffer(uint32_t id)                     = 0;
 
 		inline static API GetAPI() { return s_API; }
 
