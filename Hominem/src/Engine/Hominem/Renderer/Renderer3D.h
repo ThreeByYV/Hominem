@@ -15,12 +15,6 @@
 
 namespace Hominem {
 
-struct MeshRendererComponent
-{
-    Ref<SkinnedMesh> Mesh;
-    Ref<Shader>      Shader;
-};
-
 // Must match layout(std140, binding=0) uniform SceneUBO in includes/scene_ubo.glsl
 struct alignas(16) SceneUBOData
 {
@@ -77,11 +71,27 @@ public:
     static constexpr uint32_t MAX_LIGHTS          = 1024u;
     static constexpr uint32_t MAX_LIGHTS_PER_TILE = 128u;
 
+    // Per-call scene state produced by BeginScene() and threaded explicitly into
+    // DrawStaticMesh/DrawSkinnedMesh — avoids a shared global so nested scenes
+    // (e.g. EnvironmentProbe::Bake's per-face BeginScene/EndScene) can't race
+    // a future main-thread recording pass.
+    struct SceneData
+    {
+        std::vector<Light> Lights;
+        uint32_t EnvMapID         = 0;
+        uint32_t IrradianceMapID  = 0;
+        uint32_t PrefilteredMapID = 0;
+        float    EnvMapIntensity = 0.f;
+        float    ETA             = 0.667f;
+        float    FresnelPower    = 5.f;
+        Frustum  CameraFrustum  {};
+    };
+
     static void Init();
     static void InitForwardPlus();
     static void Shutdown();
 
-    static void BeginScene(const RenderFrame& frame);
+    [[nodiscard]] static SceneData BeginScene(const RenderFrame& frame, CommandList& cmd);
     static void EndScene();
 
     static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
@@ -110,33 +120,19 @@ public:
     static uint32_t GetGroupsCulled() { return s_GroupsCulled; }
 
     static void DrawDebugLights(const std::vector<Light>& lights);
-    static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform);
-    static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform);
-    static void Draw(const MeshRendererComponent& rc, const glm::mat4& transform);
+    static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene);
+    static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform, CommandList& cmd, const SceneData& scene);
 
     static Ref<ShaderLibrary> GetShaderLibrary() { return s_Data->ShaderLibrary; }
     static void ReloadVariants() { if (s_Data->MeshVariants) s_Data->MeshVariants->ReloadAll(); }
 
 private:
-    static void CullLights(const RenderFrame& frame);
+    static void CullLights(const RenderFrame& frame, CommandList& cmd);
     static void ResizeTileBuffers(uint32_t w, uint32_t h);
 
     static constexpr uint32_t MAX_POINT_LIGHTS_SKINNED = 16u;
 
-    struct SceneData
-    {
-        std::vector<Light> Lights;
-        uint32_t EnvMapID         = 0;
-        uint32_t IrradianceMapID  = 0;
-        uint32_t PrefilteredMapID = 0;
-        float    EnvMapIntensity = 0.f;
-        float    ETA             = 0.667f;
-        float    FresnelPower    = 5.f;
-        Frustum  CameraFrustum  {};
-    };
-
     static Renderer3DStorage* s_Data;
-    static SceneData*         s_Scene;
     static bool               s_DrawNormals;
     static float              s_NormalLength;
     static bool               s_DrawAABB;

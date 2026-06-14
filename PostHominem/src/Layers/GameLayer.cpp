@@ -57,7 +57,6 @@ void GameLayer::OnAttach()
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
 
-	// Bake a cube map from the room center will be used for IBL reflections on shiny/metallic surfaces.
 	m_ActiveScene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
 
 	WorldConfig cfg;
@@ -174,7 +173,10 @@ void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 	frame.bloomThreshold     = m_BloomThreshold;
 
 	if (m_ActiveScene)
+	{
+		m_ActiveScene->SetEnvMapIntensity(m_EnvMapIntensity);
 		m_ActiveScene->BuildRenderFrame(frame);
+	}
 
 	if (m_IntroPhase == IntroPhase::Flash)
 	{
@@ -226,6 +228,7 @@ void GameLayer::OnImGuiRender()
 		ImGui::SliderFloat("Diffuse",       &m_Light.DiffuseIntensity, 0.f, 20.f);
 		ImGui::ColorEdit3("Light Color",    &m_Light.Color.x);
 		ImGui::SliderFloat3("Direction",    &m_Light.Direction.x, -1.f, 1.f);
+		ImGui::SliderFloat("IBL Intensity", &m_EnvMapIntensity, 0.f, 5.f);
 	}
 	if (ImGui::CollapsingHeader("Lights"))
 	{

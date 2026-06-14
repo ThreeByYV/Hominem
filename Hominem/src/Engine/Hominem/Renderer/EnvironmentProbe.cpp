@@ -65,9 +65,11 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
         faceFrame.envMapIntensity  = 0.f;    // no recursion
         faceFrame.staticMeshes     = sceneFrame.staticMeshes;
 
-        Renderer3D::BeginScene(faceFrame);
+        auto cmd = RenderCommand::SetPipelineState(PipelineState::DepthTestWriteCull());
+        auto scene = Renderer3D::BeginScene(faceFrame, cmd);
         for (const auto& sm : faceFrame.staticMeshes)
-            Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform);
+            Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
+        cmd.Submit();
         Renderer3D::EndScene();
     }
 
@@ -184,7 +186,7 @@ Ref<Texture2D> EnvironmentProbe::BakeBRDFLUT(uint32_t resolution)
     auto shader = Renderer3D::GetShaderLibrary()->Get("brdf_lut");
     HMN_CORE_ASSERT(shader, "EnvironmentProbe: brdf_lut shader not loaded");
 
-    uint32_t fbo = RenderCommand::GenFramebuffer();
+    const uint32_t fbo = RenderCommand::GenFramebuffer();
     RenderCommand::BindFramebuffer(fbo);
     RenderCommand::Attach2DTexture(lut->GetRendererID());
     RenderCommand::SetViewport(0, 0, resolution, resolution);

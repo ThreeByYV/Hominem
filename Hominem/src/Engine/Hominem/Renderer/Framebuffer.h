@@ -34,6 +34,9 @@ namespace Hominem {
 		/// Returns the GL texture ID of color attachment at index (0 = primary).
 		virtual uint32_t GetColorAttachmentRendererID(uint32_t index = 0) const = 0;
 
+		/// Returns the raw GL framebuffer object ID (for CommandList::BindFramebuffer).
+		virtual uint32_t GetRendererID() const = 0;
+
 		/// Returns the spec this framebuffer was created from.
 		virtual const FramebufferSpecification& GetSpecification() const = 0;
 

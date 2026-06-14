@@ -93,6 +93,25 @@ namespace Hominem {
 		/// Binds a texture to the given texture unit.
 		virtual void BindTexture(uint32_t slot, uint32_t id) = 0;
 
+		/// Binds a raw VAO by id (0 unbinds).
+		virtual void BindVertexArray(uint32_t vaoID) = 0;
+
+		/// Draws indexCount indices starting at indexByteOffset, offsetting all vertex indices by baseVertex.
+		virtual void DrawElementsBaseVertex(uint32_t indexCount, uint32_t indexByteOffset, int32_t baseVertex) = 0;
+
+		/// Overwrites part of a raw GL buffer's contents (glNamedBufferSubData).
+		virtual void UpdateBufferSubData(uint32_t bufferID, const void* data, uint32_t size, uint32_t offset) = 0;
+
+		/// Binds a raw GL buffer as a shader storage buffer at the given binding slot.
+		virtual void BindShaderStorageBufferBase(uint32_t bufferID, uint32_t slot) = 0;
+
+		/// Binds a raw GL buffer as the draw-indirect buffer (0 unbinds).
+		virtual void BindDrawIndirectBuffer(uint32_t bufferID) = 0;
+
+		/// Issues a multi-draw-elements-indirect call reading drawCount commands starting at byteOffset
+		/// in the currently bound draw-indirect buffer, each stride bytes apart.
+		virtual void MultiDrawElementsIndirect(uint32_t byteOffset, uint32_t drawCount, uint32_t stride) = 0;
+
 		virtual const char* GetGPUVendor()   const = 0;
 		virtual const char* GetGPURenderer() const = 0;
 

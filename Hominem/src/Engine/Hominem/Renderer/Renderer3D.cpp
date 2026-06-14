@@ -29,7 +29,6 @@ namespace {
 
 } 
     Renderer3DStorage*     Renderer3D::s_Data         = nullptr;
-    Renderer3D::SceneData* Renderer3D::s_Scene        = nullptr;
     bool                   Renderer3D::s_DrawNormals   = false;
     float                  Renderer3D::s_NormalLength  = 0.1f;
     bool                   Renderer3D::s_DrawAABB               = false;
@@ -46,7 +45,6 @@ namespace {
 void Renderer3D::Init()
 {
     s_Data  = new Renderer3DStorage();
-    s_Scene = new SceneData();
 
     s_Data->ShaderLibrary = CreateRef<ShaderLibrary>();
 
@@ -133,7 +131,6 @@ void Renderer3D::InitForwardPlus()
 
 void Renderer3D::Shutdown()
 {
-    delete s_Scene; s_Scene = nullptr;
     delete s_Data;  s_Data  = nullptr;
 }
 
@@ -150,16 +147,14 @@ void Renderer3D::ResizeTileBuffers(uint32_t w, uint32_t h)
     s_Data->LightGrid      = StorageBuffer::Create(numTiles * sizeof(LightGridEntry));
 }
 
-void Renderer3D::CullLights(const RenderFrame& frame)
+void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
-    ResizeTileBuffers(frame.viewportWidth, frame.viewportHeight);
 
-    // Build GPU light list from RenderFrame
+    // Build GPU light list (pure CPU — safe on main thread)
     const uint32_t lightCount =
         static_cast<uint32_t>(std::min(frame.lights.size(), (size_t)MAX_LIGHTS));
 
-    // Pack CPU Light structs into GPU-ready GPULight vec4s for the SSBO.
     std::vector<GPULight> gpuLights;
     gpuLights.reserve(lightCount);
     std::ranges::transform(
@@ -176,44 +171,53 @@ void Renderer3D::CullLights(const RenderFrame& frame)
             };
         });
 
-    s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
+    // All SSBO/compute work runs on the render thread: ResizeTileBuffers calls
+    // StorageBuffer::Create (glGenBuffers), which requires a valid GL context.
+    cmd.Invoke([gpuLights = std::move(gpuLights), lightCount,
+                viewW   = frame.viewportWidth,
+                viewH   = frame.viewportHeight,
+                view    = frame.view3D,
+                invProj = glm::inverse(frame.proj3D)]() mutable
+    {
+        ResizeTileBuffers(viewW, viewH);
 
-    constexpr uint32_t zero = 0u;
-    s_Data->GlobalLightCounter->SetData(&zero, sizeof(uint32_t));
+        constexpr uint32_t zero = 0u;
+        s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
+        s_Data->GlobalLightCounter->SetData(&zero, sizeof(uint32_t));
 
-    s_Data->LightBuffer->BindBase(1);
-    s_Data->LightIndexList->BindBase(2);
-    s_Data->LightGrid->BindBase(3);
-    s_Data->GlobalLightCounter->BindBase(4);
+        s_Data->LightBuffer->BindBase(1);
+        s_Data->LightIndexList->BindBase(2);
+        s_Data->LightGrid->BindBase(3);
+        s_Data->GlobalLightCounter->BindBase(4);
 
-    s_Data->LightCullingShader->Bind();
-    s_Data->LightCullingShader->SetMat4("u_View",          frame.view3D);
-    s_Data->LightCullingShader->SetMat4("u_InvProjection", glm::inverse(frame.proj3D));
-    s_Data->LightCullingShader->SetUint("u_NumLights",     lightCount);
-    s_Data->LightCullingShader->SetUint("u_NumTilesX",     s_Data->NumTilesX);
-    s_Data->LightCullingShader->SetUint("u_NumTilesY",     s_Data->NumTilesY);
-    s_Data->LightCullingShader->SetUint("u_ScreenWidth",   frame.viewportWidth);
-    s_Data->LightCullingShader->SetUint("u_ScreenHeight",  frame.viewportHeight);
-
-    // Dispatch inserts GL_SHADER_STORAGE_BARRIER_BIT — SSBOs safe to read in fragment stage.
-    s_Data->LightCullingShader->Dispatch(s_Data->NumTilesX, s_Data->NumTilesY, 1);
-
-    // Slots 1-3 remain bound for the subsequent shading pass.
+        const auto& cs = s_Data->LightCullingShader;
+        cs->Bind();
+        cs->SetMat4("u_View",          view);
+        cs->SetMat4("u_InvProjection", invProj);
+        cs->SetUint("u_NumLights",     lightCount);
+        cs->SetUint("u_NumTilesX",     s_Data->NumTilesX);
+        cs->SetUint("u_NumTilesY",     s_Data->NumTilesY);
+        cs->SetUint("u_ScreenWidth",   viewW);
+        cs->SetUint("u_ScreenHeight",  viewH);
+        cs->Dispatch(s_Data->NumTilesX, s_Data->NumTilesY, 1);
+        // Slots 1-3 remain bound for the subsequent shading pass.
+    });
 }
 
-void Renderer3D::BeginScene(const RenderFrame& frame)
+Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandList& cmd)
 {
-    HMN_CORE_ASSERT(s_Scene, "Renderer3D::BeginScene called before Init()");
+    HMN_CORE_ASSERT(s_Data, "Renderer3D::BeginScene called before Init()");
 
-    const uint32_t envID      = frame.envMap ? frame.envMap->GetRendererID() : 0u;
-    s_Scene->EnvMapID         = envID;
-    s_Scene->IrradianceMapID  = frame.irradianceMap  ? frame.irradianceMap->GetRendererID()  : 0u;
-    s_Scene->PrefilteredMapID = frame.prefilteredMap ? frame.prefilteredMap->GetRendererID() : 0u;
-    s_Scene->EnvMapIntensity  = (envID != 0u) ? frame.envMapIntensity : 0.f;
-    s_Scene->ETA             = frame.eta;
-    s_Scene->FresnelPower    = frame.fresnelPower;
-    s_Scene->Lights          = frame.lights;
-    s_Scene->CameraFrustum   = frame.frustum3D;
+    SceneData scene;
+    const uint32_t envID    = frame.envMap ? frame.envMap->GetRendererID() : 0u;
+    scene.EnvMapID          = envID;
+    scene.IrradianceMapID   = frame.irradianceMap  ? frame.irradianceMap->GetRendererID()  : 0u;
+    scene.PrefilteredMapID  = frame.prefilteredMap ? frame.prefilteredMap->GetRendererID() : 0u;
+    scene.EnvMapIntensity   = (envID != 0u) ? frame.envMapIntensity : 0.f;
+    scene.ETA               = frame.eta;
+    scene.FresnelPower      = frame.fresnelPower;
+    scene.Lights            = frame.lights;
+    scene.CameraFrustum     = frame.frustum3D;
     s_DrawCalls              = 0;
     s_Triangles              = 0;
     s_GroupsTotal            = 0;
@@ -230,17 +234,19 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
         ubo.AmbientColor     = glm::vec4(frame.light.AmbientColor, 0.f);
         ubo.AmbientIntensity = frame.light.AmbientIntensity;
         ubo.DiffuseIntensity = frame.light.DiffuseIntensity;
-        ubo.EnvMapIntensity  = s_Scene->EnvMapIntensity;
-        ubo.ETA              = s_Scene->ETA;
-        ubo.FresnelPower     = s_Scene->FresnelPower;
+        ubo.EnvMapIntensity  = scene.EnvMapIntensity;
+        ubo.ETA              = scene.ETA;
+        ubo.FresnelPower     = scene.FresnelPower;
         ubo.ScreenWidth      = frame.viewportWidth;
         ubo.DebugMode        = s_DebugHeatmap ? 1 : 0;
         ubo._pad             = 0.f;
-        s_Data->SceneUBO->SetData(&ubo, sizeof(ubo));
+        cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
     if (s_Data->LightCullingShader && !frame.lights.empty())
-        CullLights(frame);
+        CullLights(frame, cmd);
+
+    return scene;
 }
 
 
@@ -250,7 +256,7 @@ void Renderer3D::EndScene()
     Texture::UnbindAll();
 }
 
-void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
+void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene)
 {
     HMN_PROFILE_FUNCTION();
     const Material& mat0 = mesh.GetMaterial();
@@ -258,13 +264,13 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     if (s_DrawBoneWeights && s_Data->BoneWeightShader)
     {
         // Light culling overwrites bindings 3 and 4 — restore the mesh SSBOs before drawing.
-        mesh.DispatchSkinning({});
-        s_Data->BoneWeightShader->Bind();
-        s_Data->BoneWeightShader->SetMat4("u_Model", transform);
-        s_Data->BoneWeightShader->SetInt("u_Albedo", 0);
-        s_Data->BoneWeightShader->SetFloat4("u_Color", glm::vec4(1.f));
-        s_Data->BoneWeightShader->SetInt("gDisplayBoneIndex", s_DisplayBoneIndex);
-        mesh.Render(s_Data->BoneWeightShader);
+        mesh.DispatchSkinning({}, cmd);
+        cmd.BindShader(s_Data->BoneWeightShader);
+        cmd.SetMat4 (s_Data->BoneWeightShader, "u_Model", transform);
+        cmd.SetInt  (s_Data->BoneWeightShader, "u_Albedo", 0);
+        cmd.SetFloat4(s_Data->BoneWeightShader, "u_Color", glm::vec4(1.f));
+        cmd.SetInt  (s_Data->BoneWeightShader, "gDisplayBoneIndex", s_DisplayBoneIndex);
+        mesh.Render(s_Data->BoneWeightShader, cmd);
         s_DrawCalls += mesh.GetSubmeshCount();
         s_Triangles += mesh.GetIndexCount() / 3;
         return;
@@ -285,39 +291,39 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform)
     }
     HMN_CORE_ASSERT(shader, "Renderer3D: no shader for skinned mesh");
 
-    shader->Bind();
-    shader->SetInt("u_Albedo", 0);
-    shader->SetMat4("u_Model", transform);
+    cmd.BindShader(shader);
+    cmd.SetInt (shader, "u_Albedo", 0);
+    cmd.SetMat4(shader, "u_Model", transform);
     const Material& mat = mat0;
-    shader->SetFloat("u_Roughness", mat.Roughness);
-    shader->SetFloat("u_Metalness", mat.Metalness);
+    cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
+    cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
 
-    const int lightCount = (int)std::min(s_Scene->Lights.size(), (size_t)MAX_POINT_LIGHTS_SKINNED);
-    shader->SetInt("u_PointLightCount", lightCount);
+    const int lightCount = (int)std::min(scene.Lights.size(), (size_t)MAX_POINT_LIGHTS_SKINNED);
+    cmd.SetInt(shader, "u_PointLightCount", lightCount);
     for (int i = 0; i < lightCount; i++)
     {
-        const auto& l   = s_Scene->Lights[i];
+        const auto& l   = scene.Lights[i];
         const std::string idx = "[" + std::to_string(i) + "]";
-        shader->SetFloat3("u_PointLightPositions"  + idx, l.Position);
-        shader->SetFloat3("u_PointLightColors"     + idx, l.Color);
-        shader->SetFloat ("u_PointLightIntensities"+ idx, l.Intensity);
-        shader->SetFloat ("u_PointLightRadii"      + idx, l.Radius);
+        cmd.SetFloat3(shader, "u_PointLightPositions"  + idx, l.Position);
+        cmd.SetFloat3(shader, "u_PointLightColors"     + idx, l.Color);
+        cmd.SetFloat (shader, "u_PointLightIntensities"+ idx, l.Intensity);
+        cmd.SetFloat (shader, "u_PointLightRadii"      + idx, l.Radius);
     }
 
-    mesh.Render(shader);
+    mesh.Render(shader, cmd);
     s_DrawCalls += mesh.GetSubmeshCount();
     s_Triangles += mesh.GetIndexCount() / 3;
 
     if (s_DrawNormals && s_Data->NormalsSkinnedShader)
     {
-        s_Data->NormalsSkinnedShader->Bind();
-        s_Data->NormalsSkinnedShader->SetMat4("u_Model", transform);
-        s_Data->NormalsSkinnedShader->SetFloat("u_NormalLength", s_NormalLength);
-        mesh.Render(s_Data->NormalsSkinnedShader);
+        cmd.BindShader(s_Data->NormalsSkinnedShader);
+        cmd.SetMat4 (s_Data->NormalsSkinnedShader, "u_Model", transform);
+        cmd.SetFloat(s_Data->NormalsSkinnedShader, "u_NormalLength", s_NormalLength);
+        mesh.Render(s_Data->NormalsSkinnedShader, cmd);
     }
 }
 
-void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
+void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene)
 {
     HMN_PROFILE_FUNCTION();
 
@@ -332,7 +338,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 
         const bool hasNM  = mesh.HasNormalMap();
         const bool hasMR  = mesh.HasMetalRoughness();
-        const bool hasEnv = s_Scene->EnvMapID != 0u;
+        const bool hasEnv = scene.EnvMapID != 0u;
         const bool toon   = s_ToonShading;
         std::string name  = toon ? "static_toon" : "static_pbr";
         if (hasNM && hasMR && hasEnv) name += "_nm_mr_env";
@@ -346,30 +352,30 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     }
     HMN_CORE_ASSERT(shader, "Renderer3D::DrawStaticMesh: no shader variant available");
 
-    shader->Bind();
+    cmd.BindShader(shader);
 
-    if (s_Scene->EnvMapID != 0u)
+    if (scene.EnvMapID != 0u)
     {
-        RenderCommand::BindTexture(3, s_Scene->EnvMapID);
-        if (s_Scene->IrradianceMapID != 0u)
+        cmd.BindTexture(3, scene.EnvMapID);
+        if (scene.IrradianceMapID != 0u)
         {
-            RenderCommand::BindTexture(4, s_Scene->IrradianceMapID);
-            shader->SetInt("u_IrradianceMap", 4);
+            cmd.BindTexture(4, scene.IrradianceMapID);
+            cmd.SetInt(shader, "u_IrradianceMap", 4);
         }
-        if (s_Scene->PrefilteredMapID != 0u)
+        if (scene.PrefilteredMapID != 0u)
         {
-            RenderCommand::BindTexture(5, s_Scene->PrefilteredMapID);
-            shader->SetInt("u_PrefilteredMap", 5);
+            cmd.BindTexture(5, scene.PrefilteredMapID);
+            cmd.SetInt(shader, "u_PrefilteredMap", 5);
         }
-        RenderCommand::BindTexture(6, s_Data->BRDFLUT->GetRendererID());
-        shader->SetInt("u_BRDFLUT", 6);
+        cmd.BindTexture(6, s_Data->BRDFLUT->GetRendererID());
+        cmd.SetInt(shader, "u_BRDFLUT", 6);
     }
 
     const Material& mat = mesh.GetMaterial();
-    shader->SetFloat("u_Roughness", mat.Roughness);
-    shader->SetFloat("u_Metalness", mat.Metalness);
+    cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
+    cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
 
-    auto [calls, tris] = mesh.Draw(shader, transform, &s_Scene->CameraFrustum);
+    auto [calls, tris] = mesh.Draw(shader, transform, cmd, &scene.CameraFrustum);
     s_DrawCalls   += calls;
     s_Triangles   += tris;
     uint32_t total = static_cast<uint32_t>(mesh.GetDrawGroupCount());
@@ -378,23 +384,23 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
 
     if (s_DrawNormals && s_Data->NormalsShader)
     {
-        s_Data->NormalsShader->Bind();
-        s_Data->NormalsShader->SetFloat("u_NormalLength", s_NormalLength);
-        mesh.Draw(s_Data->NormalsShader, transform);
+        cmd.BindShader(s_Data->NormalsShader);
+        cmd.SetFloat(s_Data->NormalsShader, "u_NormalLength", s_NormalLength);
+        mesh.Draw(s_Data->NormalsShader, transform, cmd);
     }
 
     if (s_DrawAABB && s_Data->DebugAABBShader)
     {
         s_Data->DebugVAO->Bind();
-        auto cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
-        cmd.BindShader(s_Data->DebugAABBShader);
+        auto aabbCmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
+        aabbCmd.BindShader(s_Data->DebugAABBShader);
 
         const size_t groupCount = mesh.GetDrawGroupCount();
         for (size_t gi = 0; gi < groupCount; gi++)
         {
             auto [mn, mx]         = mesh.GetDrawGroupBounds(gi);
             const glm::mat4 model = transform * mesh.GetDrawGroupTransform(gi);
-            const bool    visible = s_Scene->CameraFrustum.TestAABBTransformed(mn, mx, model);
+            const bool    visible = scene.CameraFrustum.TestAABBTransformed(mn, mx, model);
 
             const glm::vec3 corners[8] = {
                 glm::vec3(model * glm::vec4(mn.x, mn.y, mn.z, 1.f)),
@@ -406,13 +412,13 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
                 glm::vec3(model * glm::vec4(mx.x, mx.y, mx.z, 1.f)),
                 glm::vec3(model * glm::vec4(mn.x, mx.y, mx.z, 1.f)),
             };
-            cmd.SetBufferData(s_Data->DebugVBO, corners, sizeof(corners));
-            cmd.SetFloat4(s_Data->DebugAABBShader, "u_Color",
+            aabbCmd.SetBufferData(s_Data->DebugVBO, corners, sizeof(corners));
+            aabbCmd.SetFloat4(s_Data->DebugAABBShader, "u_Color",
                 visible ? glm::vec4(0.f, 1.f, 0.f, 1.f)
                         : glm::vec4(1.f, 0.f, 0.f, 1.f));
-            cmd.DrawIndexedLines(s_Data->DebugVAO, 24);
+            aabbCmd.DrawIndexedLines(s_Data->DebugVAO, 24);
         }
-        cmd.Submit();
+        aabbCmd.Submit();
 
         s_Data->DebugVAO->Unbind();
     }
@@ -438,13 +444,6 @@ void Renderer3D::DrawDebugLights(const std::vector<Light>& lights)
     }
     cmd.Submit();
     s_Data->DebugVAO->Unbind();
-}
-
-void Renderer3D::Draw(const MeshRendererComponent& rc, const glm::mat4& transform)
-{
-    HMN_CORE_ASSERT(rc.Mesh, "Renderer3D::Draw called with null Mesh");
-    if (rc.Shader) rc.Mesh->SetShader(rc.Shader);
-    DrawSkinnedMesh(*rc.Mesh, transform);
 }
 
 }

@@ -17,6 +17,7 @@ public:
 
 	std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
 	                                    const glm::mat4&   actorTransform,
+	                                    CommandList&       cmd,
 	                                    const Frustum*     frustum = nullptr) override;
 
 	bool IsLoaded()        const override { return m_VAO != 0 || !m_PendingVerts.empty(); }

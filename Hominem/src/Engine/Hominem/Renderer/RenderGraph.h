@@ -27,14 +27,17 @@ public:
 	/// Returns a previously declared render target. Asserts if the name was never declared.
 	Ref<Framebuffer> GetFBO(const std::string& name);
 
-	/// Resizes all FBOs if the viewport changed, then runs every pass in order.
-	void Execute(const RenderFrame& frame);
+	/// Records every pass in order into its own CommandList. Pure CPU work — safe to
+	/// call from the main thread. FBOs are not resized here; call Resize()/SetRenderScale()
+	/// from the render thread (after submitting this frame's CommandLists) instead.
+	std::vector<CommandList> Record(const RenderFrame& frame);
 
 	/// Explicitly resize all FBOs to the given dimensions (no-op if unchanged).
+	/// Makes GL calls — render thread only.
 	void Resize(uint32_t w, uint32_t h);
 
 	/// Sets a global render scale (0.25–1.0) applied to all FBO dimensions.
-	/// Call before Execute() each frame; rebuilds FBOs only when scale changes.
+	/// Rebuilds FBOs only when scale changes. Makes GL calls — render thread only.
 	void  SetRenderScale(float scale);
 	float GetRenderScale() const { return m_RenderScale; }
 
