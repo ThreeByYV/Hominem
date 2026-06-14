@@ -66,6 +66,9 @@ in vec2 v_TexCoord;
 #include "includes/types.glsl"
 #include "includes/pbr.glsl"
 #include "includes/env_mapping.glsl"
+#ifdef HAS_ENV_MAP
+    #include "includes/irradiance.glsl"
+#endif
 
     uniform sampler2D u_Albedo;      // slot 0
     uniform float     u_Roughness;   // scalar fallback when no MR texture
@@ -185,7 +188,11 @@ void main()
 
 #else
     // ── Standard PBR path ─────────────────────────────────────────────────────
+#ifdef HAS_ENV_MAP
+    vec3 color = ApplyIrradiance(N, V, albedo, roughness, metalness);
+#else
     vec3 color = u_AmbientColor.xyz * u_AmbientIntensity * albedo;
+#endif
 
     // Directional light
     color += evalPBR(N, V, normalize(-u_LightDirection.xyz), albedo, roughness, metalness,

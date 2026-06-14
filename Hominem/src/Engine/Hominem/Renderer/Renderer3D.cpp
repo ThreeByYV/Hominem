@@ -59,6 +59,7 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/silhouette.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/fire_quad.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/smoke_quad.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/irradiance_convolve.glsl");
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
@@ -201,6 +202,7 @@ void Renderer3D::BeginScene(const RenderFrame& frame)
 
     const uint32_t envID     = frame.envMap ? frame.envMap->GetRendererID() : 0u;
     s_Scene->EnvMapID        = envID;
+    s_Scene->IrradianceMapID = frame.irradianceMap ? frame.irradianceMap->GetRendererID() : 0u;
     s_Scene->EnvMapIntensity = (envID != 0u) ? frame.envMapIntensity : 0.f;
     s_Scene->ETA             = frame.eta;
     s_Scene->FresnelPower    = frame.fresnelPower;
@@ -341,7 +343,11 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     shader->Bind();
 
     if (s_Scene->EnvMapID != 0u)
+    {
         RenderCommand::BindTexture(3, s_Scene->EnvMapID);
+        if (s_Scene->IrradianceMapID != 0u)
+            RenderCommand::BindTexture(4, s_Scene->IrradianceMapID);
+    }
 
     const Material& mat = mesh.GetMaterial();
     shader->SetFloat("u_Roughness", mat.Roughness);

@@ -71,8 +71,10 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame)
     // Bake before BeginScene so the result is visible from the next frame onward.
     if (frame.bakeEnvMap && frame.bakedEnvMapOut)
     {
-        auto baked = EnvironmentProbe::Bake(frame.bakeCapPos, frame, frame.bakeResolution);
-        frame.bakedEnvMapOut->map = std::move(baked);
+        auto baked     = EnvironmentProbe::Bake(frame.bakeCapPos, frame, frame.bakeResolution);
+        auto irradiance = EnvironmentProbe::ConvolveIrradiance(baked);
+        frame.bakedEnvMapOut->map        = std::move(baked);
+        frame.bakedEnvMapOut->irradiance = std::move(irradiance);
         frame.bakedEnvMapOut->ready.store(true, std::memory_order_release);
     }
 
