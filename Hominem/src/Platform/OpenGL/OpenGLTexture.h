@@ -24,8 +24,6 @@ namespace Hominem {
 		void SetData(const void*, uint32_t) override {}
 		void Bind(uint32_t slot) const override;
 
-		// Render thread: allocates the GL cubemap texture and its full mip chain
-		// (for the baked empty path). No-op if already created.
 		void EnsureCreated() override;
 		void GenerateMipmaps() override;
 
@@ -46,11 +44,16 @@ namespace Hominem {
 
 		uint32_t GetWidth() const override { return m_Width; }
 		uint32_t GetHeight() const override { return m_Height; }
+		uint32_t GetRendererID() const override { return m_RendererID; }
 
 		void SetData(const void* data, uint32_t size) override;
 		void Bind(uint32_t slot) const override;
 		void SetWrapS(TextureWrap wrap) override;
 		void SetWrapT(TextureWrap wrap) override;
+
+		// Render thread: allocates GL storage immediately (e.g. for the BRDF LUT
+		// render target, which has no initial pixel data). No-op if already created.
+		void EnsureCreated() override;
 
 		static void UnbindAll();
 
