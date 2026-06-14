@@ -74,11 +74,17 @@ namespace Hominem {
 		if (m_RendererID) return;
 		HMN_CORE_ASSERT(m_Resolution > 0, "OpenGLTextureCube: resolution not set before EnsureCreated");
 
+		m_MipLevels = 1u + (uint32_t)std::floor(std::log2((float)m_Resolution));
+
 		glGenTextures(1, &m_RendererID);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, m_RendererID);
-		for (int i = 0; i < 6; i++)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA16F,
-			             m_Resolution, m_Resolution, 0, GL_RGBA, GL_FLOAT, nullptr);
+		for (uint32_t mip = 0; mip < m_MipLevels; mip++)
+		{
+			uint32_t mipRes = std::max(1u, m_Resolution >> mip);
+			for (int face = 0; face < 6; face++)
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, mip, GL_RGBA16F,
+				             mipRes, mipRes, 0, GL_RGBA, GL_FLOAT, nullptr);
+		}
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

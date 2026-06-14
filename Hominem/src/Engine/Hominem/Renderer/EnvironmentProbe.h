@@ -21,6 +21,12 @@ public:
     // after the source cube has been baked.
     static Ref<TextureCube> ConvolveIrradiance(const Ref<TextureCube>& source,
                                                 uint32_t resolution = 32);
+
+    // GGX importance-sampled prefilter of a baked environment cube into a
+    // mip-chained specular cubemap, one roughness value per mip. Must be
+    // called on the render thread, after the source cube has been baked.
+    static Ref<TextureCube> PrefilterSpecular(const Ref<TextureCube>& source,
+                                               uint32_t resolution = 128);
 };
 
 } // namespace Hominem

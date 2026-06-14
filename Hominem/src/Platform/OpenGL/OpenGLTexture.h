@@ -19,18 +19,20 @@ namespace Hominem {
 		uint32_t GetWidth()      const override { return m_Resolution; }
 		uint32_t GetHeight()     const override { return m_Resolution; }
 		uint32_t GetRendererID() const override { return m_RendererID; }
+		uint32_t GetMipLevels()  const override { return m_MipLevels; }
 
 		void SetData(const void*, uint32_t) override {}
 		void Bind(uint32_t slot) const override;
 
-		// Render thread: allocates the GL cubemap texture (for the baked empty path).
-		// No-op if already created.
+		// Render thread: allocates the GL cubemap texture and its full mip chain
+		// (for the baked empty path). No-op if already created.
 		void EnsureCreated() override;
 		void GenerateMipmaps() override;
 
 	private:
 		mutable uint32_t m_RendererID = 0;
 		uint32_t         m_Resolution = 0;
+		uint32_t         m_MipLevels  = 1;
 	};
 
 	class OpenGLTexture2D : public Texture2D
