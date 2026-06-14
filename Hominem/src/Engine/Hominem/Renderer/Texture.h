@@ -36,6 +36,15 @@ namespace Hominem {
 		static Ref<TextureCube> CreateEmpty(uint32_t resolution);
 
 		virtual uint32_t GetRendererID() const = 0;
+
+		// Allocates the GL cubemap storage for a CreateEmpty() texture. Must be
+		// called on the render thread before the texture is used as a render
+		// target or sampled. Safe to call multiple times (no-op if already created).
+		virtual void EnsureCreated() = 0;
+
+		// Generates a full mip chain from the current face contents (e.g. after
+		// rendering into mip 0 of each face).
+		virtual void GenerateMipmaps() = 0;
 	};
 
 	class Texture2D : public Texture

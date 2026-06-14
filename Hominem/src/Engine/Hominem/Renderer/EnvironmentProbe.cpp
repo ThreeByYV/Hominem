@@ -2,7 +2,7 @@
 #include "EnvironmentProbe.h"
 #include "Renderer3D.h"
 #include "Hominem/Renderer/RenderThread.h"
-#include "Platform/OpenGL/OpenGLTexture.h"
+#include "Hominem/Renderer/RenderCommand.h"
 
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -27,9 +27,8 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
 {
     RenderThread::AssertRenderThread();
 
-    auto cube    = CreateRef<OpenGLTextureCube>(resolution);
-    auto rawCube = static_cast<OpenGLTextureCube*>(cube.get());
-    rawCube->CreateGL();
+    auto cube = TextureCube::CreateEmpty(resolution);
+    cube->EnsureCreated();
 
     // Temp FBO + depth renderbuffer
     uint32_t fbo, depthRBO;
@@ -46,7 +45,7 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
-                               rawCube->GetRendererID(), 0);
+                               cube->GetRendererID(), 0);
 
         glViewport(0, 0, (GLsizei)resolution, (GLsizei)resolution);
         glClearColor(0.05f, 0.05f, 0.05f, 1.f);
@@ -77,9 +76,7 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
     }
 
     // Mipmaps for trilinear filtering when sampled at grazing angles
-    glBindTexture(GL_TEXTURE_CUBE_MAP, rawCube->GetRendererID());
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    cube->GenerateMipmaps();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteRenderbuffers(1, &depthRBO);
@@ -87,6 +84,52 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
 
     HMN_CORE_INFO("EnvironmentProbe: baked {}x{} cubemap from ({:.1f},{:.1f},{:.1f})",
                   resolution, resolution, capturePos.x, capturePos.y, capturePos.z);
+
+    return cube;
+}
+
+Ref<TextureCube> EnvironmentProbe::ConvolveIrradiance(const Ref<TextureCube>& source, uint32_t resolution)
+{
+    RenderThread::AssertRenderThread();
+
+    auto cube = TextureCube::CreateEmpty(resolution);
+    cube->EnsureCreated();
+
+    auto shader = Renderer3D::GetShaderLibrary()->Get("irradiance_convolve");
+    HMN_CORE_ASSERT(shader, "EnvironmentProbe: irradiance_convolve shader not loaded");
+
+    // Color-only FBO, no depth needed for a fullscreen-triangle convolution.
+    uint32_t fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    const glm::mat4 proj = glm::perspective(glm::radians(90.f), 1.f, 0.1f, 10.f);
+
+    RenderCommand::SetDepthTestEnabled(false);
+    shader->Bind();
+    shader->SetInt("u_EnvMap", 0);
+    RenderCommand::BindTexture(0, source->GetRendererID());
+
+    for (int face = 0; face < 6; face++)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+                               cube->GetRendererID(), 0);
+
+        glViewport(0, 0, (GLsizei)resolution, (GLsizei)resolution);
+
+        const glm::mat4 view   = glm::lookAt(glm::vec3(0.f), s_FaceTargets[face], s_FaceUps[face]);
+        const glm::mat4 invVP  = glm::inverse(proj * view);
+        shader->SetMat4("u_InvViewProj", invVP);
+
+        RenderCommand::DrawFullscreenTriangle();
+    }
+
+    RenderCommand::SetDepthTestEnabled(true);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+
+    HMN_CORE_INFO("EnvironmentProbe: convolved {}x{} irradiance cubemap", resolution, resolution);
 
     return cube;
 }

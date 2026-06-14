@@ -23,8 +23,10 @@ namespace Hominem {
 		void SetData(const void*, uint32_t) override {}
 		void Bind(uint32_t slot) const override;
 
-		// Render thread: allocates the GL cubemap texture (for the baked empty path)
-		void CreateGL();
+		// Render thread: allocates the GL cubemap texture (for the baked empty path).
+		// No-op if already created.
+		void EnsureCreated() override;
+		void GenerateMipmaps() override;
 
 	private:
 		mutable uint32_t m_RendererID = 0;

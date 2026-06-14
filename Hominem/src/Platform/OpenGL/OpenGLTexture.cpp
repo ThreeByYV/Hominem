@@ -68,10 +68,11 @@ namespace Hominem {
 		glBindTextureUnit(slot, m_RendererID);
 	}
 
-	void OpenGLTextureCube::CreateGL()
+	void OpenGLTextureCube::EnsureCreated()
 	{
 		RenderThread::AssertRenderThread();
-		HMN_CORE_ASSERT(m_Resolution > 0, "OpenGLTextureCube: resolution not set before CreateGL");
+		if (m_RendererID) return;
+		HMN_CORE_ASSERT(m_Resolution > 0, "OpenGLTextureCube: resolution not set before EnsureCreated");
 
 		glGenTextures(1, &m_RendererID);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, m_RendererID);
@@ -83,6 +84,14 @@ namespace Hominem {
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	}
+
+	void OpenGLTextureCube::GenerateMipmaps()
+	{
+		RenderThread::AssertRenderThread();
+		glBindTexture(GL_TEXTURE_CUBE_MAP, m_RendererID);
+		glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 	}
 
