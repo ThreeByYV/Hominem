@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "Hominem/Renderer/Framebuffer.h"
+#include "Hominem/Renderer/CommandList.h"
 
 namespace Hominem {
 
@@ -14,10 +15,10 @@ struct RenderFrame;
 class RenderGraph
 {
 public:
-	using PassFn = std::function<void(RenderGraph&, const RenderFrame&)>;
+	using PassFn = std::function<void(RenderGraph&, const RenderFrame&, CommandList&)>;
 
-	/// Appends a named pass that executes in insertion order each frame.
-	void AddPass(std::string name, PassFn fn);
+	/// Appends a named pass. The graph calls SetPipelineState(state) before invoking fn each frame.
+	void AddPass(std::string name, PipelineState state, PassFn fn);
 
 	/// Registers a named render target. scale is relative to the viewport (1.0 = full res, 0.25 = quarter res).
 	/// The FBO is created on the first Execute() with a valid viewport.
@@ -40,7 +41,7 @@ public:
 private:
 	void OnResize(uint32_t w, uint32_t h);
 
-	struct Pass     { std::string name; PassFn fn; };
+	struct Pass     { std::string name; PipelineState state; PassFn fn; };
 	struct FBOEntry { Ref<Framebuffer> fbo; FramebufferFormat format; float scale = 1.0f; uint32_t numColorAttachments = 1; };
 
 	std::vector<Pass>                         m_Passes;
