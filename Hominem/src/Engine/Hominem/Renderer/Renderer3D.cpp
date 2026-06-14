@@ -3,6 +3,7 @@
 #include "Hominem/Utils/Renderer.h"
 #include "RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
+#include "EnvironmentProbe.h"
 
 #include <glad/glad.h>
 #include <ranges>
@@ -61,6 +62,9 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/smoke_quad.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/irradiance_convolve.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/prefilter_convolve.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/brdf_lut.glsl");
+
+    s_Data->BRDFLUT = EnvironmentProbe::BakeBRDFLUT();
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
@@ -348,9 +352,17 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform)
     {
         RenderCommand::BindTexture(3, s_Scene->EnvMapID);
         if (s_Scene->IrradianceMapID != 0u)
+        {
             RenderCommand::BindTexture(4, s_Scene->IrradianceMapID);
+            shader->SetInt("u_IrradianceMap", 4);
+        }
         if (s_Scene->PrefilteredMapID != 0u)
+        {
             RenderCommand::BindTexture(5, s_Scene->PrefilteredMapID);
+            shader->SetInt("u_PrefilteredMap", 5);
+        }
+        RenderCommand::BindTexture(6, s_Data->BRDFLUT->GetRendererID());
+        shader->SetInt("u_BRDFLUT", 6);
     }
 
     const Material& mat = mesh.GetMaterial();

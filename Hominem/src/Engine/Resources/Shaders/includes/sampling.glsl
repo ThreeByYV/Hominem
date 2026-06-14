@@ -1,0 +1,38 @@
+// Low-discrepancy sampling helpers shared by IBL pre-integration passes
+// (specular prefilter, BRDF LUT).
+
+const float SAMPLING_PI = 3.14159265359;
+
+// Van der Corput radical inverse, base 2.
+float radicalInverseVdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 hammersley(uint i, uint n)
+{
+    return vec2(float(i) / float(n), radicalInverseVdC(i));
+}
+
+// Sample a half-vector around N from the GGX distribution for the given roughness.
+vec3 importanceSampleGGX(vec2 Xi, vec3 N, float roughness)
+{
+    float a = roughness * roughness;
+
+    float phi      = 2.0 * SAMPLING_PI * Xi.x;
+    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 H = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    vec3 up        = (abs(N.z) < 0.999) ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent   = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    return normalize(tangent * H.x + bitangent * H.y + N * H.z);
+}

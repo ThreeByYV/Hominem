@@ -245,7 +245,7 @@ void main()
 
     // Environment map
     #ifdef HAS_ENV_MAP
-    color = ApplyEnvMapping(color, N, V, roughness, metalness);
+    color = ApplyEnvMapping(color, N, V, albedo, roughness, metalness);
     #endif
 #endif
 

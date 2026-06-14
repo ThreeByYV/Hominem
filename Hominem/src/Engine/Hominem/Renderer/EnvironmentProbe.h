@@ -27,6 +27,11 @@ public:
     // called on the render thread, after the source cube has been baked.
     static Ref<TextureCube> PrefilterSpecular(const Ref<TextureCube>& source,
                                                uint32_t resolution = 128);
+
+    // Pre-integrates the split-sum specular BRDF (scale, bias) over (NdotV, roughness)
+    // into an RG16F 2D LUT. Independent of any scene content — bake once at startup.
+    // Must be called on the render thread.
+    static Ref<Texture2D> BakeBRDFLUT(uint32_t resolution = 512);
 };
 
 } // namespace Hominem
