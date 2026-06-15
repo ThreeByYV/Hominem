@@ -91,6 +91,7 @@ in vec2 v_TexCoord;
     uniform vec3  u_PointLightColors[MAX_POINT_LIGHTS];
     uniform float u_PointLightIntensities[MAX_POINT_LIGHTS];
     uniform float u_PointLightRadii[MAX_POINT_LIGHTS];
+    uniform float u_PointLightSourceRadii[MAX_POINT_LIGHTS];
 #endif
 
 void main()
@@ -227,7 +228,8 @@ void main()
             radiance *= coneFactor;
         }
 
-        color += evalPBR(N, V, normalize(Lp), albedo, roughness, metalness, radiance);
+        float sourceRadius = (u_AreaLightsEnabled != 0) ? lights[idx].coneAngles.z : 0.0;
+        color += evalPBRSphere(N, V, Lp, dist, sourceRadius, albedo, roughness, metalness, radiance);
     }
     #else
     for (int i = 0; i < u_PointLightCount; i++)
@@ -239,7 +241,8 @@ void main()
         falloff       *= falloff;
         vec3  radiance = u_PointLightColors[i] * u_PointLightIntensities[i]
                        * (falloff / max(dist * dist, 0.0001));
-        color += evalPBR(N, V, normalize(toLight), albedo, roughness, metalness, radiance);
+        float sourceRadius = (u_AreaLightsEnabled != 0) ? u_PointLightSourceRadii[i] : 0.0;
+        color += evalPBRSphere(N, V, toLight, dist, sourceRadius, albedo, roughness, metalness, radiance);
     }
     #endif
 
