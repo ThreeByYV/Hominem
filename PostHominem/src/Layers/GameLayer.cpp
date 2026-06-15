@@ -73,6 +73,7 @@ void GameLayer::OnAttach()
 			l.Radius     = lc.Radius;
 			l.InnerAngle = lc.InnerAngle;
 			l.OuterAngle = lc.OuterAngle;
+			l.SourceRadius = lc.SourceRadius;
 			l.Type       = static_cast<LightType>(lc.Type);
 			m_Lights.push_back(l);
 		}
@@ -229,6 +230,10 @@ void GameLayer::OnImGuiRender()
 		ImGui::ColorEdit3("Light Color",    &m_Light.Color.x);
 		ImGui::SliderFloat3("Direction",    &m_Light.Direction.x, -1.f, 1.f);
 		ImGui::SliderFloat("IBL Intensity", &m_EnvMapIntensity, 0.f, 5.f);
+
+		bool areaLights = Renderer3D::GetAreaLightsEnabled();
+		if (ImGui::Checkbox("Area Lights", &areaLights))
+			Renderer3D::SetAreaLightsEnabled(areaLights);
 	}
 	if (ImGui::CollapsingHeader("Lights"))
 	{
@@ -269,6 +274,7 @@ void GameLayer::OnImGuiRender()
 				lc.Radius     = l.Radius;
 				lc.InnerAngle = l.InnerAngle;
 				lc.OuterAngle = l.OuterAngle;
+				lc.SourceRadius = l.SourceRadius;
 				lc.Type       = static_cast<uint32_t>(l.Type);
 				cfg.Lights.push_back(lc);
 			}
@@ -291,6 +297,7 @@ void GameLayer::OnImGuiRender()
 				ImGui::ColorEdit3("Color",     &l.Color.x);
 				ImGui::DragFloat("Intensity",  &l.Intensity,  0.1f, 0.f, 100.f);
 				ImGui::DragFloat("Radius",     &l.Radius,     0.1f, 0.1f, 50.f);
+				ImGui::DragFloat("Source Radius", &l.SourceRadius, 0.01f, 0.f, 5.f);
 				if (l.Type == LightType::Spot)
 				{
 					ImGui::DragFloat3("Direction",   &l.Direction.x,  0.01f, -1.f, 1.f);

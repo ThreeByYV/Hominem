@@ -85,6 +85,7 @@ struct LightConfig
 	float     Radius     = 3.0f;
 	float     InnerAngle = 25.f;
 	float     OuterAngle = 35.f;
+	float     SourceRadius = 0.15f;
 	uint32_t  Type       = 0; // 0=point, 1=spot
 };
 

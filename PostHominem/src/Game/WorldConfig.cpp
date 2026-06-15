@@ -96,6 +96,7 @@ namespace nlohmann {
 		if (j.contains("radius"))      c.Radius     = j.at("radius").get<float>();
 		if (j.contains("inner_angle")) c.InnerAngle = j.at("inner_angle").get<float>();
 		if (j.contains("outer_angle")) c.OuterAngle = j.at("outer_angle").get<float>();
+		if (j.contains("source_radius")) c.SourceRadius = j.at("source_radius").get<float>();
 		if (j.contains("type"))        c.Type       = j.at("type").get<uint32_t>();
 	}
 
@@ -222,6 +223,7 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 				{ "radius",      l.Radius     },
 				{ "inner_angle", l.InnerAngle },
 				{ "outer_angle", l.OuterAngle },
+				{ "source_radius", l.SourceRadius },
 				{ "type",        l.Type       }
 			});
 		}
