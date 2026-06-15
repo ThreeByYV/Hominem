@@ -30,7 +30,7 @@ struct alignas(16) SceneUBOData
     float     FresnelPower;      // offset 144
     uint32_t  ScreenWidth;       // offset 148
     int32_t   DebugMode;         // offset 152
-    float     _pad;              // offset 156 → total 160 bytes
+    int32_t   AreaLightsEnabled; // offset 156 → total 160 bytes
 };
 static_assert(sizeof(SceneUBOData) == 160, "SceneUBOData size mismatch — check std140 layout");
 
@@ -104,6 +104,8 @@ public:
     static bool GetDrawAABB()               { return s_DrawAABB; }
     static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
     static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
+    static void SetAreaLightsEnabled(bool v) { s_AreaLightsEnabled = v; }
+    static bool GetAreaLightsEnabled()       { return s_AreaLightsEnabled; }
     static void SetDrawBoneWeights(bool v)   { s_DrawBoneWeights = v; }
     static bool GetDrawBoneWeights()         { return s_DrawBoneWeights; }
     static void SetToonShading(bool v)       { s_ToonShading = v; }
@@ -140,6 +142,7 @@ private:
     static int                s_DisplayBoneIndex;
     static bool               s_ToonShading;
     static bool               s_DebugHeatmap;
+    static bool               s_AreaLightsEnabled;
     static float              s_RecommendedRenderScale;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;

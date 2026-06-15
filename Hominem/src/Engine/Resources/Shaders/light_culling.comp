@@ -8,7 +8,7 @@ struct GPULight
     vec4 positionAndRadius; // xyz = world pos, w = radius
     vec4 colorAndIntensity; // xyz = colour,    w = intensity
     vec4 directionAndType;  // xyz = direction (spot), w = type (0=point 1=spot)
-    vec4 coneAngles;        // x = cos(inner), y = cos(outer)
+    vec4 coneAngles;        // x = cos(inner), y = cos(outer), z = sourceRadius
 };
 
 struct LightGridEntry

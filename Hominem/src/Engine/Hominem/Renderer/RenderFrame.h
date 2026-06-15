@@ -68,6 +68,7 @@ namespace Hominem {
 		float     Radius     = 3.0f;               // world-space range
 		float     InnerAngle = 25.f;               // Spot only, degrees
 		float     OuterAngle = 35.f;               // Spot only, degrees
+		float     SourceRadius = 0.15f;            // physical size of emitter (area light), 0 = punctual
 		LightType Type       = LightType::Point;
 	};
 

@@ -18,7 +18,7 @@ namespace {
         glm::vec4 positionAndRadius; // xyz = world pos, w = radius
         glm::vec4 colorAndIntensity; // xyz = colour,    w = intensity
         glm::vec4 directionAndType;  // xyz = direction (spot), w = type (0=point 1=spot)
-        glm::vec4 coneAngles;        // x = cos(innerAngle), y = cos(outerAngle), zw = 0
+        glm::vec4 coneAngles;        // x = cos(innerAngle), y = cos(outerAngle), z = sourceRadius, w = 0
     };
 
     struct LightGridEntry
@@ -36,6 +36,7 @@ namespace {
     int                    Renderer3D::s_DisplayBoneIndex       = 0;
     bool                   Renderer3D::s_ToonShading            = false;
     bool                   Renderer3D::s_DebugHeatmap            = false;
+    bool                   Renderer3D::s_AreaLightsEnabled       = true;
     float                  Renderer3D::s_RecommendedRenderScale  = 1.0f;
     uint32_t               Renderer3D::s_DrawCalls     = 0;
     uint64_t               Renderer3D::s_Triangles     = 0;
@@ -167,7 +168,7 @@ void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd)
                 { l.Position, l.Radius },
                 { l.Color, l.Intensity },
                 { l.Direction, static_cast<float>(l.Type) },
-                { cosInner, cosOuter, 0.f, 0.f }
+                { cosInner, cosOuter, l.SourceRadius, 0.f }
             };
         });
 
@@ -239,7 +240,7 @@ Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandLi
         ubo.FresnelPower     = scene.FresnelPower;
         ubo.ScreenWidth      = frame.viewportWidth;
         ubo.DebugMode        = s_DebugHeatmap ? 1 : 0;
-        ubo._pad             = 0.f;
+        ubo.AreaLightsEnabled = s_AreaLightsEnabled ? 1 : 0;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
@@ -308,6 +309,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
         cmd.SetFloat3(shader, "u_PointLightColors"     + idx, l.Color);
         cmd.SetFloat (shader, "u_PointLightIntensities"+ idx, l.Intensity);
         cmd.SetFloat (shader, "u_PointLightRadii"      + idx, l.Radius);
+        cmd.SetFloat (shader, "u_PointLightSourceRadii"+ idx, l.SourceRadius);
     }
 
     mesh.Render(shader, cmd);

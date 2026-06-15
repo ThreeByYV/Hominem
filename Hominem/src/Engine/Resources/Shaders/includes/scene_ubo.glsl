@@ -15,7 +15,7 @@ layout(std140, binding = 0) uniform SceneUBO
     float u_FresnelPower;      // offset 144
     uint  u_ScreenWidth;       // offset 148
     int   u_DebugMode;         // offset 152
-                               // 4 bytes pad → total 160
+    int   u_AreaLightsEnabled; // offset 156 → total 160
 };
 
 uniform mat4 u_Model; // per-mesh — stays as a regular uniform
