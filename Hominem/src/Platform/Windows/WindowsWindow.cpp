@@ -203,6 +203,11 @@ namespace Hominem {
 	}
 
 
+	void WindowsWindow::Hide()
+	{
+		glfwHideWindow(m_Window);
+	}
+
 	WindowsWindow::~WindowsWindow()
 	{
 		Shutdown();
