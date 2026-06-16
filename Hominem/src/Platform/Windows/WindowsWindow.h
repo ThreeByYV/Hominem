@@ -27,6 +27,7 @@ namespace Hominem {
 		void SetVSync(bool enabled) override;
 		bool IsVSync() const override;
 		void ToggleFullscreen() override;
+		void Hide() override;
 
 	private:
 		virtual void Init(const WindowProps& props);

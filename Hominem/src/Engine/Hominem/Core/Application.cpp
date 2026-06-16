@@ -174,6 +174,7 @@ namespace Hominem {
 			ProcessPendingTransitions();
 		}
 
+		m_Window->Hide(); // hide before teardown to avoid black-flash on close
 		m_RenderThread.Stop();
 
 		// Re-acquire the GL context — render thread released it, but we need it
