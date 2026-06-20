@@ -97,25 +97,6 @@ public:
     static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
     static void ClearOverrideShader()                        { s_Data->OverrideShader.reset(); }
 
-    static void SetDrawNormals(bool v)      { s_DrawNormals = v; }
-    static bool GetDrawNormals()            { return s_DrawNormals; }
-    static void SetNormalLength(float l)    { s_NormalLength = l; }
-    static void SetDrawAABB(bool v)         { s_DrawAABB = v; }
-    static bool GetDrawAABB()               { return s_DrawAABB; }
-    static void SetDebugHeatmap(bool v)     { s_DebugHeatmap = v; }
-    static bool GetDebugHeatmap()           { return s_DebugHeatmap; }
-    static void SetAreaLightsEnabled(bool v) { s_AreaLightsEnabled = v; }
-    static bool GetAreaLightsEnabled()       { return s_AreaLightsEnabled; }
-    static void SetDrawBoneWeights(bool v)   { s_DrawBoneWeights = v; }
-    static bool GetDrawBoneWeights()         { return s_DrawBoneWeights; }
-    static void SetToonShading(bool v)       { s_ToonShading = v; }
-    static bool GetToonShading()             { return s_ToonShading; }
-    static void SetDisplayBoneIndex(int i)  { s_DisplayBoneIndex = i; }
-    static int  GetDisplayBoneIndex()       { return s_DisplayBoneIndex; }
-
-    // Returns lower value for low-end integrated GPUs, 1.0 otherwise.
-    static float GetRecommendedRenderScale() { return s_RecommendedRenderScale; }
-
     static uint32_t GetDrawCalls()    { return s_DrawCalls; }
     static uint64_t GetTriangles()    { return s_Triangles; }
     static uint32_t GetGroupsTotal()  { return s_GroupsTotal; }
@@ -135,15 +116,6 @@ private:
     static constexpr uint32_t MAX_POINT_LIGHTS_SKINNED = 16u;
 
     static Renderer3DStorage* s_Data;
-    static bool               s_DrawNormals;
-    static float              s_NormalLength;
-    static bool               s_DrawAABB;
-    static bool               s_DrawBoneWeights;
-    static int                s_DisplayBoneIndex;
-    static bool               s_ToonShading;
-    static bool               s_DebugHeatmap;
-    static bool               s_AreaLightsEnabled;
-    static float              s_RecommendedRenderScale;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;
     static uint32_t           s_GroupsTotal;
