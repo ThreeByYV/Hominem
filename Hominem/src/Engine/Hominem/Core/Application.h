@@ -34,7 +34,6 @@ namespace Hominem {
 
 
         inline Window&       GetWindow()       { return *m_Window; }
-        inline AudioSystem&  GetAudioSystem()  { return m_AudioSystem; }
         inline RenderThread& GetRenderThread() { return m_RenderThread; }
 
         inline static Application& Get() { return *s_Instance; }

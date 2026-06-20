@@ -74,24 +74,19 @@ namespace Hominem {
 
 		uint32_t GetActiveSoundCount() const { return m_ActiveSoundCount.load(); }
 
-		// High-level music management
-		void LoadMusicAsync(const std::string& filepath, bool autoPlay = true, float volume = 1.0f, bool loop = true);
-		void PlayMusic();
-		void PauseMusic();
-		void ResumeMusic();
-		void StopMusic();
-		void ToggleMusic();
-		void UpdateMusic(); // Call each frame to process async loading
-
-		MusicState GetMusicState() const { return m_MusicState; }
-		bool IsMusicLoaded() const { return m_MusicState != MusicState::Idle && m_MusicState != MusicState::Loading; }
-		bool IsMusicPlaying() const { return m_MusicState == MusicState::Playing; }
+		static void LoadMusicAsync(const std::string& filepath, bool autoPlay = true, float volume = 1.0f, bool loop = true);
+		static void PlayMusic();
+		static void StopMusic();
+		static void ToggleMusic();
+		static void UpdateMusic();
 
 	private:
 		void AudioThreadFunc();
 		void ProcessCommand(const AudioCommand& cmd);
 		void MixAudio();
 		SoundHandle AllocateSoundHandle();
+
+		static AudioSystem* s_Instance;
 
 	private:
 		AudioConfig m_Config;
