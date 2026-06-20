@@ -4,7 +4,6 @@
 
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
-#include "Hominem/Renderer/RenderCommand.h"
 
 using namespace Hominem;
 

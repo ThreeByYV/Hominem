@@ -4,6 +4,7 @@
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Events/Event.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Scene/Scene.h"
 
 namespace Hominem {
 
@@ -20,8 +21,11 @@ namespace Hominem {
 		virtual void OnImGuiRender() {}
 		virtual void OnEvent(Event& event) {}
 
-		/// Push draw commands into the frame — no GL calls allowed here.
-		virtual void OnBuildRenderFrame(RenderFrame& frame) {}
+		/// Calls m_Scene->BuildRenderFrame(frame) if a scene is set.
+		/// Override to add extra draws; call Layer::OnBuildRenderFrame(frame) first.
+		virtual void OnBuildRenderFrame(RenderFrame& frame);
+
+		void QueueTransition(std::unique_ptr<Layer> toLayer) const;
 
 		inline const std::string& GetName() const { return m_DebugName; }
 
@@ -33,8 +37,6 @@ namespace Hominem {
 
 	protected:
 		std::string m_DebugName;
-
-	private:
-		void QueueTransition(std::unique_ptr<Layer> layer);
+		Ref<Scene>  m_Scene;
 	};
-} 
+}

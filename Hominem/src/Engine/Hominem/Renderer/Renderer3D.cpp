@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Renderer3D.h"
+#include "RenderSettings.h"
 #include "Hominem/Utils/Renderer.h"
 #include "RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
@@ -29,15 +30,6 @@ namespace {
 
 } 
     Renderer3DStorage*     Renderer3D::s_Data         = nullptr;
-    bool                   Renderer3D::s_DrawNormals   = false;
-    float                  Renderer3D::s_NormalLength  = 0.1f;
-    bool                   Renderer3D::s_DrawAABB               = false;
-    bool                   Renderer3D::s_DrawBoneWeights        = false;
-    int                    Renderer3D::s_DisplayBoneIndex       = 0;
-    bool                   Renderer3D::s_ToonShading            = false;
-    bool                   Renderer3D::s_DebugHeatmap            = false;
-    bool                   Renderer3D::s_AreaLightsEnabled       = true;
-    float                  Renderer3D::s_RecommendedRenderScale  = 1.0f;
     uint32_t               Renderer3D::s_DrawCalls     = 0;
     uint64_t               Renderer3D::s_Triangles     = 0;
     uint32_t               Renderer3D::s_GroupsTotal   = 0;
@@ -122,7 +114,7 @@ void Renderer3D::InitForwardPlus()
 
     if (DetectLowEndGPU())
     {
-        s_RecommendedRenderScale = 0.80f;
+        RenderSettings::RecommendedRenderScale = 0.80f;
         HMN_CORE_INFO("Renderer3D: low-end integrated GPU detected — recommended render scale 0.80");
     }
 
@@ -239,8 +231,8 @@ Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandLi
         ubo.ETA              = scene.ETA;
         ubo.FresnelPower     = scene.FresnelPower;
         ubo.ScreenWidth      = frame.viewportWidth;
-        ubo.DebugMode        = s_DebugHeatmap ? 1 : 0;
-        ubo.AreaLightsEnabled = s_AreaLightsEnabled ? 1 : 0;
+        ubo.DebugMode         = RenderSettings::DebugHeatmap ? 1 : 0;
+        ubo.AreaLightsEnabled = RenderSettings::AreaLights   ? 1 : 0;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
@@ -262,7 +254,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     HMN_PROFILE_FUNCTION();
     const Material& mat0 = mesh.GetMaterial();
 
-    if (s_DrawBoneWeights && s_Data->BoneWeightShader)
+    if (RenderSettings::DrawBoneWeights && s_Data->BoneWeightShader)
     {
         // Light culling overwrites bindings 3 and 4 — restore the mesh SSBOs before drawing.
         mesh.DispatchSkinning({}, cmd);
@@ -270,7 +262,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
         cmd.SetMat4 (s_Data->BoneWeightShader, "u_Model", transform);
         cmd.SetInt  (s_Data->BoneWeightShader, "u_Albedo", 0);
         cmd.SetFloat4(s_Data->BoneWeightShader, "u_Color", glm::vec4(1.f));
-        cmd.SetInt  (s_Data->BoneWeightShader, "gDisplayBoneIndex", s_DisplayBoneIndex);
+        cmd.SetInt  (s_Data->BoneWeightShader, "gDisplayBoneIndex", RenderSettings::DisplayBoneIndex);
         mesh.Render(s_Data->BoneWeightShader, cmd);
         s_DrawCalls += mesh.GetSubmeshCount();
         s_Triangles += mesh.GetIndexCount() / 3;
@@ -283,7 +275,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
         HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded");
         const bool hasNM = mat0.NormalMap      != nullptr;
         const bool hasMR = mat0.MetalRoughnessMap != nullptr;
-        const bool toon  = s_ToonShading;
+        const bool toon  = RenderSettings::ToonShading;
         std::string name = toon ? "skinned_toon" : "skinned_pbr";
         if (hasNM && hasMR) name += "_nm_mr";
         else if (hasNM)     name += "_nm";
@@ -316,11 +308,11 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     s_DrawCalls += mesh.GetSubmeshCount();
     s_Triangles += mesh.GetIndexCount() / 3;
 
-    if (s_DrawNormals && s_Data->NormalsSkinnedShader)
+    if (RenderSettings::DrawNormals && s_Data->NormalsSkinnedShader)
     {
         cmd.BindShader(s_Data->NormalsSkinnedShader);
         cmd.SetMat4 (s_Data->NormalsSkinnedShader, "u_Model", transform);
-        cmd.SetFloat(s_Data->NormalsSkinnedShader, "u_NormalLength", s_NormalLength);
+        cmd.SetFloat(s_Data->NormalsSkinnedShader, "u_NormalLength", RenderSettings::NormalLength);
         mesh.Render(s_Data->NormalsSkinnedShader, cmd);
     }
 }
@@ -341,7 +333,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
         const bool hasNM  = mesh.HasNormalMap();
         const bool hasMR  = mesh.HasMetalRoughness();
         const bool hasEnv = scene.EnvMapID != 0u;
-        const bool toon   = s_ToonShading;
+        const bool toon   = RenderSettings::ToonShading;
         std::string name  = toon ? "static_toon" : "static_pbr";
         if (hasNM && hasMR && hasEnv) name += "_nm_mr_env";
         else if (hasNM && hasMR)      name += "_nm_mr";
@@ -384,14 +376,14 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
     s_GroupsTotal  += total;
     s_GroupsCulled += total - calls;
 
-    if (s_DrawNormals && s_Data->NormalsShader)
+    if (RenderSettings::DrawNormals && s_Data->NormalsShader)
     {
         cmd.BindShader(s_Data->NormalsShader);
-        cmd.SetFloat(s_Data->NormalsShader, "u_NormalLength", s_NormalLength);
+        cmd.SetFloat(s_Data->NormalsShader, "u_NormalLength", RenderSettings::NormalLength);
         mesh.Draw(s_Data->NormalsShader, transform, cmd);
     }
 
-    if (s_DrawAABB && s_Data->DebugAABBShader)
+    if (RenderSettings::DrawAABB && s_Data->DebugAABBShader)
     {
         s_Data->DebugVAO->Bind();
         auto aabbCmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
