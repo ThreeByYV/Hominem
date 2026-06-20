@@ -22,17 +22,18 @@ MenuLayer::MenuLayer()
 
 void MenuLayer::OnAttach()
 {
-	m_ActiveScene = CreateRef<Scene>();
+	m_Scene = CreateRef<Scene>();
 
-	auto& window  = Application::Get().GetWindow();
-	m_ViewportW   = window.GetWidth();
-	m_ViewportH   = window.GetHeight();
+	auto& window = Application::Get().GetWindow();
+	m_ViewportW  = window.GetWidth();
+	m_ViewportH  = window.GetHeight();
 
-	m_ActiveScene->GetCamera().SetOrthographic(k_OrthoSize, -1.f, 1.f);
-	m_ActiveScene->OnViewportResize(m_ViewportW, m_ViewportH);
+	m_Scene->GetCamera().SetOrthographic(k_OrthoSize, -1.f, 1.f);
+	m_Scene->OnViewportResize(m_ViewportW, m_ViewportH);
+	m_Scene->SetClearColor({ 0.05f, 0.05f, 0.05f, 1.f });
 
 	float aspect = (float)m_ViewportW / (float)m_ViewportH;
-	m_Background = &m_ActiveScene->SpawnActor<SpriteActor>(
+	m_Background = &m_Scene->SpawnActor<SpriteActor>(
 		glm::vec3{ 0.f, 0.f, -0.5f },
 		glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f },
 		Texture2D::Create("Resources/Textures/menu2.png"));
@@ -40,23 +41,22 @@ void MenuLayer::OnAttach()
 	m_Font   = Font::GetDefaultFont();
 	m_ArrowY = k_Items[0].y;
 
-	auto& audio = Application::Get().GetAudioSystem();
-	audio.LoadMusicAsync("Resources/Sounds/menu_music.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+	AudioSystem::LoadMusicAsync("Resources/Sounds/menu_music.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
 }
 
 void MenuLayer::OnDetach()
 {
-	Application::Get().GetAudioSystem().StopMusic();
-	m_ActiveScene.reset();
+	AudioSystem::StopMusic();
+	m_Scene.reset();
 	m_Background = nullptr;
 }
 
 void MenuLayer::OnUpdate(Timestep ts)
 {
 	if (Input::IsKeyPressed(HMN_KEY_M))
-		Application::Get().GetAudioSystem().ToggleMusic();
+		AudioSystem::ToggleMusic();
 
-	Application::Get().GetAudioSystem().UpdateMusic();
+	AudioSystem::UpdateMusic();
 
 	// Convert mouse pixel coords to world space (camera at origin, ortho).
 	float halfH  = k_OrthoSize * 0.5f;
@@ -80,7 +80,7 @@ void MenuLayer::OnUpdate(Timestep ts)
 	if (m_HoveredIndex >= 0)
 		m_ArrowY = Lerp(m_ArrowY, k_Items[m_HoveredIndex].y, k_LerpSpeed * ts.GetSeconds());
 
-	m_ActiveScene->OnUpdate(ts);
+	m_Scene->OnUpdate(ts);
 }
 
 void MenuLayer::FireMenuAction(int index)
@@ -101,9 +101,7 @@ void MenuLayer::FireMenuAction(int index)
 
 void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor = { 0.05f, 0.05f, 0.05f, 1.f };
-	if (m_ActiveScene)
-		m_ActiveScene->BuildRenderFrame(frame);
+	Layer::OnBuildRenderFrame(frame);
 
 	if (!m_Font) return;
 
@@ -170,8 +168,8 @@ bool MenuLayer::OnWindowResize(WindowResizeEvent& e)
 	m_ViewportW = e.GetWidth();
 	m_ViewportH = e.GetHeight();
 
-	if (m_ActiveScene)
-		m_ActiveScene->OnViewportResize(m_ViewportW, m_ViewportH);
+	if (m_Scene)
+		m_Scene->OnViewportResize(m_ViewportW, m_ViewportH);
 
 	if (m_Background)
 	{

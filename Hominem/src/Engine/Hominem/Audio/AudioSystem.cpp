@@ -6,6 +6,8 @@
 
 namespace Hominem {
 
+	AudioSystem* AudioSystem::s_Instance = nullptr;
+
 	AudioSystem::~AudioSystem()
 	{
 		if (m_Initialized)
@@ -19,6 +21,7 @@ namespace Hominem {
 			HMN_CORE_WARN("AudioSystem: Already initialized");
 			return true;
 		}
+		s_Instance = this;
 
 		m_Config = config;
 		m_MasterVolume = config.MasterVolume;
@@ -64,14 +67,11 @@ namespace Hominem {
 		if (m_MusicState == MusicState::Loading)
 		{
 			HMN_CORE_INFO("AudioSystem: Waiting for music load to complete...");
-			m_MusicBuffer = m_MusicLoadFuture.get(); // Block until done
+			m_MusicBuffer = m_MusicLoadFuture.get();
 		}
 
-		// Stop music if playing
-		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
-		{
-			StopMusic();
-		}
+		StopMusic();
+		s_Instance = nullptr;
 
 		// Send shutdown command and wait for thread
 		m_CommandQueue.Push(ShutdownCmd{});
@@ -435,137 +435,94 @@ namespace Hominem {
 
 	void AudioSystem::LoadMusicAsync(const std::string& filepath, bool autoPlay, float volume, bool loop)
 	{
-		if (m_MusicState == MusicState::Loading)
+		if (!s_Instance) return;
+		auto* a = s_Instance;
+		if (a->m_MusicState == MusicState::Loading)
 		{
 			HMN_CORE_WARN("AudioSystem: Music is already loading, ignoring new request");
 			return;
 		}
-
-		// Stop current music if any
-		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
-		{
-			StopMusic();
-		}
-
-		// Store playback parameters
-		m_AutoPlayOnLoad = autoPlay;
-		m_MusicVolume = volume;
-		m_MusicLoop = loop;
-		m_MusicState = MusicState::Loading;
-
+		StopMusic();
+		a->m_AutoPlayOnLoad = autoPlay;
+		a->m_MusicVolume    = volume;
+		a->m_MusicLoop      = loop;
+		a->m_MusicState     = MusicState::Loading;
 		HMN_CORE_INFO("AudioSystem: Starting async music load for '{}'", filepath);
-
-		// Submit async loading job
-		m_MusicLoadFuture = m_MusicJobSystem.SubmitWithResult([this, filepath]() -> SoundBufferHandle {
-			HMN_CORE_INFO("AudioSystem: Loading music on worker thread...");
-			return LoadSound(filepath);
+		a->m_MusicLoadFuture = a->m_MusicJobSystem.SubmitWithResult([a, filepath]() -> SoundBufferHandle {
+			return a->LoadSound(filepath);
 		});
 	}
 
 	void AudioSystem::UpdateMusic()
 	{
-		// Check if async loading completed
-		if (m_MusicState == MusicState::Loading)
+		if (!s_Instance) return;
+		auto* a = s_Instance;
+		if (a->m_MusicState != MusicState::Loading) return;
+		if (a->m_MusicLoadFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) return;
+
+		a->m_MusicBuffer = a->m_MusicLoadFuture.get();
+		if (a->m_MusicBuffer != InvalidSoundBuffer)
 		{
-			// Non-blocking check if future is ready
-			if (m_MusicLoadFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
-			{
-				m_MusicBuffer = m_MusicLoadFuture.get();
-
-				if (m_MusicBuffer != InvalidSoundBuffer)
-				{
-					m_MusicState = MusicState::Ready;
-					HMN_CORE_INFO("AudioSystem: Music loaded successfully");
-
-					// Auto-play if requested
-					if (m_AutoPlayOnLoad)
-					{
-						PlayMusic();
-					}
-				}
-				else
-				{
-					HMN_CORE_ERROR("AudioSystem: Music loading failed");
-					m_MusicState = MusicState::Idle;
-				}
-			}
+			a->m_MusicState = MusicState::Ready;
+			HMN_CORE_INFO("AudioSystem: Music loaded successfully");
+			if (a->m_AutoPlayOnLoad) PlayMusic();
+		}
+		else
+		{
+			HMN_CORE_ERROR("AudioSystem: Music loading failed");
+			a->m_MusicState = MusicState::Idle;
 		}
 	}
 
 	void AudioSystem::PlayMusic()
 	{
-		if (m_MusicState == MusicState::Ready || m_MusicState == MusicState::Paused)
+		if (!s_Instance) return;
+		auto* a = s_Instance;
+		if (a->m_MusicState == MusicState::Ready)
 		{
-			if (m_MusicState == MusicState::Ready)
+			a->m_MusicHandle = a->Play(a->m_MusicBuffer, a->m_MusicVolume, a->m_MusicLoop);
+			if (a->m_MusicHandle != InvalidSound)
 			{
-				// Start playing from beginning
-				m_MusicHandle = Play(m_MusicBuffer, m_MusicVolume, m_MusicLoop);
-				if (m_MusicHandle != InvalidSound)
-				{
-					m_MusicState = MusicState::Playing;
-					HMN_CORE_INFO("AudioSystem: Music playing");
-				}
-			}
-			else // Paused
-			{
-				// Resume from pause
-				Resume(m_MusicHandle);
-				m_MusicState = MusicState::Playing;
-				HMN_CORE_INFO("AudioSystem: Music resumed");
+				a->m_MusicState = MusicState::Playing;
+				HMN_CORE_INFO("AudioSystem: Music playing");
 			}
 		}
-		else if (m_MusicState == MusicState::Loading)
+		else if (a->m_MusicState == MusicState::Paused)
 		{
-			HMN_CORE_WARN("AudioSystem: Music is still loading, cannot play yet");
-		}
-		else if (m_MusicState == MusicState::Playing)
-		{
-			HMN_CORE_WARN("AudioSystem: Music is already playing");
-		}
-	}
-
-	void AudioSystem::PauseMusic()
-	{
-		if (m_MusicState == MusicState::Playing)
-		{
-			Pause(m_MusicHandle);
-			m_MusicState = MusicState::Paused;
-			HMN_CORE_INFO("AudioSystem: Music paused");
-		}
-	}
-
-	void AudioSystem::ResumeMusic()
-	{
-		if (m_MusicState == MusicState::Paused)
-		{
-			Resume(m_MusicHandle);
-			m_MusicState = MusicState::Playing;
+			a->Resume(a->m_MusicHandle);
+			a->m_MusicState = MusicState::Playing;
 			HMN_CORE_INFO("AudioSystem: Music resumed");
 		}
+		else if (a->m_MusicState == MusicState::Loading)
+			HMN_CORE_WARN("AudioSystem: Music is still loading, cannot play yet");
+		else if (a->m_MusicState == MusicState::Playing)
+			HMN_CORE_WARN("AudioSystem: Music is already playing");
 	}
 
 	void AudioSystem::StopMusic()
 	{
-		if (m_MusicState == MusicState::Playing || m_MusicState == MusicState::Paused)
+		if (!s_Instance) return;
+		auto* a = s_Instance;
+		if (a->m_MusicState == MusicState::Playing || a->m_MusicState == MusicState::Paused)
 		{
-			Stop(m_MusicHandle);
-			m_MusicHandle = InvalidSound;
-			m_MusicState = MusicState::Ready; // Keep buffer loaded
+			a->Stop(a->m_MusicHandle);
+			a->m_MusicHandle = InvalidSound;
+			a->m_MusicState  = MusicState::Ready;
 			HMN_CORE_INFO("AudioSystem: Music stopped");
 		}
 	}
 
-	//todo fix pausing
 	void AudioSystem::ToggleMusic()
 	{
-		if (m_MusicState == MusicState::Playing)
+		if (!s_Instance) return;
+		auto* a = s_Instance;
+		if (a->m_MusicState == MusicState::Playing)
 		{
-			PauseMusic();
+			a->Pause(a->m_MusicHandle);  //todo fix pausing
+			a->m_MusicState = MusicState::Paused;
 		}
-		else if (m_MusicState == MusicState::Paused || m_MusicState == MusicState::Ready)
-		{
+		else if (a->m_MusicState == MusicState::Paused || a->m_MusicState == MusicState::Ready)
 			PlayMusic();
-		}
 	}
 
 }

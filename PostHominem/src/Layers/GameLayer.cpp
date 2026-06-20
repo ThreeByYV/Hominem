@@ -103,13 +103,12 @@ void GameLayer::OnAttach()
 
 	WorldConfig::ApplyLights(m_Config, m_Scene->GetLights());
 
-	auto& audio = Application::Get().GetAudioSystem();
-	audio.LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+	AudioSystem::LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
 }
 
 void GameLayer::OnDetach()
 {
-	Application::Get().GetAudioSystem().StopMusic();
+	AudioSystem::StopMusic();
 	m_Player  = nullptr;
 	m_Scene3D = nullptr;
 	m_Scene.reset();
@@ -117,7 +116,7 @@ void GameLayer::OnDetach()
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	Application::Get().GetAudioSystem().UpdateMusic();
+	AudioSystem::UpdateMusic();
 
 	if (m_IntroPhase == IntroPhase::Done || m_IntroPhase == IntroPhase::Wait)
 	{
