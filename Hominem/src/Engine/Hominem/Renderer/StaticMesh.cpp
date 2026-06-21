@@ -17,4 +17,20 @@ namespace Hominem {
         return nullptr;
     }
 
+    AsyncLoad<StaticMesh> StaticMesh::LoadAsync(const std::string& path)
+    {
+        AsyncLoad<StaticMesh> load;
+        load.Begin([path]() -> Ref<StaticMesh>
+        {
+            auto mesh = StaticMesh::Create();
+            if (auto res = mesh->LoadFromFile(path); !res)
+            {
+                HMN_CORE_ERROR("{}", res.error());
+                return nullptr;
+            }
+            return mesh;
+        });
+        return load;
+    }
+
 }

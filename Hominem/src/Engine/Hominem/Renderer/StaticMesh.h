@@ -4,6 +4,7 @@
 #include "Texture.h"
 #include "Material.h"
 #include "CommandList.h"
+#include "Hominem/Core/AsyncLoad.h"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -47,7 +48,8 @@ public:
 	const Material& GetMaterial() const              { return m_Material; }
 	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-	static Ref<StaticMesh> Create();
+	static Ref<StaticMesh>       Create();
+	static AsyncLoad<StaticMesh> LoadAsync(const std::string& path);
 
 protected:
 	Material m_Material;
