@@ -1,16 +1,14 @@
 #pragma once
 
-#include "Hominem/Scene/Actor.h"
+#include "Hominem/Scene/Actors/SkinnedMeshActor.h"
 #include "Hominem/Core/Timestep.h"
-#include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Physics/Rigidbody.h"
 #include "Hominem/Physics/Collider.h"
 #include "Game/WorldConfig.h"
 
-
 #include <glm/glm.hpp>
 
-class Player : public Hominem::Actor
+class Player : public Hominem::SkinnedMeshActor
 {
 public:
 	/// @param preloadedMesh  Optional fully-built skinned mesh (from PreloadedMesh()) to
@@ -31,7 +29,6 @@ public:
 
 	void OnCreate()  override;
 	void OnUpdate(Hominem::Timestep ts) override;
-	void OnBuildRenderFrame(Hominem::RenderFrame& frame) override;
 	void OnDestroy() override;
 
 	void OnImGuiRender();
@@ -47,7 +44,7 @@ public:
 		Scale = cfg.Scale;
 	}
 
-	Hominem::SkinnedMesh* GetMesh() const { return m_Mesh.get(); }
+	Hominem::SkinnedMesh* GetMesh() const { return Mesh.get(); }
 	glm::vec3 GetVelocity() const { return m_Body ? m_Body->GetLinearVelocity() : glm::vec3(0.f); }
 	bool      IsMoving()    const { return m_Body && glm::abs(m_Body->GetLinearVelocity().x) > 0.01f; }
 
@@ -64,11 +61,6 @@ public:
 private:
 	PlayerConfig m_Config;
 
-	Hominem::Ref<Hominem::SkinnedMesh> m_Mesh;
-
 	Hominem::Ref<Hominem::Rigidbody>   m_Body;
 	Hominem::Ref<Hominem::BoxCollider> m_Collider;
-
-	float m_AnimTime      = 0.f;
-	std::vector<glm::mat4> m_BoneTransforms;
 };

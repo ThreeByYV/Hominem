@@ -54,8 +54,7 @@ private:
 		{ "Quit",     -0.50f },
 	}};
 
-	Hominem::Ref<Hominem::Scene>  m_ActiveScene;
-	Hominem::SpriteActor*         m_Background = nullptr;
+	Hominem::SpriteActor* m_Background = nullptr;
 	Hominem::Ref<Hominem::Font>   m_Font;
 
 	int      m_HoveredIndex = -1;

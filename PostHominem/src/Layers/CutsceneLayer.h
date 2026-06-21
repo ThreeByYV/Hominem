@@ -10,11 +10,10 @@
 #include "Hominem/Renderer/Skybox.h"
 
 #include "Hominem/Renderer/SkinnedMesh.h"
+#include "Hominem/Core/AsyncLoad.h"
 
 #include <glm/glm.hpp>
 #include <array>
-#include <future>
-#include <thread>
 
 class SceneActor;
 class SilhouetteCharacterActor;
@@ -58,12 +57,6 @@ private:
 	glm::vec3 m_SetScale  = { 2.f, 2.f, 2.f };
 	glm::vec3 m_SetRotDeg = { 1.0f, -1.0f, -4.5f };
 
-	// Directional light (also tunable in the F2 panel).
-	glm::vec3 m_LightDir     = { -0.2f, -1.f, -0.4f };
-	glm::vec3 m_LightColor   = { 0.877f, 0.365f, 0.232f };
-	float     m_LightAmbient = 0.74f;
-	float     m_LightDiffuse = 2.95f;
-
 	static constexpr const char* k_SkyboxEXR = "Resources/Textures/satara_night_2k.exr";
 	Hominem::Ref<Hominem::Skybox> m_Skybox;
 	float                         m_SkyIntensity = 1.0f;
@@ -105,9 +98,7 @@ private:
 	bool      m_FlyLooking = false; ///< RMB currently held - captures the mouse delta.
 	glm::vec2 m_LastMouse  = { 0.f, 0.f };
 
-	Hominem::Ref<Hominem::Scene> m_Scene;
-	SceneActor*                  m_Set = nullptr; ///< 3D town set, owned by m_Scene.
-
+	SceneActor* m_Set = nullptr; ///< 3D town set, owned by m_Scene.
 
 	static constexpr const char* k_RunMesh  = "Resources/Textures/Running.fbx";
 	static constexpr const char* k_IdleMesh = "Resources/Textures/Idle.fbx";
@@ -115,10 +106,10 @@ private:
 	std::array<SilhouetteCharacterActor*, k_RunnerCount> m_Runners{};
 	SilhouetteCharacterActor* m_CenterGirl    = nullptr;
 	SilhouetteCharacterActor* m_ForegroundArm = nullptr;
-	bool m_ShowCharacters   = false; ///< F3 opens the silhouette character tweaker.
+	bool m_ShowCharacters    = false; ///< F3 opens the silhouette character tweaker.
 	bool m_CharactersSpawned = false;
-	std::future<Hominem::Ref<Hominem::SkinnedMesh>> m_RunMeshFuture;
-	std::future<Hominem::Ref<Hominem::SkinnedMesh>> m_IdleMeshFuture;
+	Hominem::AsyncLoad<Hominem::SkinnedMesh> m_RunMeshLoad;
+	Hominem::AsyncLoad<Hominem::SkinnedMesh> m_IdleMeshLoad;
 	Hominem::Cutscene            m_Cutscene;
 	Hominem::CutsceneContext     m_Ctx;
 	Hominem::CutsceneEditor      m_Editor;

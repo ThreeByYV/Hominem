@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "Game/WorldConfig.h"
+#include "Hominem/Renderer/RenderFrame.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 
@@ -132,6 +133,42 @@ static std::string ResolvePath(const std::string& path)
 		return std::string(HMN_SOURCE_RESOURCES_PATH) + "/" + path.substr(it + 10);
 #endif
 	return path;
+}
+
+void WorldConfig::ApplyLights(const WorldConfig& cfg, std::vector<Hominem::Light>& out)
+{
+	out.clear();
+	for (const auto& lc : cfg.Lights)
+	{
+		auto& l        = out.emplace_back();
+		l.Position     = lc.Position;
+		l.Color        = lc.Color;
+		l.Direction    = lc.Direction;
+		l.Intensity    = lc.Intensity;
+		l.Radius       = lc.Radius;
+		l.InnerAngle   = lc.InnerAngle;
+		l.OuterAngle   = lc.OuterAngle;
+		l.SourceRadius = lc.SourceRadius;
+		l.Type         = static_cast<Hominem::LightType>(lc.Type);
+	}
+}
+
+void WorldConfig::CaptureLights(WorldConfig& cfg, const std::vector<Hominem::Light>& in)
+{
+	cfg.Lights.clear();
+	for (const auto& l : in)
+	{
+		auto& lc       = cfg.Lights.emplace_back();
+		lc.Position    = l.Position;
+		lc.Color       = l.Color;
+		lc.Direction   = l.Direction;
+		lc.Intensity   = l.Intensity;
+		lc.Radius      = l.Radius;
+		lc.InnerAngle  = l.InnerAngle;
+		lc.OuterAngle  = l.OuterAngle;
+		lc.SourceRadius = l.SourceRadius;
+		lc.Type        = static_cast<uint32_t>(l.Type);
+	}
 }
 
 bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)

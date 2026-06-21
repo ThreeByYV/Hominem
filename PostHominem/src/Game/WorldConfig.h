@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+namespace Hominem { struct Light; enum class LightType : uint32_t; }
+
 struct PlayerMovementConfig
 {
 	float Speed = 5.0f;
@@ -50,11 +52,11 @@ struct PhysicsConfig
 struct CameraConfig
 {
 	float Smoothing     = 0.15f;
-	// Orthographic (used by PlayLevel / cinematic camera)
+	// Orthographic (SandboxLayer / cinematic camera)
 	float OrthoSize     = 10.0f;
 	float OrthoNear     = -10.0f;
 	float OrthoFar      = 10.0f;
-	// SideScrollerCamera (used by FactoryLevel)
+	// SideScrollerCamera (GameLayer)
 	float VisibleHeight = 2.0f;
 	float PlayerScreenY = 0.25f;
 	float YBias         = 0.28f;
@@ -99,4 +101,9 @@ struct WorldConfig
 
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
 	static bool SaveToFile(const std::string& path, const WorldConfig& in);
+
+	/// Copy LightConfig entries from this config into a runtime light vector.
+	static void ApplyLights(const WorldConfig& cfg, std::vector<Hominem::Light>& out);
+	/// Snapshot a runtime light vector back into this config ready for SaveToFile.
+	static void CaptureLights(WorldConfig& cfg, const std::vector<Hominem::Light>& in);
 };

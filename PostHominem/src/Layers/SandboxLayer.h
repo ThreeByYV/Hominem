@@ -3,7 +3,10 @@
 #include "Hominem/Core/Layer.h"
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Scene/Scene.h"
-#include "Game/Level.h"
+#include "Hominem/Renderer/CinematicCameraController.h"
+#include "Game/Player.h"
+#include "Game/WorldConfig.h"
+#include "Game/Actors/NarrativeTextActor.h"
 
 class SandboxLayer : public Hominem::Layer
 {
@@ -11,8 +14,8 @@ public:
 	SandboxLayer();
 	virtual ~SandboxLayer() = default;
 
-	void OnAttach()                      override;
-	void OnDetach()                      override;
+	void OnAttach()                                  override;
+	void OnDetach()                                  override;
 	void OnUpdate(Hominem::Timestep ts)              override;
 	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
 	void OnImGuiRender()                             override;
@@ -21,6 +24,15 @@ public:
 private:
 	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 
-	Hominem::Ref<Hominem::Scene> m_ActiveScene;
-	Hominem::Scope<Level>        m_GameMode;
+	void InitPhysics();
+	void InitCamera();
+	void InitWorld();
+
+	WorldConfig m_Config;
+
+	Player*                                          m_Player        = nullptr;
+	NarrativeTextActor*                              m_NarrativeText = nullptr;
+	Hominem::Ref<Hominem::CinematicCameraController> m_CinematicCamera;
+
+	float m_OrthoSize = 10.f;
 };

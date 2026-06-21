@@ -15,6 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <imgui.h>
+#include "Hominem/ImGui/UIHelpers.h"
 
 using namespace Hominem;
 
@@ -43,6 +44,14 @@ void CutsceneLayer::OnAttach()
 	m_Scene->GetCamera().SetPerspective(m_CamFOV, aspect, 0.1f, 1000.f);
 	m_Scene->OnViewportResize(window.GetWidth(), window.GetHeight());
 
+	m_Scene->SetClearColor({ 0.f, 0.f, 0.f, 1.f });
+
+	auto& dl = m_Scene->GetDirectionalLight();
+	dl.Direction       = glm::normalize(glm::vec3{ -0.2f, -1.f, -0.4f });
+	dl.Color           = { 0.877f, 0.365f, 0.232f };
+	dl.AmbientIntensity = 0.74f;
+	dl.DiffuseIntensity = 2.95f;
+
 	// 3D set - the burning town the intro plays against. LoadingLayer guarantees
 	// CutscenePreload has already finished by the time we get here.
 	if (auto mesh = CutscenePreload::TryGet())
@@ -66,33 +75,14 @@ void CutsceneLayer::OnAttach()
 	m_SmokeInstances.push_back({ { -54.65f, 12.00f, -4.05f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 74.66f });
 	m_SmokeInstances.push_back({ { -56.55f,  9.00f, -6.30f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 3.04f  });
 
-	//todo i think our meshes should internally do this std::async instead of the client having to
-
 	// Background-load the FBX (Assimp parse is multi-second) so OnAttach never stalls;
-	// SpawnCinematicCharacters runs from OnUpdate once both futures are ready.
-	m_RunMeshFuture = std::async(std::launch::async, []() -> Hominem::Ref<Hominem::SkinnedMesh>
-	{
-		auto mesh = Hominem::SkinnedMesh::Create();
-		if (auto res = mesh->LoadFromFile(k_RunMesh); !res)
-		{
-			HMN_CORE_ERROR("{}", res.error());
-			return nullptr;
-		}
-		return mesh;
-	});
-	m_IdleMeshFuture = std::async(std::launch::async, []() -> Hominem::Ref<Hominem::SkinnedMesh>
-	{
-		auto mesh = Hominem::SkinnedMesh::Create();
-		if (auto res = mesh->LoadFromFile(k_IdleMesh); !res)
-		{
-			HMN_CORE_ERROR("{}", res.error());
-			return nullptr;
-		}
-		return mesh;
-	});
+	// SpawnCinematicCharacters runs from OnUpdate once both loads complete.
+	m_RunMeshLoad  = SkinnedMesh::LoadAsync(k_RunMesh);
+	m_IdleMeshLoad = SkinnedMesh::LoadAsync(k_IdleMesh);
 
 	// HDR night-sky backdrop.
 	m_Skybox = Skybox::CreateFromEquirectEXR(k_SkyboxEXR);
+	m_Scene->SetSkybox(m_Skybox, m_SkyIntensity);
 
 	m_Ctx.cutscene = &m_Cutscene;
 	m_Ctx.scene    = m_Scene.get();
@@ -112,18 +102,9 @@ void CutsceneLayer::OnAttach()
 
 void CutsceneLayer::OnDetach()
 {
+	m_RunMeshLoad.Detach();
+	m_IdleMeshLoad.Detach();
 	m_Scene.reset();
-
-	// A std::launch::async future blocks in its destructor until the task finishes -
-	// detach any still-running loads so the layer transition isn't stalled.
-	if (m_RunMeshFuture.valid() || m_IdleMeshFuture.valid())
-	{
-		std::thread([f1 = std::move(m_RunMeshFuture),
-		             f2 = std::move(m_IdleMeshFuture)]() mutable {
-			if (f1.valid()) f1.wait();
-			if (f2.valid()) f2.wait();
-		}).detach();
-	}
 }
 
 void CutsceneLayer::SpawnCinematicCharacters(Ref<SkinnedMesh> runMesh, Ref<SkinnedMesh> idleMesh)
@@ -270,14 +251,13 @@ void CutsceneLayer::OnUpdate(Timestep ts)
 	m_SmokeTime += ts;
 
 	// Spawn silhouette characters once both background mesh loads complete.
-	if (!m_CharactersSpawned && m_RunMeshFuture.valid() && m_IdleMeshFuture.valid())
+	if (!m_CharactersSpawned)
 	{
-		constexpr auto k_Zero = std::chrono::seconds(0);
-		const bool runReady  = m_RunMeshFuture.wait_for(k_Zero)  == std::future_status::ready;
-		const bool idleReady = m_IdleMeshFuture.wait_for(k_Zero) == std::future_status::ready;
-		if (runReady && idleReady)
+		auto runMesh  = m_RunMeshLoad.TryGet();
+		auto idleMesh = m_IdleMeshLoad.TryGet();
+		if (runMesh && idleMesh)
 		{
-			SpawnCinematicCharacters(m_RunMeshFuture.get(), m_IdleMeshFuture.get());
+			SpawnCinematicCharacters(runMesh, idleMesh);
 			m_CharactersSpawned = true;
 		}
 	}
@@ -297,16 +277,18 @@ void CutsceneLayer::OnUpdate(Timestep ts)
 
 void CutsceneLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor = { 0.f, 0.f, 0.f, 1.f };
+	// Sync live-tweakable values (F2 panel) to the scene before building.
+	m_Scene->SetSkybox(m_Skybox, m_SkyIntensity);
 
-	// Step 1: plain directional light so the set is visible. Fire mood lands in step 3.
-	frame.light.Direction        = glm::normalize(m_LightDir);
-	frame.light.Color            = m_LightColor;
-	frame.light.AmbientIntensity = m_LightAmbient;
-	frame.light.DiffuseIntensity = m_LightDiffuse;
+	// Keep the scene viewport on the live window size - the OnAttach seed can be stale,
+	// which would render the scene into a sub-region of the backbuffer.
+	auto& window = Application::Get().GetWindow();
+	const uint32_t winW = window.GetWidth();
+	const uint32_t winH = window.GetHeight();
+	if (winW > 0 && winH > 0)
+		m_Scene->OnViewportResize(winW, winH);
 
-	frame.skybox             = m_Skybox;
-	frame.skyboxIntensity    = m_SkyIntensity;
+	Layer::OnBuildRenderFrame(frame); // scene settings + actors collected
 
 	// Warm fire-toned point lights down the street. They also keep the Forward+ light
 	// cull running, which the static set's light grid depends on (see Renderer3D).
@@ -355,16 +337,6 @@ void CutsceneLayer::OnBuildRenderFrame(RenderFrame& frame)
 		frame.smokeQuads.push_back(sq);
 	}
 
-	// Keep the scene viewport on the live window size - the OnAttach seed can be stale,
-	// which would render the scene into a sub-region of the backbuffer.
-	auto& window = Application::Get().GetWindow();
-	const uint32_t winW = window.GetWidth();
-	const uint32_t winH = window.GetHeight();
-	if (m_Scene && winW > 0 && winH > 0)
-		m_Scene->OnViewportResize(winW, winH);
-
-	if (m_Scene)
-		m_Scene->BuildRenderFrame(frame); // sets viewProjection3D for the 3D set
 
 	m_Cutscene.BuildRenderFrame(frame);
 
@@ -394,47 +366,43 @@ void CutsceneLayer::OnImGuiRender()
 		SmokeImGui();
 
 	if (m_ShowFraming)
-	{
-		ImGui::Begin("Cutscene Set Framing (F2)");
-		ImGui::TextDisabled("Hold LMB + WASD/Q-E to fly (Shift = faster)");
-		ImGui::DragFloat("Fly Speed", &m_FlySpeed, 0.1f, 0.1f, 50.f);
-		ImGui::Separator();
-		bool changed = false;
-		changed |= ImGui::DragFloat ("Cam FOV",       &m_CamFOV,       0.5f, 10.f, 120.f);
-		changed |= ImGui::DragFloat3("Cam Pos",       &m_CamPos.x,     0.05f);
-		changed |= ImGui::DragFloat3("Cam Target",    &m_CamTarget.x,  0.05f);
-		ImGui::Separator();
-		changed |= ImGui::DragFloat3("Set Pos",       &m_SetPos.x,     0.05f);
-		changed |= ImGui::DragFloat3("Set Scale",     &m_SetScale.x,   0.01f, 0.01f, 100.f);
-		changed |= ImGui::DragFloat3("Set Rot (deg)", &m_SetRotDeg.x,  0.5f);
-		if (changed)
-			ApplyFraming();
+		UI::Window("Cutscene Set Framing (F2)", [&] {
+			UI::TextDisabled("Hold LMB + WASD/Q-E to fly (Shift = faster)");
+			UI::Drag("Fly Speed", m_FlySpeed, 0.1f, 0.1f, 50.f);
+			UI::Separator();
+			bool changed = false;
+			changed |= UI::Drag    ("Cam FOV",       m_CamFOV,    0.5f, 10.f, 120.f);
+			changed |= UI::DragVec3("Cam Pos",       m_CamPos,    0.05f);
+			changed |= UI::DragVec3("Cam Target",    m_CamTarget, 0.05f);
+			UI::Separator();
+			changed |= UI::DragVec3("Set Pos",       m_SetPos,    0.05f);
+			changed |= UI::DragVec3("Set Scale",     m_SetScale,  0.01f, 0.01f, 100.f);
+			changed |= UI::DragVec3("Set Rot (deg)", m_SetRotDeg, 0.5f);
+			if (changed)
+				ApplyFraming();
 
-		ImGui::Separator();
-		ImGui::Text("Directional Light");
-		ImGui::DragFloat3("Light Dir",     &m_LightDir.x,    0.02f, -1.f, 1.f);
-		ImGui::ColorEdit3("Light Color",   &m_LightColor.x);
-		ImGui::DragFloat ("Ambient",       &m_LightAmbient,  0.01f, 0.f, 3.f);
-		ImGui::DragFloat ("Diffuse",       &m_LightDiffuse,  0.05f, 0.f, 20.f);
-		ImGui::Separator();
-		ImGui::Text("Skybox");
-		ImGui::DragFloat ("Sky Intensity", &m_SkyIntensity,  0.02f, 0.f, 10.f);
+			UI::Separator();
+			UI::Text("Directional Light");
+			auto& dl = m_Scene->GetDirectionalLight();
+			UI::EditDirectionalLight(dl);
+			UI::Separator();
+			UI::Text("Skybox");
+			UI::Drag("Sky Intensity", m_SkyIntensity, 0.02f, 0.f, 10.f);
 
-		if (ImGui::Button("Log values (bake into defaults)"))
-			HMN_CORE_INFO("Framing: FOV={:.1f}  CamPos=({:.3f},{:.3f},{:.3f})  CamTarget=({:.3f},{:.3f},{:.3f})  "
-			              "SetPos=({:.3f},{:.3f},{:.3f})  SetScale=({:.3f},{:.3f},{:.3f})  SetRot=({:.1f},{:.1f},{:.1f})  "
-			              "LightDir=({:.3f},{:.3f},{:.3f})  LightColor=({:.3f},{:.3f},{:.3f})  Ambient={:.2f}  Diffuse={:.2f}",
-			              m_CamFOV,
-			              m_CamPos.x, m_CamPos.y, m_CamPos.z,
-			              m_CamTarget.x, m_CamTarget.y, m_CamTarget.z,
-			              m_SetPos.x, m_SetPos.y, m_SetPos.z,
-			              m_SetScale.x, m_SetScale.y, m_SetScale.z,
-			              m_SetRotDeg.x, m_SetRotDeg.y, m_SetRotDeg.z,
-			              m_LightDir.x, m_LightDir.y, m_LightDir.z,
-			              m_LightColor.x, m_LightColor.y, m_LightColor.z,
-			              m_LightAmbient, m_LightDiffuse);
-		ImGui::End();
-	}
+			if (UI::Button("Log values (bake into defaults)"))
+				HMN_CORE_INFO("Framing: FOV={:.1f}  CamPos=({:.3f},{:.3f},{:.3f})  CamTarget=({:.3f},{:.3f},{:.3f})  "
+				              "SetPos=({:.3f},{:.3f},{:.3f})  SetScale=({:.3f},{:.3f},{:.3f})  SetRot=({:.1f},{:.1f},{:.1f})  "
+				              "LightDir=({:.3f},{:.3f},{:.3f})  LightColor=({:.3f},{:.3f},{:.3f})  Ambient={:.2f}  Diffuse={:.2f}",
+				              m_CamFOV,
+				              m_CamPos.x, m_CamPos.y, m_CamPos.z,
+				              m_CamTarget.x, m_CamTarget.y, m_CamTarget.z,
+				              m_SetPos.x, m_SetPos.y, m_SetPos.z,
+				              m_SetScale.x, m_SetScale.y, m_SetScale.z,
+				              m_SetRotDeg.x, m_SetRotDeg.y, m_SetRotDeg.z,
+				              dl.Direction.x, dl.Direction.y, dl.Direction.z,
+				              dl.Color.x, dl.Color.y, dl.Color.z,
+				              dl.AmbientIntensity, dl.DiffuseIntensity);
+		});
 }
 
 bool CutsceneLayer::OnWindowResize(WindowResizeEvent& e)
@@ -492,179 +460,164 @@ void CutsceneLayer::OnEvent(Event& e)
 
 void CutsceneLayer::CharactersImGui()
 {
-	ImGui::Begin("Silhouette Characters (F3)");
-	ImGui::TextDisabled("Tweak positions/scales then press Log to bake values into code.");
+	UI::Window("Silhouette Characters (F3)", [&] {
+		UI::TextDisabled("Tweak positions/scales then press Log to bake values into code.");
 
-	auto charWidget = [](const char* label, SilhouetteCharacterActor* a)
-	{
-		if (!a) return;
-		if (!ImGui::CollapsingHeader(label)) return;
-
-		ImGui::PushID(label);
-		ImGui::DragFloat3("Pos",        &a->Position.x,  0.05f);
-		ImGui::DragFloat3("Scale",      &a->Scale.x,     0.05f, 0.01f, 20.f);
-
-		// Expose rotation Y in degrees for intuitive editing.
-		float rotYDeg = glm::degrees(a->Rotation.y);
-		if (ImGui::DragFloat("Rot Y (deg)", &rotYDeg, 0.5f, -180.f, 180.f))
-			a->Rotation.y = glm::radians(rotYDeg);
-
-		ImGui::DragFloat("Anim Speed",  &a->AnimSpeed,   0.01f, 0.f, 5.f);
-		ImGui::Checkbox ("Silhouette (flat black)", &a->Silhouette);
-
-		ImGui::TextDisabled("Arm pose (deg) - for the hand-hold");
-		ImGui::DragFloat3("R Arm",     &a->RightArmDeg.x,     1.f, -180.f, 180.f);
-		ImGui::DragFloat3("L Arm",     &a->LeftArmDeg.x,      1.f, -180.f, 180.f);
-		ImGui::DragFloat3("R ForeArm", &a->RightForeArmDeg.x, 1.f, -180.f, 180.f);
-		ImGui::DragFloat3("L ForeArm", &a->LeftForeArmDeg.x,  1.f, -180.f, 180.f);
-		ImGui::PopID();
-	};
-
-	for (int i = 0; i < k_RunnerCount; i++)
-	{
-		char label[32];
-		std::snprintf(label, sizeof(label), "Runner %d", i + 1);
-		charWidget(label, m_Runners[i]);
-	}
-	charWidget("Center Girl",    m_CenterGirl);
-	charWidget("Foreground Arm", m_ForegroundArm);
-
-	ImGui::Separator();
-	if (ImGui::Button("Log all values (bake into SpawnCinematicCharacters)"))
-	{
-		for (int i = 0; i < k_RunnerCount; i++)
-		{
-			if (!m_Runners[i]) continue;
-			auto* a = m_Runners[i];
-			HMN_CORE_INFO("Runner {}: pos=({:.3f},{:.3f},{:.3f})  rotY={:.1f}deg  scale=({:.2f},{:.2f},{:.2f})  speed={:.2f}",
-				i + 1,
-				a->Position.x, a->Position.y, a->Position.z,
-				glm::degrees(a->Rotation.y),
-				a->Scale.x, a->Scale.y, a->Scale.z,
-				a->AnimSpeed);
-		}
-		auto logChar = [](const char* name, SilhouetteCharacterActor* a)
+		auto charWidget = [](const char* label, SilhouetteCharacterActor* a)
 		{
 			if (!a) return;
-			HMN_CORE_INFO("{}: pos=({:.3f},{:.3f},{:.3f})  rotY={:.1f}deg  scale=({:.3f},{:.3f},{:.3f})  speed={:.2f}\n"
-				"    RArm=({:.0f},{:.0f},{:.0f}) LArm=({:.0f},{:.0f},{:.0f}) RFore=({:.0f},{:.0f},{:.0f}) LFore=({:.0f},{:.0f},{:.0f})",
-				name,
-				a->Position.x, a->Position.y, a->Position.z,
-				glm::degrees(a->Rotation.y),
-				a->Scale.x, a->Scale.y, a->Scale.z,
-				a->AnimSpeed,
-				a->RightArmDeg.x, a->RightArmDeg.y, a->RightArmDeg.z,
-				a->LeftArmDeg.x,  a->LeftArmDeg.y,  a->LeftArmDeg.z,
-				a->RightForeArmDeg.x, a->RightForeArmDeg.y, a->RightForeArmDeg.z,
-				a->LeftForeArmDeg.x,  a->LeftForeArmDeg.y,  a->LeftForeArmDeg.z);
-		};
-		logChar("CenterGirl",    m_CenterGirl);
-		logChar("ForegroundArm", m_ForegroundArm);
-	}
+			if (!UI::Collapsible(label)) return;
 
-	ImGui::End();
+			UI::WithID(label, [&] {
+				UI::EditTransform(*a, 0.05f);
+				UI::Drag    ("Anim Speed", a->AnimSpeed, 0.01f, 0.f, 5.f);
+				UI::Checkbox("Silhouette (flat black)", a->Silhouette);
+				UI::TextDisabled("Arm pose (deg) - for the hand-hold");
+				UI::DragVec3("R Arm",     a->RightArmDeg,     1.f, -180.f, 180.f);
+				UI::DragVec3("L Arm",     a->LeftArmDeg,      1.f, -180.f, 180.f);
+				UI::DragVec3("R ForeArm", a->RightForeArmDeg, 1.f, -180.f, 180.f);
+				UI::DragVec3("L ForeArm", a->LeftForeArmDeg,  1.f, -180.f, 180.f);
+			});
+		};
+
+		for (int i = 0; i < k_RunnerCount; i++)
+		{
+			char label[32];
+			std::snprintf(label, sizeof(label), "Runner %d", i + 1);
+			charWidget(label, m_Runners[i]);
+		}
+		charWidget("Center Girl",    m_CenterGirl);
+		charWidget("Foreground Arm", m_ForegroundArm);
+
+		UI::Separator();
+		if (UI::Button("Log all values (bake into SpawnCinematicCharacters)"))
+		{
+			for (int i = 0; i < k_RunnerCount; i++)
+			{
+				if (!m_Runners[i]) continue;
+				auto* a = m_Runners[i];
+				HMN_CORE_INFO("Runner {}: pos=({:.3f},{:.3f},{:.3f})  rotY={:.1f}deg  scale=({:.2f},{:.2f},{:.2f})  speed={:.2f}",
+					i + 1,
+					a->Position.x, a->Position.y, a->Position.z,
+					glm::degrees(a->Rotation.y),
+					a->Scale.x, a->Scale.y, a->Scale.z,
+					a->AnimSpeed);
+			}
+			auto logChar = [](const char* name, SilhouetteCharacterActor* a)
+			{
+				if (!a) return;
+				HMN_CORE_INFO("{}: pos=({:.3f},{:.3f},{:.3f})  rotY={:.1f}deg  scale=({:.3f},{:.3f},{:.3f})  speed={:.2f}\n"
+					"    RArm=({:.0f},{:.0f},{:.0f}) LArm=({:.0f},{:.0f},{:.0f}) RFore=({:.0f},{:.0f},{:.0f}) LFore=({:.0f},{:.0f},{:.0f})",
+					name,
+					a->Position.x, a->Position.y, a->Position.z,
+					glm::degrees(a->Rotation.y),
+					a->Scale.x, a->Scale.y, a->Scale.z,
+					a->AnimSpeed,
+					a->RightArmDeg.x, a->RightArmDeg.y, a->RightArmDeg.z,
+					a->LeftArmDeg.x,  a->LeftArmDeg.y,  a->LeftArmDeg.z,
+					a->RightForeArmDeg.x, a->RightForeArmDeg.y, a->RightForeArmDeg.z,
+					a->LeftForeArmDeg.x,  a->LeftForeArmDeg.y,  a->LeftForeArmDeg.z);
+			};
+			logChar("CenterGirl",    m_CenterGirl);
+			logChar("ForegroundArm", m_ForegroundArm);
+		}
+	});
 }
 
 void CutsceneLayer::FireImGui()
 {
-	ImGui::Begin("Fire Quads (F4)");
-	ImGui::TextDisabled("Procedural fire patches placed in the 3D set (fire_quad.glsl).");
+	UI::Window("Fire Quads (F4)", [&] {
+		UI::TextDisabled("Procedural fire patches placed in the 3D set (fire_quad.glsl).");
 
-	if (ImGui::Button("Add Fire"))
-		m_FireInstances.emplace_back();
+		if (UI::Button("Add Fire"))
+			m_FireInstances.emplace_back();
 
-	int removeIndex = -1;
-	for (int i = 0; i < (int)m_FireInstances.size(); i++)
-	{
-		auto& fi = m_FireInstances[i];
-
-		char label[32];
-		std::snprintf(label, sizeof(label), "Fire %d", i + 1);
-		if (!ImGui::CollapsingHeader(label)) continue;
-
-		ImGui::PushID(i);
-		ImGui::DragFloat3("Pos",          &fi.pos.x,    0.05f);
-		ImGui::DragFloat3("Rot (deg)",    &fi.rotDeg.x, 1.f, -180.f, 180.f);
-		ImGui::DragFloat2("Size",         &fi.size.x,   0.05f, 0.1f, 50.f);
-		ImGui::DragFloat ("Intensity",    &fi.intensity,   0.05f, 0.f, 10.f);
-		ImGui::DragFloat ("Scroll Speed", &fi.scrollSpeed, 0.05f, 0.f, 10.f);
-		ImGui::DragFloat ("Seed",         &fi.seed,        0.1f);
-
-		if (ImGui::Button("Remove"))
-			removeIndex = i;
-		ImGui::PopID();
-	}
-
-	if (removeIndex >= 0)
-		m_FireInstances.erase(m_FireInstances.begin() + removeIndex);
-
-	ImGui::Separator();
-	if (ImGui::Button("Log values (bake into defaults)"))
-	{
+		int removeIndex = -1;
 		for (int i = 0; i < (int)m_FireInstances.size(); i++)
 		{
-			const auto& fi = m_FireInstances[i];
-			HMN_CORE_INFO("Fire {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
-			              "intensity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
-			              i + 1,
-			              fi.pos.x, fi.pos.y, fi.pos.z,
-			              fi.rotDeg.x, fi.rotDeg.y, fi.rotDeg.z,
-			              fi.size.x, fi.size.y,
-			              fi.intensity, fi.scrollSpeed, fi.seed);
-		}
-	}
+			auto& fi = m_FireInstances[i];
 
-	ImGui::End();
+			char label[32];
+			std::snprintf(label, sizeof(label), "Fire %d", i + 1);
+			if (!UI::Collapsible(label)) continue;
+
+			UI::WithID(i, [&] {
+				UI::DragVec3("Pos",          fi.pos,    0.05f);
+				UI::DragVec3("Rot (deg)",    fi.rotDeg, 1.f, -180.f, 180.f);
+				UI::DragVec2("Size",         fi.size,   0.05f, 0.1f, 50.f);
+				UI::Drag    ("Intensity",    fi.intensity,   0.05f, 0.f, 10.f);
+				UI::Drag    ("Scroll Speed", fi.scrollSpeed, 0.05f, 0.f, 10.f);
+				UI::Drag    ("Seed",         fi.seed,        0.1f);
+				if (UI::Button("Remove")) removeIndex = i;
+			});
+		}
+
+		if (removeIndex >= 0)
+			m_FireInstances.erase(m_FireInstances.begin() + removeIndex);
+
+		UI::Separator();
+		if (UI::Button("Log values (bake into defaults)"))
+		{
+			for (int i = 0; i < (int)m_FireInstances.size(); i++)
+			{
+				const auto& fi = m_FireInstances[i];
+				HMN_CORE_INFO("Fire {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
+				              "intensity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
+				              i + 1,
+				              fi.pos.x, fi.pos.y, fi.pos.z,
+				              fi.rotDeg.x, fi.rotDeg.y, fi.rotDeg.z,
+				              fi.size.x, fi.size.y,
+				              fi.intensity, fi.scrollSpeed, fi.seed);
+			}
+		}
+	});
 }
 
 void CutsceneLayer::SmokeImGui()
 {
-	ImGui::Begin("Smoke Quads (F5)");
-	ImGui::TextDisabled("Procedural smoke plumes placed in the 3D set (smoke_quad.glsl).");
+	UI::Window("Smoke Quads (F5)", [&] {
+		UI::TextDisabled("Procedural smoke plumes placed in the 3D set (smoke_quad.glsl).");
 
-	if (ImGui::Button("Add Smoke"))
-		m_SmokeInstances.emplace_back();
+		if (UI::Button("Add Smoke"))
+			m_SmokeInstances.emplace_back();
 
-	int removeIndex = -1;
-	for (int i = 0; i < (int)m_SmokeInstances.size(); i++)
-	{
-		auto& si = m_SmokeInstances[i];
-
-		char label[32];
-		std::snprintf(label, sizeof(label), "Smoke %d", i + 1);
-		if (!ImGui::CollapsingHeader(label)) continue;
-
-		ImGui::PushID(i);
-		ImGui::DragFloat3("Pos",          &si.pos.x,    0.05f);
-		ImGui::DragFloat3("Rot (deg)",    &si.rotDeg.x, 1.f, -180.f, 180.f);
-		ImGui::DragFloat2("Size",         &si.size.x,   0.1f, 0.1f, 100.f);
-		ImGui::DragFloat ("Opacity",      &si.opacity,     0.02f, 0.f, 1.f);
-		ImGui::DragFloat ("Scroll Speed", &si.scrollSpeed, 0.02f, 0.f, 5.f);
-		ImGui::DragFloat ("Seed",         &si.seed,        0.1f);
-
-		if (ImGui::Button("Remove"))
-			removeIndex = i;
-		ImGui::PopID();
-	}
-
-	if (removeIndex >= 0)
-		m_SmokeInstances.erase(m_SmokeInstances.begin() + removeIndex);
-
-	ImGui::Separator();
-	if (ImGui::Button("Log values (bake into defaults)"))
-	{
+		int removeIndex = -1;
 		for (int i = 0; i < (int)m_SmokeInstances.size(); i++)
 		{
-			const auto& si = m_SmokeInstances[i];
-			HMN_CORE_INFO("Smoke {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
-			              "opacity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
-			              i + 1,
-			              si.pos.x, si.pos.y, si.pos.z,
-			              si.rotDeg.x, si.rotDeg.y, si.rotDeg.z,
-			              si.size.x, si.size.y,
-			              si.opacity, si.scrollSpeed, si.seed);
-		}
-	}
+			auto& si = m_SmokeInstances[i];
 
-	ImGui::End();
+			char label[32];
+			std::snprintf(label, sizeof(label), "Smoke %d", i + 1);
+			if (!UI::Collapsible(label)) continue;
+
+			UI::WithID(i, [&] {
+				UI::DragVec3("Pos",          si.pos,    0.05f);
+				UI::DragVec3("Rot (deg)",    si.rotDeg, 1.f, -180.f, 180.f);
+				UI::DragVec2("Size",         si.size,   0.1f, 0.1f, 100.f);
+				UI::Drag    ("Opacity",      si.opacity,     0.02f, 0.f, 1.f);
+				UI::Drag    ("Scroll Speed", si.scrollSpeed, 0.02f, 0.f, 5.f);
+				UI::Drag    ("Seed",         si.seed,        0.1f);
+				if (UI::Button("Remove")) removeIndex = i;
+			});
+		}
+
+		if (removeIndex >= 0)
+			m_SmokeInstances.erase(m_SmokeInstances.begin() + removeIndex);
+
+		UI::Separator();
+		if (UI::Button("Log values (bake into defaults)"))
+		{
+			for (int i = 0; i < (int)m_SmokeInstances.size(); i++)
+			{
+				const auto& si = m_SmokeInstances[i];
+				HMN_CORE_INFO("Smoke {}: pos=({:.3f},{:.3f},{:.3f})  rot=({:.1f},{:.1f},{:.1f})  size=({:.2f},{:.2f})  "
+				              "opacity={:.2f}  scrollSpeed={:.2f}  seed={:.2f}",
+				              i + 1,
+				              si.pos.x, si.pos.y, si.pos.z,
+				              si.rotDeg.x, si.rotDeg.y, si.rotDeg.z,
+				              si.size.x, si.size.y,
+				              si.opacity, si.scrollSpeed, si.seed);
+			}
+		}
+	});
 }
