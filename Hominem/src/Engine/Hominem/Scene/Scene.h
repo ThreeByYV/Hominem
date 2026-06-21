@@ -13,6 +13,16 @@
 
 namespace Hominem {
 
+	struct PostProcessSettings
+	{
+		bool  bloomEnabled       = false;
+		bool  toneMappingEnabled = false;
+		float bloomStrength      = 1.0f;
+		float bloomThreshold     = 0.8f;
+		float renderScale        = 1.0f;
+		bool  debugLights        = false;
+	};
+
 	class Scene : public RefCounted
 	{
 	public:
@@ -62,6 +72,15 @@ namespace Hominem {
 		void               SetPhysicsWorld(Ref<PhysicsWorld> world) { m_PhysicsWorld = world; }
 		Ref<PhysicsWorld>  GetPhysicsWorld() const                  { return m_PhysicsWorld; }
 
+		void SetClearColor(const glm::vec4& c)            { m_ClearColor = c; }
+		void SetSkybox(Ref<Skybox> s, float intensity = 1.f) { m_Skybox = std::move(s); m_SkyboxIntensity = intensity; }
+		void SetDirectionalLight(const DirectionalLight& l)  { m_DirectionalLight = l; }
+		void SetPostProcess(const PostProcessSettings& pp)   { m_PostProcess = pp; }
+
+		DirectionalLight&         GetDirectionalLight() { return m_DirectionalLight; }
+		std::vector<Light>&       GetLights()           { return m_SceneLights; }
+		PostProcessSettings&      GetPostProcess()      { return m_PostProcess; }
+
 		// Request a runtime cubemap bake from capturePos (e.g. room center).
 		// Bake executes on the render thread during the first frame after this call.
 		// Reflections activate automatically once the bake completes.
@@ -89,6 +108,13 @@ namespace Hominem {
 
 		Ref<PhysicsWorld> m_PhysicsWorld;
 		glm::mat4         m_WorldTransform{ 1.f };
+
+		glm::vec4           m_ClearColor      { 0.1f, 0.1f, 0.1f, 1.f };
+		DirectionalLight    m_DirectionalLight;
+		Ref<Skybox>         m_Skybox;
+		float               m_SkyboxIntensity = 1.f;
+		PostProcessSettings m_PostProcess;
+		std::vector<Light>  m_SceneLights;
 
 		// Env map state
 		bool                         m_BakeEnvPending  = false;

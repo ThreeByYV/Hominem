@@ -11,6 +11,7 @@
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Renderer/Material.h"
 #include "Hominem/Renderer/CommandList.h"
+#include "Hominem/Core/AsyncLoad.h"
 #include "Skeleton.h"
 
 namespace Hominem {
@@ -63,7 +64,8 @@ namespace Hominem {
 		const Material& GetMaterial() const              { return m_Material; }
 		void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-		static Ref<SkinnedMesh> Create();
+		static Ref<SkinnedMesh>          Create();
+		static AsyncLoad<SkinnedMesh>    LoadAsync(const std::string& path);
 
 	protected:
 		Material m_Material;

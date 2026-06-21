@@ -5,6 +5,7 @@
 #include <future>
 #include <functional>
 #include <chrono>
+#include <thread>
 
 namespace Hominem {
 
@@ -36,6 +37,14 @@ namespace Hominem {
 				return nullptr;
 			m_Cached = m_Future.get();
 			return m_Cached;
+		}
+
+		/// Non-blocking abandon: moves the future to a detached thread so the destructor
+		/// doesn't stall. Safe to call if the load hasn't completed yet.
+		void Detach()
+		{
+			if (m_Future.valid() && !m_Cached)
+				std::thread([f = std::move(m_Future)]() mutable { if (f.valid()) f.wait(); }).detach();
 		}
 
 	private:
