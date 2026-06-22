@@ -50,6 +50,7 @@ namespace Hominem {
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
 		Renderer::Init();
+		AssetManager::Init();
 
 		// Initialize audio system
 		AudioConfig audioConfig;
@@ -249,6 +250,7 @@ namespace Hominem {
 
 	Application::~Application()
 	{
+		AssetManager::Shutdown();
 		// Shutdown audio system before other cleanup
 		m_AudioSystem.Shutdown();
 		HMN_CORE_INFO("AudioSystem shutdown complete");

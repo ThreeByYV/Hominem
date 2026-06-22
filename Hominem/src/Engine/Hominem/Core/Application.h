@@ -10,6 +10,7 @@
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Audio/AudioSystem.h"
 #include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Assets/AssetManager.h"
 
 
 namespace Hominem {
