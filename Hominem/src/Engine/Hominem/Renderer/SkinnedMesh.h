@@ -64,8 +64,7 @@ namespace Hominem {
 		const Material& GetMaterial() const              { return m_Material; }
 		void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-		static Ref<SkinnedMesh>          Create();
-		static AsyncLoad<SkinnedMesh>    LoadAsync(const std::string& path);
+		static Ref<SkinnedMesh> Create();
 
 	protected:
 		Material m_Material;

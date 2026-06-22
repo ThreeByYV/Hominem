@@ -2,6 +2,7 @@
 
 #include "Hominem/Core/Layer.h"
 #include "Hominem/Renderer/Font.h"
+#include "Hominem/Assets/AssetLoaders.h"
 
 #include <array>
 #include <string_view>
@@ -35,7 +36,10 @@ private:
 		"\"What does not destroy me, makes me stronger.\"  - Nietzsche",
 	}};
 
-	Hominem::Ref<Hominem::Font> m_Font;
+	Hominem::Ref<Hominem::Font>                   m_Font;
+	Hominem::AssetHandle<Hominem::StaticMesh>     m_SetMesh;
+	Hominem::AssetHandle<Hominem::SoundBuffer>    m_GameMusic;
+	Hominem::AssetHandle<Hominem::SkinnedMesh>    m_PlayerMesh;
 	int   m_QuoteIndex    = 0;
 	float m_PulseT        = 0.f;
 	bool  m_Transitioning = false;

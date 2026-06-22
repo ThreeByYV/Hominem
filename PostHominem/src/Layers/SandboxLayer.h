@@ -7,6 +7,7 @@
 #include "Game/Player.h"
 #include "Game/WorldConfig.h"
 #include "Game/Actors/NarrativeTextActor.h"
+#include "Hominem/Assets/AssetLoaders.h"
 
 class SandboxLayer : public Hominem::Layer
 {
@@ -34,5 +35,6 @@ private:
 	NarrativeTextActor*                              m_NarrativeText = nullptr;
 	Hominem::Ref<Hominem::CinematicCameraController> m_CinematicCamera;
 
+	Hominem::AssetHandle<Hominem::Texture2D> m_BgTexHandle;
 	float m_OrthoSize = 10.f;
 };

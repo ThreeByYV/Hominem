@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hominem/Core/Ref.h"
+#include "Hominem/Threading/ThreadPriority.h"
 
 #include <future>
 #include <functional>
@@ -21,7 +22,10 @@ namespace Hominem {
 			if (m_Started)
 				return;
 			m_Started = true;
-			m_Future  = std::async(std::launch::async, std::move(loader));
+			m_Future  = std::async(std::launch::async, [loader = std::move(loader)]() mutable -> Ref<T> {
+				SetCurrentThreadPriorityLow();
+				return loader();
+			});
 		}
 
 		/// Non-blocking. Returns the loaded value once ready (cached), else nullptr.

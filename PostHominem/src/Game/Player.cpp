@@ -3,14 +3,14 @@
 
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
-#include "Hominem/Core/AsyncLoad.h"
+#include "Hominem/Assets/AssetLoaders.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Physics/PhysicsHelpers.h"
 #include "Game/WorldConfig.h"
 
 #include <imgui.h>
-#include "Hominem/ImGui/UIHelpers.h"
+#include "Hominem/ImGui/UI.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 using namespace Hominem;
@@ -24,43 +24,13 @@ Player::Player(const PlayerConfig& config, Ref<SkinnedMesh> preloadedMesh)
 	Rotation = glm::vec3(0.f, glm::radians(90.f), 0.f);
 }
 
-Ref<SkinnedMesh> Player::LoadMesh()
-{
-	auto mesh = SkinnedMesh::Create();
-
-	const std::string meshPath = "Resources/Textures/beige.glb";
-	if (auto res = mesh->LoadFromFile(meshPath); !res)
-	{
-		HMN_CORE_ERROR("{}", res.error());
-		return nullptr;
-	}
-
-	return mesh;
-}
-
-namespace { AsyncLoad<SkinnedMesh> s_MeshPreload; }
-
-void Player::BeginPreload()
-{
-	HMN_CORE_INFO("Player: preloading mesh on a background thread");
-	s_MeshPreload.Begin([]() -> Ref<SkinnedMesh>
-	{
-		auto mesh = LoadMesh();
-		if (mesh) HMN_CORE_INFO("Player: preloaded mesh ready");
-		else      HMN_CORE_ERROR("Player: preload failed");
-		return mesh;
-	});
-}
-
-Ref<SkinnedMesh> Player::PreloadedMesh() { return s_MeshPreload.TryGet(); }
-
 void Player::OnCreate()
 {
-	// Preloaded via BeginPreload in the common case; fall back to synchronous load only if not ready.
 	if (!Mesh)
 	{
-		HMN_CORE_WARN("Player: mesh not preloaded, loading synchronously on the main thread");
-		Mesh = LoadMesh();
+		HMN_CORE_WARN("Player: mesh not preloaded, loading synchronously");
+		if (auto r = AssetManager::Load<SkinnedMesh>("game://Textures/beige.glb"))
+			Mesh = r->Get();
 	}
 
 	auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
@@ -117,12 +87,12 @@ void Player::ReloadShader() {}
 void Player::OnImGuiRender()
 {
 	using namespace Hominem;
-	UI::Text("Player Transform");
+	ImGui::TextUnformatted("Player Transform");
 	glm::vec3 pos = Position;
-	if (UI::DragVec3("Position", pos, 0.01f))
+	if (ImGui::DragFloat3("Position", &pos.x, 0.01f))
 		SetPosition(pos);
-	UI::DragVec3("Scale",    Scale,    0.001f, 0.001f, 10.f);
-	UI::DragVec3("Rotation", Rotation, 0.01f, -3.14159f, 3.14159f);
+	ImGui::DragFloat3("Scale",    &Scale.x,    0.001f, 0.001f, 10.f);
+	ImGui::DragFloat3("Rotation", &Rotation.x, 0.01f, -3.14159f, 3.14159f);
 
 	if (ImGui::Button("Reset Transform"))
 	{

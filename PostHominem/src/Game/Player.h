@@ -11,21 +11,10 @@
 class Player : public Hominem::SkinnedMeshActor
 {
 public:
-	/// @param preloadedMesh  Optional fully-built skinned mesh (from PreloadedMesh()) to
-	///   skip the multi-second synchronous Assimp import in OnCreate.
 	explicit Player(const PlayerConfig& config,
 	                Hominem::Ref<Hominem::SkinnedMesh> preloadedMesh = nullptr);
 
 	~Player() override = default;
-
-	/// Builds the player's skinned mesh with animations.
-	static Hominem::Ref<Hominem::SkinnedMesh> LoadMesh();
-
-	/// Starts LoadMesh() on a background thread at launch (call once from main).
-	static void BeginPreload();
-
-	/// Non-blocking; the preloaded mesh once ready, else nullptr (falls back to a sync load).
-	static Hominem::Ref<Hominem::SkinnedMesh> PreloadedMesh();
 
 	void OnCreate()  override;
 	void OnUpdate(Hominem::Timestep ts) override;
@@ -34,8 +23,7 @@ public:
 	void OnImGuiRender();
 	void ReloadShader();
 
-	// Re-applies all hot-reloadable config values without restarting the level.
-	// Physics body (mass, collider) and spawn position still need a level restart.
+	/// Hot-reloads movement/collider friction/scale; physics body and spawn need a level restart.
 	void Reload(const PlayerConfig& cfg)
 	{
 		m_Config.Movement = cfg.Movement;

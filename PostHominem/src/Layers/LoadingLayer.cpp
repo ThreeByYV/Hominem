@@ -4,7 +4,7 @@
 
 #include "Hominem/Core/Application.h"
 #include "Hominem/Renderer/Font.h"
-#include "Game/CutscenePreload.h"
+#include "Cinematics/IntroCutscene.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <random>
@@ -22,13 +22,17 @@ void LoadingLayer::OnAttach()
 
 	std::mt19937 rng(std::random_device{}());
 	m_QuoteIndex = std::uniform_int_distribution<int>(0, (int)k_Quotes.size() - 1)(rng);
+
+	m_SetMesh    = AssetManager::LoadAsync<StaticMesh>(IntroCutscene::k_SetMesh);
+	m_PlayerMesh = AssetManager::LoadAsync<SkinnedMesh>("game://Textures/beige.glb");
+	m_GameMusic  = AssetManager::LoadAsync<SoundBuffer>("game://Sounds/menu_music_2.mp3");
 }
 
 void LoadingLayer::OnUpdate(Timestep ts)
 {
-	m_PulseT += (float)ts;
+	m_PulseT += static_cast<float>(ts);
 
-	if (!m_Transitioning && CutscenePreload::TryGet())
+	if (!m_Transitioning && m_SetMesh.IsLoaded() && m_GameMusic.IsLoaded() && m_PlayerMesh.IsLoaded())
 	{
 		m_Transitioning = true;
 		TransitionTo<GameLayer>();

@@ -17,20 +17,5 @@ namespace Hominem {
 		return nullptr;
 	}
 
-	AsyncLoad<SkinnedMesh> SkinnedMesh::LoadAsync(const std::string& path)
-	{
-		AsyncLoad<SkinnedMesh> load;
-		load.Begin([path]() -> Ref<SkinnedMesh>
-		{
-			auto mesh = SkinnedMesh::Create();
-			if (auto res = mesh->LoadFromFile(path); !res)
-			{
-				HMN_CORE_ERROR("{}", res.error());
-				return nullptr;
-			}
-			return mesh;
-		});
-		return load;
-	}
 
 }

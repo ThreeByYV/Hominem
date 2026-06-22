@@ -9,6 +9,8 @@
 #include "Game/Player.h"
 #include "Game/SideScrollerCamera.h"
 #include "Game/WorldConfig.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Audio/AudioSystem.h"
 
 #include <glm/glm.hpp>
 
@@ -58,6 +60,10 @@ private:
 	SideScrollerCamera m_Camera;
 	Player*            m_Player  = nullptr;
 	SceneActor*        m_Scene3D = nullptr;
+
+	// --- audio ---
+	Hominem::AssetHandle<Hominem::SoundBuffer> m_Music;
+	Hominem::SoundHandle                       m_MusicHandle = Hominem::InvalidSound;
 
 	// --- debug UI ---
 	bool  m_ShowDebugUI     = false;

@@ -48,8 +48,7 @@ public:
 	const Material& GetMaterial() const              { return m_Material; }
 	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
-	static Ref<StaticMesh>       Create();
-	static AsyncLoad<StaticMesh> LoadAsync(const std::string& path);
+	static Ref<StaticMesh> Create();
 
 protected:
 	Material m_Material;

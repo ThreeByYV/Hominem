@@ -23,12 +23,6 @@ namespace Hominem {
 	 * A cue means "starting at StartTime, for Duration seconds, do this job."
 	 * A cue with Duration == 0 is an instant trigger (fires once, no span).
 	 *
-	 * The Cutscene drives the lifecycle so that playback is a pure function of
-	 * the timeline clock — that is what makes seeking/skipping possible:
-	 *   - OnEnter            once, when the playhead crosses StartTime
-	 *   - OnTick(localT)     each frame while active; localT runs 0 -> Duration
-	 *   - OnExit             once, when the playhead passes EndTime
-	 *   - OnBuildRenderFrame each active frame, in the render-frame build phase
 	 */
 	class Cue
 	{

@@ -8,11 +8,13 @@
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderSettings.h"
 #include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Cinematics/IntroCutscene.h"
 #include "Game/Actors/InfiniteFloorActor.h"
 #include "Game/Actors/SceneActor.h"
 
 #include <imgui.h>
-#include "Hominem/ImGui/UIHelpers.h"
+#include "Hominem/ImGui/UI.h"
 
 using namespace Hominem;
 
@@ -48,7 +50,11 @@ void GameLayer::OnAttach()
 	    m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
 		BootstrapFromAABB();
 
-	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player, Player::PreloadedMesh());
+	Ref<SkinnedMesh> playerMesh;
+	if (auto r =
+			AssetManager::Load<SkinnedMesh>("game://Textures/beige.glb"))
+		playerMesh = r->Get();
+	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player, playerMesh);
 	if (m_Player)
 		m_Player->Scale = m_Config.Player.Scale;
 
@@ -103,12 +109,19 @@ void GameLayer::OnAttach()
 
 	WorldConfig::ApplyLights(m_Config, m_Scene->GetLights());
 
-	AudioSystem::LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+	if (auto r = AssetManager::Load<SoundBuffer>("game://Sounds/menu_music_2.mp3"))
+	{
+		m_Music       = *r;
+		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
+	}
 }
 
 void GameLayer::OnDetach()
 {
-	AudioSystem::StopMusic();
+	if (m_MusicHandle != InvalidSound)
+		AudioSystem::Get().Stop(m_MusicHandle);
+	m_Music       = {};
+	m_MusicHandle = InvalidSound;
 	m_Player  = nullptr;
 	m_Scene3D = nullptr;
 	m_Scene.reset();
@@ -116,8 +129,6 @@ void GameLayer::OnDetach()
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	AudioSystem::UpdateMusic();
-
 	if (m_IntroPhase == IntroPhase::Done || m_IntroPhase == IntroPhase::Wait)
 	{
 		m_Scene->OnUpdate(ts);
@@ -188,7 +199,7 @@ void GameLayer::OnUpdate(Timestep ts)
 		if (m_IntroTimer >= k_FlashDur)
 		{
 			m_IntroPhase = IntroPhase::Done;
-			TransitionTo<CutsceneLayer>();
+			TransitionTo<CutsceneLayer>(IntroCutscene::Make());
 		}
 	}
 	else if (m_IntroPhase == IntroPhase::ZoomOut)
@@ -229,17 +240,17 @@ void GameLayer::OnImGuiRender()
 
 	if (!m_ShowDebugUI) return;
 	UI::Window("Settings", [&] {
-		UI::Collapsible("Lighting", [&] {
+		if (ImGui::CollapsingHeader("Lighting")) {
 			UI::EditDirectionalLight(m_Scene->GetDirectionalLight());
-			UI::Checkbox("IBL", m_EnvMapEnabled);
+			ImGui::Checkbox("IBL", &m_EnvMapEnabled);
 			if (m_EnvMapEnabled)
-				UI::Slider("IBL Intensity", m_EnvMapIntensity, 0.f, 5.f);
-			if (UI::Checkbox("Area Lights", RenderSettings::AreaLights)) {}
-		});
+				ImGui::SliderFloat("IBL Intensity", &m_EnvMapIntensity, 0.f, 5.f);
+			ImGui::Checkbox("Area Lights", &RenderSettings::AreaLights);
+		}
 
-		UI::Collapsible("Lights", [&] {
+		if (ImGui::CollapsingHeader("Lights")) {
 			auto& lights = m_Scene->GetLights();
-			if (UI::SmallButton("Save"))
+			if (ImGui::SmallButton("Save"))
 			{
 				WorldConfig cfg;
 				WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
@@ -247,42 +258,43 @@ void GameLayer::OnImGuiRender()
 				WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
 			}
 			UI::EditLightList(lights, m_SelectedLight);
-		});
-
-		UI::Collapsible("Render", [&] {
-			auto& pp = m_Scene->GetPostProcess();
-			UI::Slider("Render Scale", pp.renderScale, 0.25f, 1.0f);
-			ImGui::SameLine();
-			ImGui::TextDisabled("%.0f%%", pp.renderScale * 100.f);
-		});
-
-		UI::Collapsible("Post Processing", [&] { UI::EditPostProcess(m_Scene->GetPostProcess()); });
-
-		UI::Collapsible("Camera", [&] {
-			UI::Drag("Y Bias", m_Camera.GetConfig().YBias, 0.01f);
-		});
-
-		if (m_Scene3D)
-		{
-			UI::Collapsible("Scene Transform", [&] {
-				UI::EditTransform(*m_Scene3D, 0.1f);
-				if (UI::Button("Save Scene Transform"))
-				{
-					WorldConfig cfg;
-					WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
-					cfg.Scene.Position = m_Scene3D->Position;
-					cfg.Scene.Rotation = glm::degrees(m_Scene3D->Rotation);
-					cfg.Scene.Scale    = m_Scene3D->Scale;
-					cfg.Camera.CameraX = m_InitCameraX;
-					cfg.Camera.CameraZ = m_Camera.GetCameraZ();
-					WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
-					m_Config = cfg;
-				}
-			});
 		}
 
-		if (m_Player)
-			UI::Collapsible("Player", [&] { m_Player->OnImGuiRender(); });
+		if (ImGui::CollapsingHeader("Render")) {
+			auto& pp = m_Scene->GetPostProcess();
+			ImGui::SliderFloat("Render Scale", &pp.renderScale, 0.25f, 1.0f);
+			ImGui::SameLine();
+			ImGui::TextDisabled("%.0f%%", pp.renderScale * 100.f);
+		}
+
+		if (ImGui::CollapsingHeader("Post Processing")) UI::EditPostProcess(m_Scene->GetPostProcess());
+
+		if (ImGui::CollapsingHeader("Camera"))
+			ImGui::DragFloat("Y Bias", &m_Camera.GetConfig().YBias, 0.01f);
+
+		if (m_Scene3D && ImGui::CollapsingHeader("Scene Transform")) {
+			ImGui::PushID("SceneTx");
+			UI::EditTransform(*m_Scene3D, 0.1f);
+			if (ImGui::Button("Save Scene Transform"))
+			{
+				WorldConfig cfg;
+				WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
+				cfg.Scene.Position = m_Scene3D->Position;
+				cfg.Scene.Rotation = glm::degrees(m_Scene3D->Rotation);
+				cfg.Scene.Scale    = m_Scene3D->Scale;
+				cfg.Camera.CameraX = m_InitCameraX;
+				cfg.Camera.CameraZ = m_Camera.GetCameraZ();
+				WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
+				m_Config = cfg;
+			}
+			ImGui::PopID();
+		}
+
+		if (m_Player && ImGui::CollapsingHeader("Player")) {
+			ImGui::PushID("Player");
+			m_Player->OnImGuiRender();
+			ImGui::PopID();
+		}
 	});
 }
 
@@ -324,7 +336,7 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (e.GetKeyCode() == HMN_KEY_1)
 	{
 		s_SkipIntro = false;
-		TransitionTo<CutsceneLayer>();
+		TransitionTo<CutsceneLayer>(IntroCutscene::Make());
 		return true;
 	}
 

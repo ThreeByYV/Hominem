@@ -5,7 +5,7 @@
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/MouseCodes.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Assets/AssetLoaders.h"
 #include "Hominem/Scene/Actors/SpriteActor.h"
 #include "Hominem/Utils/MathUtils.h"
 
@@ -33,30 +33,51 @@ void MenuLayer::OnAttach()
 	m_Scene->SetClearColor({ 0.05f, 0.05f, 0.05f, 1.f });
 
 	float aspect = (float)m_ViewportW / (float)m_ViewportH;
+	if (const auto result=
+			AssetManager::Load<Texture2D>("game://Textures/menu2.png"))
+		m_BackgroundHandle = *result;
+
 	m_Background = &m_Scene->SpawnActor<SpriteActor>(
 		glm::vec3{ 0.f, 0.f, -0.5f },
 		glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f },
-		Texture2D::Create("Resources/Textures/menu2.png"));
+		m_BackgroundHandle.Get());
 
 	m_Font   = Font::GetDefaultFont();
 	m_ArrowY = k_Items[0].y;
 
-	AudioSystem::LoadMusicAsync("Resources/Sounds/menu_music.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+	m_Music = AssetManager::LoadAsync<SoundBuffer>("game://Sounds/menu_music.mp3");
+	if (m_Music.IsLoaded())
+		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
 }
 
 void MenuLayer::OnDetach()
 {
-	AudioSystem::StopMusic();
+	if (m_MusicHandle != InvalidSound)
+		AudioSystem::Get().Stop(m_MusicHandle);
+	m_Music       = {};
+	m_MusicHandle = InvalidSound;
 	m_Scene.reset();
 	m_Background = nullptr;
 }
 
 void MenuLayer::OnUpdate(Timestep ts)
 {
-	if (Input::IsKeyPressed(HMN_KEY_M))
-		AudioSystem::ToggleMusic();
+	if (m_Music.IsLoaded() && m_MusicHandle == InvalidSound && !m_MusicPaused)
+		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
 
-	AudioSystem::UpdateMusic();
+	if (Input::IsKeyPressed(HMN_KEY_M))
+	{
+		if (m_MusicPaused)
+		{
+			AudioSystem::Get().Resume(m_MusicHandle);
+			m_MusicPaused = false;
+		}
+		else
+		{
+			AudioSystem::Get().Pause(m_MusicHandle);
+			m_MusicPaused = true;
+		}
+	}
 
 	// Convert mouse pixel coords to world space (camera at origin, ortho).
 	float halfH  = k_OrthoSize * 0.5f;

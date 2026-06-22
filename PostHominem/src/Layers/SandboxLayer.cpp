@@ -83,10 +83,10 @@ void SandboxLayer::OnImGuiRender()
 	UI::Window("Settings", [&] {
 		if (m_Player) m_Player->OnImGuiRender();
 
-		UI::Separator();
-		UI::Text("Camera");
+		ImGui::Separator();
+		ImGui::TextUnformatted("Camera");
 
-		if (UI::Drag("Ortho Size", m_OrthoSize, 0.5f, 1.f, 50.f))
+		if (ImGui::DragFloat("Ortho Size", &m_OrthoSize, 0.5f, 1.f, 50.f))
 			m_CinematicCamera->SetZoomLevel(m_OrthoSize);
 
 		if (m_CinematicCamera)
@@ -94,17 +94,17 @@ void SandboxLayer::OnImGuiRender()
 			ImGui::Text("In Cinematic: %s", m_CinematicCamera->IsInCinematic() ? "YES" : "NO");
 
 			float smoothing = m_CinematicCamera->GetSmoothingFactor();
-			if (UI::Slider("Smoothing", smoothing, 0.01f, 1.f))
+			if (ImGui::SliderFloat("Smoothing", &smoothing, 0.01f, 1.f))
 				m_CinematicCamera->SetSmoothingFactor(smoothing);
 
 			float zoom = m_CinematicCamera->GetZoomLevel();
-			if (UI::Slider("Zoom", zoom, 1.f, 30.f))
+			if (ImGui::SliderFloat("Zoom", &zoom, 1.f, 30.f))
 				m_CinematicCamera->SetZoomLevel(zoom);
 
-			if (UI::Button("Trigger Vista"))
+			if (ImGui::Button("Trigger Vista"))
 				m_CinematicCamera->TriggerCinematic("vista_reveal");
 			ImGui::SameLine();
-			if (UI::Button("End Cinematic"))
+			if (ImGui::Button("End Cinematic"))
 				m_CinematicCamera->EndCinematic();
 		}
 	});
@@ -153,8 +153,9 @@ void SandboxLayer::InitCamera()
 
 void SandboxLayer::InitWorld()
 {
-	auto bgTex = Texture2D::Create("Resources/Textures/gamebg.png");
-	m_Scene->SpawnActor<InfiniteBackgroundActor>(bgTex, 20.f);
+	if (auto result = AssetManager::Load<Texture2D>("game://Textures/gamebg.png"))
+		m_BgTexHandle = *result;
+	m_Scene->SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
 
 	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
 }
