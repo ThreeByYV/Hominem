@@ -1,8 +1,7 @@
 #include "hmnpch.h"
 #include "Player.h"
 
-#include "Hominem/Core/Input.h"
-#include "Hominem/Core/KeyCodes.h"
+#include "Hominem/Core/InputMap.h"
 #include "Hominem/Assets/AssetLoaders.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Physics/PhysicsWorld.h"
@@ -29,7 +28,7 @@ void Player::OnCreate()
 	if (!Mesh)
 	{
 		HMN_CORE_WARN("Player: mesh not preloaded, loading synchronously");
-		if (auto r = AssetManager::Load<SkinnedMesh>("game://Textures/beige.glb"))
+		if (auto r = AssetManager::Load<SkinnedMesh>(k_MeshPath))
 			Mesh = r->Get();
 	}
 
@@ -55,8 +54,8 @@ void Player::OnUpdate(Timestep ts)
 
 	if (!m_Body) return;
 
-	bool pressingA = Input::IsKeyPressed(HMN_KEY_A);
-	bool pressingD = Input::IsKeyPressed(HMN_KEY_D);
+	bool pressingA = InputMap::IsActionPressed("MoveLeft");
+	bool pressingD = InputMap::IsActionPressed("MoveRight");
 
 	glm::vec3 velocity = m_Body->GetLinearVelocity();
 
@@ -105,12 +104,9 @@ void Player::OnImGuiRender()
 	{
 		m_Config.Spawn.Position = Position;
 		m_Config.Scale = Scale;
-		WorldConfig cfg;
-		if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
-		{
+		WorldConfig::ModifyAndSave(WorldConfig::k_Path, [this](WorldConfig& cfg) {
 			cfg.Player.Spawn.Position = Position;
 			cfg.Player.Scale          = Scale;
-			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
-		}
+		});
 	}
 }

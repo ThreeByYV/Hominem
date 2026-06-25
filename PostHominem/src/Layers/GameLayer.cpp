@@ -5,10 +5,15 @@
 
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
+#include "Hominem/Core/InputMap.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderSettings.h"
-#include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Renderer/DebugCommands.h"
+#include "Hominem/Utils/MathUtils.h"
 #include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Cinematics/Cues/CameraCue.h"
+#include "Hominem/Cinematics/Cues/FadeCue.h"
+#include "Hominem/Cinematics/Cues/EventCue.h"
 #include "Cinematics/IntroCutscene.h"
 #include "Game/Actors/InfiniteFloorActor.h"
 #include "Game/Actors/SceneActor.h"
@@ -27,7 +32,7 @@ void GameLayer::OnAttach()
 {
 	m_Scene = CreateRef<Scene>();
 
-	if (!WorldConfig::LoadFromFile("Resources/Config/game_config.json", m_Config))
+	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
 		HMN_CORE_WARN("GameLayer: using default world config");
 
 	auto& window = Application::Get().GetWindow();
@@ -35,13 +40,11 @@ void GameLayer::OnAttach()
 	m_Scene->OnViewportResize(window.GetWidth(), window.GetHeight());
 
 	// --- world setup ---
-	m_Scene->SetPhysicsWorld(CreateRef<PhysicsWorld>(m_Config.Physics.Gravity));
+	WorldConfig::ApplyToScene(m_Config, *m_Scene);
 
 	const auto& sc = m_Config.Scene;
 	m_Scene3D = &m_Scene->SpawnActor<SceneActor>(sc.MeshPath);
-	m_Scene3D->Position = sc.Position;
-	m_Scene3D->Rotation = glm::radians(sc.Rotation);
-	m_Scene3D->Scale    = sc.Scale;
+	sc.ApplyTo(*m_Scene3D);
 
 	m_InitCameraX = m_Config.Camera.CameraX;
 	m_InitCameraZ = m_Config.Camera.CameraZ;
@@ -50,23 +53,15 @@ void GameLayer::OnAttach()
 	    m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
 		BootstrapFromAABB();
 
-	Ref<SkinnedMesh> playerMesh;
-	if (auto r =
-			AssetManager::Load<SkinnedMesh>("game://Textures/beige.glb"))
+	Ref<SkinnedMesh> playerMesh{};
+	if (const auto r =
+		AssetManager::Load<SkinnedMesh>(Player::k_MeshPath))
 		playerMesh = r->Get();
-	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player, playerMesh);
-	if (m_Player)
-		m_Player->Scale = m_Config.Player.Scale;
 
-	SideScrollerCamera::Config camCfg;
-	camCfg.VisibleHeight = m_Config.Camera.VisibleHeight;
-	camCfg.PlayerScreenY = m_Config.Camera.PlayerScreenY;
-	camCfg.YBias         = m_Config.Camera.YBias;
-	camCfg.FOVDeg        = m_Config.Camera.FOVDeg;
-	camCfg.XSpeed        = m_Config.Camera.XSpeed;
-	camCfg.YSpeed        = m_Config.Camera.YSpeed;
-	camCfg.LeadStrength  = m_Config.Camera.LeadStrength;
-	camCfg.YDeadZone     = m_Config.Camera.YDeadZone;
+	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player, playerMesh);
+	m_Player->Scale = m_Config.Player.Scale;
+
+	const auto camCfg = SideScrollerCamera::Config::From(m_Config.Camera);
 
 	m_Camera.Init(m_Scene->GetCamera(),
 	              m_Scene->GetCameraPosition(),
@@ -79,7 +74,9 @@ void GameLayer::OnAttach()
 	m_Scene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
 	m_Scene->SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
 
-	// --- intro animation ---
+	// --- intro cutscene ---
+	m_IntroCtx.scene = m_Scene.get();
+
 	if (s_SkipIntro)
 	{
 		m_Camera.Snap();
@@ -87,18 +84,12 @@ void GameLayer::OnAttach()
 		s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
 		s_EyeTarget.z = k_EyeTarget.z;
 
-		m_IntroFromPos  = m_Scene->GetCameraPosition();
-		m_IntroFromZoom = m_Scene->GetCamera().GetOrthographicSize();
+		const auto from = m_Scene->GetCameraSnapshot();
+		m_Scene->ApplyCameraSnapshot({ s_EyeTarget, k_EyeZoom });
 
-		m_Scene->GetCameraPosition() = s_EyeTarget;
-		m_Scene->GetCamera().SetOrthographicSize(k_EyeZoom);
-		m_IntroPhase = IntroPhase::ZoomOut;
-	}
-	else
-	{
-		m_IntroFromPos  = m_Scene->GetCameraPosition();
-		m_IntroFromZoom = m_Scene->GetCamera().GetOrthographicSize();
-		m_IntroPhase    = IntroPhase::Wait;
+		// Zoom back out to the resting view -- no flash, no transition.
+		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, from.position, k_EyeZoom, from.orthoSize).For(k_ZoomDur);
+		m_IntroCutscene.Play();
 	}
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
@@ -107,9 +98,8 @@ void GameLayer::OnAttach()
 	pp.renderScale = RenderSettings::RecommendedRenderScale;
 	m_Scene->SetPostProcess(pp);
 
-	WorldConfig::ApplyLights(m_Config, m_Scene->GetLights());
-
-	if (auto r = AssetManager::Load<SoundBuffer>("game://Sounds/menu_music_2.mp3"))
+	if (const auto r =
+		AssetManager::Load<SoundBuffer>(k_MusicPath))
 	{
 		m_Music       = *r;
 		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
@@ -118,8 +108,7 @@ void GameLayer::OnAttach()
 
 void GameLayer::OnDetach()
 {
-	if (m_MusicHandle != InvalidSound)
-		AudioSystem::Get().Stop(m_MusicHandle);
+	if (m_MusicHandle != InvalidSound) AudioSystem::Get().Stop(m_MusicHandle);
 	m_Music       = {};
 	m_MusicHandle = InvalidSound;
 	m_Player  = nullptr;
@@ -129,108 +118,65 @@ void GameLayer::OnDetach()
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	if (m_IntroPhase == IntroPhase::Done || m_IntroPhase == IntroPhase::Wait)
+	if (!m_IntroCutscene.IsPlaying())
 	{
 		m_Scene->OnUpdate(ts);
 
 		if (Input::IsKeyPressed(HMN_KEY_R))
 		{
-			if (WorldConfig newCfg; WorldConfig::LoadFromFile("Resources/Config/game_config.json", newCfg))
+			if (WorldConfig newCfg; WorldConfig::LoadFromFile(WorldConfig::k_Path, newCfg))
 			{
 				HMN_CORE_INFO("Config reloaded — player scale({:.4f},{:.4f},{:.4f})",
 				              newCfg.Player.Scale.x, newCfg.Player.Scale.y, newCfg.Player.Scale.z);
 				m_Config = newCfg;
-				auto& cam         = m_Camera.GetConfig();
-				cam.VisibleHeight  = newCfg.Camera.VisibleHeight;
-				cam.PlayerScreenY  = newCfg.Camera.PlayerScreenY;
-				cam.YBias          = newCfg.Camera.YBias;
-				cam.FOVDeg         = newCfg.Camera.FOVDeg;
-				cam.XSpeed         = newCfg.Camera.XSpeed;
-				cam.YSpeed         = newCfg.Camera.YSpeed;
-				cam.LeadStrength   = newCfg.Camera.LeadStrength;
-				cam.YDeadZone      = newCfg.Camera.YDeadZone;
+				m_Camera.GetConfig() = SideScrollerCamera::Config::From(newCfg.Camera);
 				m_Camera.OnWindowResize(m_Aspect);
-				if (m_Player) m_Player->Reload(newCfg.Player);
-				if (m_Scene3D)
-				{
-					m_Scene3D->Position = newCfg.Scene.Position;
-					m_Scene3D->Rotation = glm::radians(newCfg.Scene.Rotation);
-					m_Scene3D->Scale    = newCfg.Scene.Scale;
-				}
+				m_Player->Reload(newCfg.Player);
+				newCfg.Scene.ApplyTo(*m_Scene3D);
 			}
 			RenderSettings::RequestShaderReload();
 		}
 
 		m_Camera.OnUpdate(ts);
 
-		if (m_IntroPhase == IntroPhase::Wait)
+		// Still waiting to kick off the zoom-in (normal, non-skip path only --
+		// the skip path's zoom-out cue is already playing by the time we get here).
+		if (!m_IntroCutscene.IsFinished())
 		{
 			m_IntroTimer += ts;
 			if (m_IntroTimer >= k_WaitDur)
-			{
-				s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
-				s_EyeTarget.z = k_EyeTarget.z;
-
-				m_IntroFromPos  = m_Scene->GetCameraPosition();
-				m_IntroFromZoom = m_Scene->GetCamera().GetOrthographicSize();
-				m_IntroPhase    = IntroPhase::ZoomIn;
-				m_IntroTimer    = 0.f;
-			}
+				StartIntroZoomIn();
 		}
 	}
-	else if (m_IntroPhase == IntroPhase::ZoomIn)
+	else
 	{
-		m_IntroTimer += ts;
-		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
-		const float ease = n * n * (3.f - 2.f * n);
-
-		m_Scene->GetCameraPosition() = glm::mix(m_IntroFromPos, s_EyeTarget, ease);
-		m_Scene->GetCamera().SetOrthographicSize(glm::mix(m_IntroFromZoom, k_EyeZoom, ease));
-
-		if (n >= 1.f)
-		{
-			m_IntroPhase = IntroPhase::Flash;
-			m_IntroTimer = 0.f;
-		}
-	}
-	else if (m_IntroPhase == IntroPhase::Flash)
-	{
-		m_IntroTimer += ts;
-		if (m_IntroTimer >= k_FlashDur)
-		{
-			m_IntroPhase = IntroPhase::Done;
-			TransitionTo<CutsceneLayer>(IntroCutscene::Make());
-		}
-	}
-	else if (m_IntroPhase == IntroPhase::ZoomOut)
-	{
-		m_IntroTimer += ts;
-		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
-		const float ease = n * n * (3.f - 2.f * n);
-
-		m_Scene->GetCameraPosition() = glm::mix(s_EyeTarget, m_IntroFromPos, ease);
-		m_Scene->GetCamera().SetOrthographicSize(glm::mix(k_EyeZoom, m_IntroFromZoom, ease));
-
-		if (n >= 1.f)
-			m_IntroPhase = IntroPhase::Done;
+		m_IntroCutscene.OnUpdate(ts, m_IntroCtx);
 	}
 
 	m_FrameTimeMs = ts.GetMilliseconds();
 	m_FPS         = ts > 0.f ? 1.f / ts : 0.f;
 }
 
+void GameLayer::StartIntroZoomIn()
+{
+	s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
+	s_EyeTarget.z = k_EyeTarget.z;
+
+	const auto from = m_Scene->GetCameraSnapshot();
+	m_IntroCutscene.Add<CameraCue>(from.position, s_EyeTarget, from.orthoSize, k_EyeZoom).For(k_ZoomDur);
+	// Hard cut to white (From == To == 1), not a fade.
+	m_IntroCutscene.Add<FadeCue>(glm::vec3(1.f), 1.f, 1.f).At(k_ZoomDur).For(k_FlashDur);
+	m_IntroCutscene.Add<EventCue>([this] { TransitionTo<CutsceneLayer>(IntroCutscene::Make()); })
+		.At(k_ZoomDur + k_FlashDur);
+
+	m_IntroCutscene.Play();
+}
+
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
 	m_Scene->SetEnvMapIntensity(m_EnvMapEnabled ? m_EnvMapIntensity : 0.f);
 	Layer::OnBuildRenderFrame(frame);
-
-	if (m_IntroPhase == IntroPhase::Flash)
-	{
-		QuadDraw q;
-		q.transform = glm::scale(glm::mat4(1.f), { 1000.f, 1000.f, 1.f });
-		q.color     = { 1.f, 1.f, 1.f, 1.f };
-		frame.quads.push_back(std::move(q));
-	}
+	m_IntroCutscene.BuildRenderFrame(frame);
 }
 
 void GameLayer::OnImGuiRender()
@@ -251,12 +197,9 @@ void GameLayer::OnImGuiRender()
 		if (ImGui::CollapsingHeader("Lights")) {
 			auto& lights = m_Scene->GetLights();
 			if (ImGui::SmallButton("Save"))
-			{
-				WorldConfig cfg;
-				WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
-				WorldConfig::CaptureLights(cfg, lights);
-				WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
-			}
+				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [&lights](WorldConfig& cfg) {
+					WorldConfig::CaptureLights(cfg, lights);
+				});
 			UI::EditLightList(lights, m_SelectedLight);
 		}
 
@@ -272,25 +215,22 @@ void GameLayer::OnImGuiRender()
 		if (ImGui::CollapsingHeader("Camera"))
 			ImGui::DragFloat("Y Bias", &m_Camera.GetConfig().YBias, 0.01f);
 
-		if (m_Scene3D && ImGui::CollapsingHeader("Scene Transform")) {
+		if (ImGui::CollapsingHeader("Scene Transform")) {
 			ImGui::PushID("SceneTx");
 			UI::EditTransform(*m_Scene3D, 0.1f);
 			if (ImGui::Button("Save Scene Transform"))
-			{
-				WorldConfig cfg;
-				WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
-				cfg.Scene.Position = m_Scene3D->Position;
-				cfg.Scene.Rotation = glm::degrees(m_Scene3D->Rotation);
-				cfg.Scene.Scale    = m_Scene3D->Scale;
-				cfg.Camera.CameraX = m_InitCameraX;
-				cfg.Camera.CameraZ = m_Camera.GetCameraZ();
-				WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
-				m_Config = cfg;
-			}
+				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [this](WorldConfig& cfg) {
+					cfg.Scene.Position = m_Scene3D->Position;
+					cfg.Scene.Rotation = m_Scene3D->GetRotationDeg();
+					cfg.Scene.Scale    = m_Scene3D->Scale;
+					cfg.Camera.CameraX = m_InitCameraX;
+					cfg.Camera.CameraZ = m_Camera.GetCameraZ();
+					m_Config = cfg;
+				});
 			ImGui::PopID();
 		}
 
-		if (m_Player && ImGui::CollapsingHeader("Player")) {
+		if (ImGui::CollapsingHeader("Player")) {
 			ImGui::PushID("Player");
 			m_Player->OnImGuiRender();
 			ImGui::PopID();
@@ -300,7 +240,7 @@ void GameLayer::OnImGuiRender()
 
 bool GameLayer::OnWindowResize(WindowResizeEvent& e)
 {
-	if (m_Scene) m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
+	m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
 	if (e.GetWidth() > 0 && e.GetHeight() > 0)
 	{
 		m_Aspect = (float)e.GetWidth() / (float)e.GetHeight();
@@ -327,13 +267,13 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		return false;
 	}
 
-	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
+	if (e.GetKeyCode() == InputMap::GetKeyCode("OpenMenu"))
 	{
 		TransitionTo<MenuLayer>();
 		return true;
 	}
 
-	if (e.GetKeyCode() == HMN_KEY_1)
+	if (e.GetKeyCode() == InputMap::GetKeyCode("SkipIntro"))
 	{
 		s_SkipIntro = false;
 		TransitionTo<CutsceneLayer>(IntroCutscene::Make());
@@ -343,32 +283,7 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 	if (ImGui::GetIO().WantCaptureKeyboard)
 		return false;
 
-	if (e.GetKeyCode() == HMN_KEY_N)
-		RenderSettings::DrawNormals = !RenderSettings::DrawNormals;
-
-	if (e.GetKeyCode() == HMN_KEY_B)
-		RenderSettings::DrawAABB = !RenderSettings::DrawAABB;
-
-	if (e.GetKeyCode() == HMN_KEY_L)
-		m_Scene->GetPostProcess().debugLights = !m_Scene->GetPostProcess().debugLights;
-
-	if (e.GetKeyCode() == HMN_KEY_H)
-		RenderSettings::DebugHeatmap = !RenderSettings::DebugHeatmap;
-
-	if (e.GetKeyCode() == HMN_KEY_T)
-		RenderSettings::ToonShading = !RenderSettings::ToonShading;
-
-	if (e.GetKeyCode() == HMN_KEY_O)
-		RenderSettings::DrawBoneWeights = !RenderSettings::DrawBoneWeights;
-
-	if (e.GetKeyCode() == HMN_KEY_LEFT_BRACKET && RenderSettings::DrawBoneWeights)
-		RenderSettings::DisplayBoneIndex = std::max(0, RenderSettings::DisplayBoneIndex - 1);
-
-	if (e.GetKeyCode() == HMN_KEY_RIGHT_BRACKET && RenderSettings::DrawBoneWeights)
-		RenderSettings::DisplayBoneIndex++;
-
-	if (e.GetKeyCode() == HMN_KEY_P)
-		m_ShowPerfPanel = !m_ShowPerfPanel;
+	HandleDebugKey(e.GetKeyCode(), m_Scene->GetPostProcess(), m_ShowPerfPanel);
 
 	return false;
 }
@@ -377,7 +292,6 @@ bool GameLayer::OnMouseMoved(MouseMovedEvent& e) { return false; }
 
 glm::vec3 GameLayer::ResolveEyeTarget(const glm::vec3& fallback) const
 {
-	if (!m_Player) return fallback;
 	auto* mesh = m_Player->GetMesh();
 	if (!mesh)    return fallback;
 	auto mat = mesh->GetBoneWorldTransform("mixamorig:Head");
@@ -388,19 +302,11 @@ glm::vec3 GameLayer::ResolveEyeTarget(const glm::vec3& fallback) const
 void GameLayer::BootstrapFromAABB()
 {
 	if (!m_Scene3D->GetMesh()) return;
-	glm::vec3 lMin = m_Scene3D->GetMesh()->GetAABBMin();
-	glm::vec3 lMax = m_Scene3D->GetMesh()->GetAABBMax();
-	glm::mat4 tx   = m_Scene3D->GetTransform();
-	glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
-	for (int i = 0; i < 8; i++)
-	{
-		glm::vec3 c = glm::vec3(tx * glm::vec4(
-			(i & 1) ? lMax.x : lMin.x,
-			(i & 2) ? lMax.y : lMin.y,
-			(i & 4) ? lMax.z : lMin.z, 1.f));
-		wMin = glm::min(wMin, c);
-		wMax = glm::max(wMax, c);
-	}
+
+	glm::vec3 wMin, wMax;
+	TransformAABB(m_Scene3D->GetMesh()->GetAABBMin(), m_Scene3D->GetMesh()->GetAABBMax(),
+	              m_Scene3D->GetTransform(), wMin, wMax);
+
 	glm::vec3 size = wMax - wMin;
 	if (m_InitCameraX == 0.f) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
 	if (m_InitCameraZ == 0.f) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);

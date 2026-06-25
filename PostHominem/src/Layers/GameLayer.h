@@ -6,6 +6,7 @@
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Cinematics/Cutscene.h"
 #include "Game/Player.h"
 #include "Game/SideScrollerCamera.h"
 #include "Game/WorldConfig.h"
@@ -31,6 +32,9 @@ public:
 	static inline bool      s_SkipIntro = false;
 	static inline glm::vec3 s_EyeTarget = { 0.084f, 0.8f, 40.0f };
 
+	/// Virtual asset path for the in-game music — published so LoadingLayer can preload it.
+	static constexpr const char* k_MusicPath = "game://Sounds/menu_music_2.mp3";
+
 private:
 	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
@@ -39,12 +43,15 @@ private:
 	glm::vec3 ResolveEyeTarget(const glm::vec3& fallback) const;
 	void      BootstrapFromAABB();
 
-	// --- intro animation ---
-	enum class IntroPhase { Wait, ZoomIn, Flash, ZoomOut, Done };
-	IntroPhase  m_IntroPhase    = IntroPhase::Wait;
-	float       m_IntroTimer    = 0.f;
-	glm::vec3   m_IntroFromPos  { 0.f };
-	float       m_IntroFromZoom = 10.f;
+	/// Builds and plays the zoom-in/flash/transition cues once the wait timer expires.
+	void StartIntroZoomIn();
+
+	// --- intro cutscene ---
+	// The wait is a plain timer (Play() isn't called yet, so nothing to delegate to);
+	// once it expires, StartIntroZoomIn() builds the cues and hands off to m_IntroCutscene.
+	float                    m_IntroTimer = 0.f;
+	Hominem::Cutscene        m_IntroCutscene;
+	Hominem::CutsceneContext m_IntroCtx;
 
 	static constexpr glm::vec3 k_EyeTarget = { 0.084f, 0.8f, 29.0f };
 	static constexpr float     k_EyeZoom   = 0.08f;

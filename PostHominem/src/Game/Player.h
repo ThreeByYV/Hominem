@@ -11,6 +11,9 @@
 class Player : public Hominem::SkinnedMeshActor
 {
 public:
+	/// Virtual asset path for the player mesh — published so LoadingLayer/GameLayer can preload it.
+	static constexpr const char* k_MeshPath = "game://Textures/beige.glb";
+
 	explicit Player(const PlayerConfig& config,
 	                Hominem::Ref<Hominem::SkinnedMesh> preloadedMesh = nullptr);
 

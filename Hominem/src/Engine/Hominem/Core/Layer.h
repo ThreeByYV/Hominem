@@ -18,7 +18,9 @@ namespace Hominem {
 		virtual void OnDetach() {}
 
 		virtual void OnUpdate(Timestep ts) {}
+
 		virtual void OnImGuiRender() {}
+
 		virtual void OnEvent(Event& event) {}
 
 		/// Calls m_Scene->BuildRenderFrame(frame) if a scene is set.
@@ -36,6 +38,10 @@ namespace Hominem {
 		}
 
 	protected:
+		/// For scene-less layers (loading screens, transition layers): sets frame.viewportWidth/Height
+		/// from the window and frame.clearColor, since there's no Scene to do that automatically.
+		static void SetFullscreenClear(RenderFrame& frame, const glm::vec4& clearColor);
+
 		std::string m_DebugName;
 		Ref<Scene>  m_Scene;
 	};

@@ -36,8 +36,8 @@ static void SpawnIntroCharacters(Scene& scene, std::shared_ptr<IntroChars> chars
 	using namespace glm;
 
 	Ref<SkinnedMesh> runMesh, idleMesh;
-	if (auto r = AssetManager::Load<SkinnedMesh>("game://Textures/Running.fbx"))  runMesh  = r->Get();
-	if (auto r = AssetManager::Load<SkinnedMesh>("game://Textures/Idle.fbx"))     idleMesh = r->Get();
+	if (auto r = AssetManager::Load<SkinnedMesh>(IntroCutscene::k_RunMesh))   runMesh  = r->Get();
+	if (auto r = AssetManager::Load<SkinnedMesh>(IntroCutscene::k_IdleMesh)) idleMesh = r->Get();
 	if (!runMesh || !idleMesh) return;
 
 	struct RunnerDef { vec3 pos; float rotY; vec3 scale; float speed; };
@@ -180,8 +180,8 @@ CutsceneDesc IntroCutscene::Make()
 	};
 
 	desc.spawnMeshPaths = {
-		"game://Textures/Running.fbx",
-		"game://Textures/Idle.fbx",
+		k_RunMesh,
+		k_IdleMesh,
 	};
 
 	auto chars = std::make_shared<IntroChars>();

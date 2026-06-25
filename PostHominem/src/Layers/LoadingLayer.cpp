@@ -2,9 +2,10 @@
 #include "LoadingLayer.h"
 #include "GameLayer.h"
 
-#include "Hominem/Core/Application.h"
 #include "Hominem/Renderer/Font.h"
+#include "Hominem/Utils/Transform.h"
 #include "Cinematics/IntroCutscene.h"
+#include "Game/Player.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <random>
@@ -23,16 +24,32 @@ void LoadingLayer::OnAttach()
 	std::mt19937 rng(std::random_device{}());
 	m_QuoteIndex = std::uniform_int_distribution<int>(0, (int)k_Quotes.size() - 1)(rng);
 
-	m_SetMesh    = AssetManager::LoadAsync<StaticMesh>(IntroCutscene::k_SetMesh);
-	m_PlayerMesh = AssetManager::LoadAsync<SkinnedMesh>("game://Textures/beige.glb");
-	m_GameMusic  = AssetManager::LoadAsync<SoundBuffer>("game://Sounds/menu_music_2.mp3");
+	AssetManager::LoadAsync<StaticMesh>(IntroCutscene::k_SetMesh,
+		[this](const AssetHandle<StaticMesh>& h) { m_SetMesh = h; OnAssetLoaded(); });
+
+	AssetManager::LoadAsync<SkinnedMesh>(Player::k_MeshPath,
+		[this](const AssetHandle<SkinnedMesh>& h) { m_PlayerMesh = h; OnAssetLoaded(); });
+
+	AssetManager::LoadAsync<SoundBuffer>(GameLayer::k_MusicPath,
+		[this](const AssetHandle<SoundBuffer>& h) { m_GameMusic = h; OnAssetLoaded(); });
+
+	// Intro cutscene's silhouette runner/idle meshes -- without this, CutsceneLayer kicks off
+	// these same loads itself on attach and the characters visibly pop in once they finish.
+	AssetManager::LoadAsync<SkinnedMesh>(IntroCutscene::k_RunMesh,
+		[this](const AssetHandle<SkinnedMesh>& h) { m_RunMesh = h; OnAssetLoaded(); });
+
+	AssetManager::LoadAsync<SkinnedMesh>(IntroCutscene::k_IdleMesh,
+		[this](const AssetHandle<SkinnedMesh>& h) { m_IdleMesh = h; OnAssetLoaded(); });
 }
 
 void LoadingLayer::OnUpdate(Timestep ts)
 {
 	m_PulseT += static_cast<float>(ts);
+}
 
-	if (!m_Transitioning && m_SetMesh.IsLoaded() && m_GameMusic.IsLoaded() && m_PlayerMesh.IsLoaded())
+void LoadingLayer::OnAssetLoaded()
+{
+	if (--m_PendingLoads == 0 && !m_Transitioning)
 	{
 		m_Transitioning = true;
 		TransitionTo<GameLayer>();
@@ -41,11 +58,7 @@ void LoadingLayer::OnUpdate(Timestep ts)
 
 void LoadingLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	auto& window = Application::Get().GetWindow();
-	frame.viewportWidth  = window.GetWidth();
-	frame.viewportHeight = window.GetHeight();
-	frame.clearColor     = { 0.f, 0.f, 0.f, 1.f };
-
+	SetFullscreenClear(frame, { 0.f, 0.f, 0.f, 1.f });
 
 	if (!m_Font || frame.viewportHeight == 0)
 		return;
@@ -83,7 +96,6 @@ void LoadingLayer::OnBuildRenderFrame(RenderFrame& frame)
 	// Slow breathing fade on text here
 	const float pulse = 0.3f + 0.5f * (0.5f + 0.5f * std::sin(m_PulseT * 1.5f));
 
-	glm::mat4 transform = glm::translate(glm::mat4(1.f), { -halfWidth, blockY, 0.f })
-	                    * glm::scale(glm::mat4(1.f), glm::vec3(kTextScale));
+	glm::mat4 transform = Transform::PosScale({ -halfWidth, blockY, 0.f }, glm::vec3(kTextScale)).ToMatrix();
 	frame.texts.push_back({ text, m_Font, transform, { 1.f, 1.f, 1.f, pulse } });
 }
