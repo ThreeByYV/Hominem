@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <thread>
+#include <mutex>
 
 namespace Hominem {
 
@@ -24,6 +25,9 @@ std::shared_mutex                                s_StoreMutex;
 
 Queue<LoadRequest>  s_LoadQueue;
 std::jthread        s_LoaderThread;
+
+std::vector<std::pair<std::shared_ptr<AssetSlot>, std::function<void()>>> s_PendingCallbacks;
+std::mutex                                                                s_CallbackMutex;
 
 void LoaderThreadFunc()
 {
@@ -148,6 +152,33 @@ void AssetManager::EnqueueAsync(std::shared_ptr<AssetSlot> slot, AssetLoaderFn l
         return; // another thread already picked this up
 
     s_LoadQueue.Push(LoadRequest{ std::move(slot), std::move(loader) });
+}
+
+void AssetManager::RegisterPendingCallback(std::shared_ptr<AssetSlot> slot, std::function<void()> fn)
+{
+    std::lock_guard lock(s_CallbackMutex);
+    s_PendingCallbacks.emplace_back(std::move(slot), std::move(fn));
+}
+
+void AssetManager::PumpCallbacks()
+{
+    std::vector<std::function<void()>> ready;
+    {
+        std::lock_guard lock(s_CallbackMutex);
+        for (auto it = s_PendingCallbacks.begin(); it != s_PendingCallbacks.end(); )
+        {
+            if (const AssetState state = it->first->state.load(std::memory_order_acquire);
+                    state == AssetState::Loaded || state == AssetState::Failed)
+            {
+                ready.push_back(std::move(it->second));
+                it = s_PendingCallbacks.erase(it);
+            }
+            else
+                ++it;
+        }
+    }
+    // Invoke outside the lock, callbacks may call back into AssetManager.
+    for (auto& fn : ready) fn();
 }
 
 }

@@ -37,6 +37,16 @@ namespace Hominem {
 				* glm::scale(glm::mat4(1.f), Scale);
 		}
 
+		/// Sets Position/Scale directly and Rotation from degrees, in one call.
+		void SetTransformDeg(const glm::vec3& pos, const glm::vec3& rotDeg, const glm::vec3& scale)
+		{
+			Position = pos;
+			Rotation = glm::radians(rotDeg);
+			Scale    = scale;
+		}
+
+		glm::vec3 GetRotationDeg() const { return glm::degrees(Rotation); }
+
 		Scene* GetScene() const { return m_Scene; }
 
 	protected:

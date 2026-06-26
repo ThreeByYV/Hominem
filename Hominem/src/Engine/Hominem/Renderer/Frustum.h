@@ -1,8 +1,9 @@
 #pragma once
 
+#include "Hominem/Utils/MathUtils.h"
+
 #include <glm/glm.hpp>
 #include <array>
-#include <cfloat>
 
 namespace Hominem {
 
@@ -64,20 +65,8 @@ struct Frustum
 	bool TestAABBTransformed(const glm::vec3& localMin, const glm::vec3& localMax,
 	                          const glm::mat4& transform) const
 	{
-		glm::vec3 worldMin( FLT_MAX);
-		glm::vec3 worldMax(-FLT_MAX);
-
-		for (int i = 0; i < 8; i++)
-		{
-			const glm::vec3 corner(
-				(i & 1) ? localMax.x : localMin.x,
-				(i & 2) ? localMax.y : localMin.y,
-				(i & 4) ? localMax.z : localMin.z
-			);
-			const glm::vec3 wc = glm::vec3(transform * glm::vec4(corner, 1.f));
-			worldMin = glm::min(worldMin, wc);
-			worldMax = glm::max(worldMax, wc);
-		}
+		glm::vec3 worldMin, worldMax;
+		TransformAABB(localMin, localMax, transform, worldMin, worldMax);
 		return TestAABB(worldMin, worldMax);
 	}
 };
