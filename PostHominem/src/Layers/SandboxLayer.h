@@ -29,8 +29,6 @@ private:
 	void InitCamera();
 	void InitWorld();
 
-	WorldConfig m_Config;
-
 	Player*                                          m_Player        = nullptr;
 	NarrativeTextActor*                              m_NarrativeText = nullptr;
 	Hominem::Ref<Hominem::CinematicCameraController> m_CinematicCamera;

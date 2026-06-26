@@ -46,11 +46,11 @@ void GameLayer::OnAttach()
 	m_Scene3D = &m_Scene->SpawnActor<SceneActor>(sc.MeshPath);
 	sc.ApplyTo(*m_Scene3D);
 
-	m_InitCameraX = m_Config.Camera.CameraX;
-	m_InitCameraZ = m_Config.Camera.CameraZ;
+	m_InitCameraX = m_Config.CameraX;
+	m_InitCameraZ = m_Config.CameraZ;
 
 	if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
-	    m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
+	    m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
 		BootstrapFromAABB();
 
 	Ref<SkinnedMesh> playerMesh{};
@@ -58,19 +58,20 @@ void GameLayer::OnAttach()
 		AssetManager::Load<SkinnedMesh>(Player::k_MeshPath))
 		playerMesh = r->Get();
 
-	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player, playerMesh);
-	m_Player->Scale = m_Config.Player.Scale;
+	PlayerConfig playerCfg;
+	playerCfg.Spawn.Position = m_Config.PlayerSpawnPos;
+	m_Player = &m_Scene->SpawnActor<Player>(playerCfg, playerMesh);
 
-	const auto camCfg = SideScrollerCamera::Config::From(m_Config.Camera);
+	const auto camCfg = SideScrollerCamera::Config::From(CameraConfig{});
 
 	m_Camera.Init(m_Scene->GetCamera(),
 	              m_Scene->GetCameraPosition(),
 	              m_Scene->GetCameraFront(),
-	              m_Aspect, m_InitCameraZ, m_Config.Player.RestY, camCfg);
+	              m_Aspect, m_InitCameraZ, playerCfg.RestY, camCfg);
 	m_Camera.SetTarget(m_Player);
 	m_Scene->GetCameraPosition().x = m_InitCameraX;
 
-	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
+	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Floor);
 	m_Scene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
 	m_Scene->SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
 
@@ -84,11 +85,11 @@ void GameLayer::OnAttach()
 		s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
 		s_EyeTarget.z = k_EyeTarget.z;
 
-		const auto from = m_Scene->GetCameraSnapshot();
+		const auto [position, orthoSize] = m_Scene->GetCameraSnapshot();
 		m_Scene->ApplyCameraSnapshot({ s_EyeTarget, k_EyeZoom });
 
 		// Zoom back out to the resting view -- no flash, no transition.
-		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, from.position, k_EyeZoom, from.orthoSize).For(k_ZoomDur);
+		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, position, k_EyeZoom, orthoSize).For(k_ZoomDur);
 		m_IntroCutscene.Play();
 	}
 	m_IntroTimer = 0.f;
@@ -126,13 +127,12 @@ void GameLayer::OnUpdate(Timestep ts)
 		{
 			if (WorldConfig newCfg; WorldConfig::LoadFromFile(WorldConfig::k_Path, newCfg))
 			{
-				HMN_CORE_INFO("Config reloaded — player scale({:.4f},{:.4f},{:.4f})",
-				              newCfg.Player.Scale.x, newCfg.Player.Scale.y, newCfg.Player.Scale.z);
+				HMN_CORE_INFO("Config reloaded");
 				m_Config = newCfg;
-				m_Camera.GetConfig() = SideScrollerCamera::Config::From(newCfg.Camera);
 				m_Camera.OnWindowResize(m_Aspect);
-				m_Player->Reload(newCfg.Player);
+				m_Player->Reload(PlayerConfig{});
 				newCfg.Scene.ApplyTo(*m_Scene3D);
+				m_Scene->GetLights() = newCfg.Lights;
 			}
 			RenderSettings::RequestShaderReload();
 		}
@@ -198,7 +198,7 @@ void GameLayer::OnImGuiRender()
 			auto& lights = m_Scene->GetLights();
 			if (ImGui::SmallButton("Save"))
 				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [&lights](WorldConfig& cfg) {
-					WorldConfig::CaptureLights(cfg, lights);
+					cfg.Lights = lights;
 				});
 			UI::EditLightList(lights, m_SelectedLight);
 		}
@@ -223,8 +223,8 @@ void GameLayer::OnImGuiRender()
 					cfg.Scene.Position = m_Scene3D->Position;
 					cfg.Scene.Rotation = m_Scene3D->GetRotationDeg();
 					cfg.Scene.Scale    = m_Scene3D->Scale;
-					cfg.Camera.CameraX = m_InitCameraX;
-					cfg.Camera.CameraZ = m_Camera.GetCameraZ();
+					cfg.CameraX = m_InitCameraX;
+					cfg.CameraZ = m_Camera.GetCameraZ();
 					m_Config = cfg;
 				});
 			ImGui::PopID();
@@ -310,11 +310,11 @@ void GameLayer::BootstrapFromAABB()
 	glm::vec3 size = wMax - wMin;
 	if (m_InitCameraX == 0.f) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
 	if (m_InitCameraZ == 0.f) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);
-	if (m_Config.Player.Spawn.Position == glm::vec3(0.f, 1.f, 0.f))
+	if (m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
 	{
-		m_Config.Player.Spawn.Position = {
+		m_Config.PlayerSpawnPos = {
 			m_InitCameraX,
-			m_Config.Player.RestY,
+			PlayerConfig{}.RestY,
 			wMin.z + size.z * 0.9f
 		};
 	}

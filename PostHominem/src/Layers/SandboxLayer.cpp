@@ -20,8 +20,6 @@ using namespace Hominem;
 SandboxLayer::SandboxLayer()
 	: Layer("Sandbox")
 {
-	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
-		HMN_CORE_WARN("SandboxLayer: using default world config");
 }
 
 void SandboxLayer::OnAttach()
@@ -36,7 +34,7 @@ void SandboxLayer::OnAttach()
 	m_CinematicCamera->RegisterOnComplete("vista_reveal",   [] { HMN_CORE_INFO("Vista 1 complete"); });
 	m_CinematicCamera->RegisterOnComplete("vista_reveal_2", [] { HMN_CORE_INFO("Vista 2 complete"); });
 
-	m_Player = &m_Scene->SpawnActor<Player>(m_Config.Player);
+	m_Player = &m_Scene->SpawnActor<Player>(PlayerConfig{});
 
 	m_NarrativeText = &m_Scene->SpawnActor<NarrativeTextActor>();
 	m_NarrativeText->Show("Any victory against death will always be temporary");
@@ -120,7 +118,7 @@ void SandboxLayer::OnEvent(Event& e)
 
 void SandboxLayer::InitPhysics()
 {
-	m_Scene->SetPhysicsWorld(CreateRef<PhysicsWorld>(m_Config.Physics.Gravity));
+	m_Scene->SetPhysicsWorld(CreateRef<PhysicsWorld>(PhysicsConfig{}.Gravity));
 }
 
 void SandboxLayer::InitCamera()
@@ -129,10 +127,8 @@ void SandboxLayer::InitCamera()
 	uint32_t w   = window.GetWidth();
 	uint32_t h   = window.GetHeight();
 
-	m_Scene->GetCamera().SetOrthographic(
-		m_Config.Camera.OrthoSize,
-		m_Config.Camera.OrthoNear,
-		m_Config.Camera.OrthoFar);
+	constexpr CameraConfig kCam;
+	m_Scene->GetCamera().SetOrthographic(kCam.OrthoSize, kCam.OrthoNear, kCam.OrthoFar);
 
 	m_Scene->OnViewportResize(w, h);
 
@@ -150,5 +146,5 @@ void SandboxLayer::InitWorld()
 		m_BgTexHandle = *result;
 	m_Scene->SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
 
-	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Physics.Floor);
+	m_Scene->SpawnActor<InfiniteFloorActor>(FloorConfig{});
 }

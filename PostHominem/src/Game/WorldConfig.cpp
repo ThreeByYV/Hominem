@@ -1,6 +1,5 @@
 #include "hmnpch.h"
 #include "Game/WorldConfig.h"
-#include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include <nlohmann/json.hpp>
@@ -10,77 +9,9 @@ using json = nlohmann::json;
 
 namespace nlohmann {
 
-	static json vec2_to_json(const glm::vec2& v) { return { {"x", v.x}, {"y", v.y} }; }
 	static json vec3_to_json(const glm::vec3& v) { return { {"x", v.x}, {"y", v.y}, {"z", v.z} }; }
 
-	static void from_json(const json& j, glm::vec2& v) { v.x = j.at("x"); v.y = j.at("y"); }
 	static void from_json(const json& j, glm::vec3& v) { v.x = j.at("x"); v.y = j.at("y"); v.z = j.at("z"); }
-
-	static void from_json(const json& j, PlayerMovementConfig& c)
-	{
-		j.at("speed").get_to(c.Speed);
-		j.at("mass").get_to(c.Mass);
-	}
-
-	static void from_json(const json& j, PlayerSpawnConfig& c)
-	{
-		j.at("position").get_to(c.Position);
-		j.at("scale").get_to(c.Scale);
-	}
-
-	static void from_json(const json& j, PlayerColliderConfig& c)
-	{
-		j.at("extents").get_to(c.Extents);
-		j.at("offset").get_to(c.Offset);
-		j.at("static_friction").get_to(c.StaticFriction);
-		j.at("dynamic_friction").get_to(c.DynamicFriction);
-	}
-
-	static void from_json(const json& j, PlayerConfig& c)
-	{
-		j.at("movement").get_to(c.Movement);
-		j.at("spawn").get_to(c.Spawn);
-		j.at("collider").get_to(c.Collider);
-		if (j.contains("scale"))
-		{
-			const auto& s = j.at("scale");
-			if (s.is_object()) s.get_to(c.Scale);
-			else { float f = s.get<float>(); c.Scale = { f, f, f }; }
-		}
-		if (j.contains("rest_y")) c.RestY = j.at("rest_y").get<float>();
-	}
-
-	static void from_json(const json& j, FloorConfig& c)
-	{
-		j.at("position").get_to(c.Position);
-		j.at("scale").get_to(c.Scale);
-		j.at("static_friction").get_to(c.StaticFriction);
-		j.at("dynamic_friction").get_to(c.DynamicFriction);
-	}
-
-	static void from_json(const json& j, PhysicsConfig& c)
-	{
-		j.at("gravity").get_to(c.Gravity);
-		j.at("floor").get_to(c.Floor);
-	}
-
-	static void from_json(const json& j, CameraConfig& c)
-	{
-		if (j.contains("smoothing"))       c.Smoothing     = j.at("smoothing").get<float>();
-		if (j.contains("ortho_size"))      c.OrthoSize     = j.at("ortho_size").get<float>();
-		if (j.contains("ortho_near"))      c.OrthoNear     = j.at("ortho_near").get<float>();
-		if (j.contains("ortho_far"))       c.OrthoFar      = j.at("ortho_far").get<float>();
-		if (j.contains("visible_height"))  c.VisibleHeight = j.at("visible_height").get<float>();
-		if (j.contains("player_screen_y")) c.PlayerScreenY = j.at("player_screen_y").get<float>();
-		if (j.contains("y_bias"))          c.YBias         = j.at("y_bias").get<float>();
-		if (j.contains("fov"))             c.FOVDeg        = j.at("fov").get<float>();
-		if (j.contains("x_speed"))         c.XSpeed        = j.at("x_speed").get<float>();
-		if (j.contains("y_speed"))         c.YSpeed        = j.at("y_speed").get<float>();
-		if (j.contains("lead_strength"))   c.LeadStrength  = j.at("lead_strength").get<float>();
-		if (j.contains("y_dead_zone"))     c.YDeadZone     = j.at("y_dead_zone").get<float>();
-		if (j.contains("camera_x"))        c.CameraX       = j.at("camera_x").get<float>();
-		if (j.contains("camera_z"))        c.CameraZ       = j.at("camera_z").get<float>();
-	}
 
 	static void from_json(const json& j, SceneConfig& c)
 	{
@@ -90,38 +21,53 @@ namespace nlohmann {
 		if (j.contains("scale"))     j.at("scale").get_to(c.Scale);
 	}
 
-	static void from_json(const json& j, LightConfig& c)
+	static void from_json(const json& j, Hominem::Light& l)
 	{
-		if (j.contains("position"))    j.at("position").get_to(c.Position);
-		if (j.contains("color"))       j.at("color").get_to(c.Color);
-		if (j.contains("direction"))   j.at("direction").get_to(c.Direction);
-		if (j.contains("intensity"))   c.Intensity  = j.at("intensity").get<float>();
-		if (j.contains("radius"))      c.Radius     = j.at("radius").get<float>();
-		if (j.contains("inner_angle")) c.InnerAngle = j.at("inner_angle").get<float>();
-		if (j.contains("outer_angle")) c.OuterAngle = j.at("outer_angle").get<float>();
-		if (j.contains("source_radius")) c.SourceRadius = j.at("source_radius").get<float>();
-		if (j.contains("type"))        c.Type       = j.at("type").get<uint32_t>();
+		if (j.contains("position"))      j.at("position").get_to(l.Position);
+		if (j.contains("color"))         j.at("color").get_to(l.Color);
+		if (j.contains("direction"))     j.at("direction").get_to(l.Direction);
+		if (j.contains("intensity"))     l.Intensity    = j.at("intensity").get<float>();
+		if (j.contains("radius"))        l.Radius       = j.at("radius").get<float>();
+		if (j.contains("inner_angle"))   l.InnerAngle   = j.at("inner_angle").get<float>();
+		if (j.contains("outer_angle"))   l.OuterAngle   = j.at("outer_angle").get<float>();
+		if (j.contains("source_radius")) l.SourceRadius = j.at("source_radius").get<float>();
+		if (j.contains("type"))          l.Type = static_cast<Hominem::LightType>(j.at("type").get<uint32_t>());
 	}
 
 	static void from_json(const json& j, WorldConfig& c)
 	{
-		j.at("player").get_to(c.Player);
-		j.at("physics").get_to(c.Physics);
-		j.at("camera").get_to(c.Camera);
 		if (j.contains("scene")) j.at("scene").get_to(c.Scene);
 
-		// Support both old "point_lights" key and new "lights" key
-		const char* key = j.contains("lights") ? "lights" : "point_lights";
-		if (j.contains(key))
+		// Lights
+		const char* lightsKey = j.contains("lights") ? "lights" : "point_lights";
+		if (j.contains(lightsKey))
 		{
 			c.Lights.clear();
-			for (const auto& pl : j.at(key))
+			for (const auto& entry : j.at(lightsKey))
 			{
-				LightConfig cfg;
-				pl.get_to(cfg);
-				c.Lights.push_back(cfg);
+				Hominem::Light l;
+				entry.get_to(l);
+				c.Lights.push_back(l);
 			}
 		}
+
+		// Floor position only — friction and scale are constants in FloorConfig
+		if (j.contains("floor") && j.at("floor").contains("position"))
+			j.at("floor").at("position").get_to(c.Floor.Position);
+		else if (j.contains("physics") && j.at("physics").contains("floor"))
+			j.at("physics").at("floor").at("position").get_to(c.Floor.Position);
+
+		// Saved camera world position
+		if (j.contains("camera"))
+		{
+			const auto& cam = j.at("camera");
+			if (cam.contains("camera_x")) c.CameraX = cam.at("camera_x").get<float>();
+			if (cam.contains("camera_z")) c.CameraZ = cam.at("camera_z").get<float>();
+		}
+
+		// Player spawn position (bootstrapped from scene AABB on first load)
+		if (j.contains("player") && j.at("player").contains("spawn"))
+			j.at("player").at("spawn").at("position").get_to(c.PlayerSpawnPos);
 	}
 
 }
@@ -129,7 +75,6 @@ namespace nlohmann {
 static std::string ResolvePath(const std::string& path)
 {
 #ifdef HMN_SOURCE_RESOURCES_PATH
-	// In Debug, always read/write from source so saves persist across rebuilds.
 	auto it = path.find("Resources/");
 	if (it != std::string::npos)
 		return std::string(HMN_SOURCE_RESOURCES_PATH) + "/" + path.substr(it + 10);
@@ -137,46 +82,10 @@ static std::string ResolvePath(const std::string& path)
 	return path;
 }
 
-void WorldConfig::ApplyLights(const WorldConfig& cfg, std::vector<Hominem::Light>& out)
-{
-	out.clear();
-	for (const auto& lc : cfg.Lights)
-	{
-		auto& l        = out.emplace_back();
-		l.Position     = lc.Position;
-		l.Color        = lc.Color;
-		l.Direction    = lc.Direction;
-		l.Intensity    = lc.Intensity;
-		l.Radius       = lc.Radius;
-		l.InnerAngle   = lc.InnerAngle;
-		l.OuterAngle   = lc.OuterAngle;
-		l.SourceRadius = lc.SourceRadius;
-		l.Type         = static_cast<Hominem::LightType>(lc.Type);
-	}
-}
-
 void WorldConfig::ApplyToScene(const WorldConfig& cfg, Hominem::Scene& scene)
 {
-	scene.SetPhysicsWorld(Hominem::CreateRef<Hominem::PhysicsWorld>(cfg.Physics.Gravity));
-	ApplyLights(cfg, scene.GetLights());
-}
-
-void WorldConfig::CaptureLights(WorldConfig& cfg, const std::vector<Hominem::Light>& in)
-{
-	cfg.Lights.clear();
-	for (const auto&[Position, Color, Direction, Intensity, Radius, InnerAngle, OuterAngle, SourceRadius, Type] : in)
-	{
-		auto& lc       = cfg.Lights.emplace_back();
-		lc.Position    = Position;
-		lc.Color       = Color;
-		lc.Direction   = Direction;
-		lc.Intensity   = Intensity;
-		lc.Radius      = Radius;
-		lc.InnerAngle  = InnerAngle;
-		lc.OuterAngle  = OuterAngle;
-		lc.SourceRadius = SourceRadius;
-		lc.Type        = static_cast<uint32_t>(Type);
-	}
+	scene.SetPhysicsWorld(Hominem::CreateRef<Hominem::PhysicsWorld>(PhysicsConfig{}.Gravity));
+	scene.GetLights() = cfg.Lights;
 }
 
 bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)
@@ -213,66 +122,44 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 			if (in.is_open()) root = json::parse(in);
 		}
 
-		root["player"] = {
-			{ "movement", { { "speed", cfg.Player.Movement.Speed }, { "mass", cfg.Player.Movement.Mass } } },
-			{ "spawn",    { { "position", vec3_to_json(cfg.Player.Spawn.Position) }, { "scale", vec3_to_json(cfg.Player.Spawn.Scale) } } },
-			{ "collider", {
-				{ "extents",          vec2_to_json(cfg.Player.Collider.Extents) },
-				{ "offset",           vec2_to_json(cfg.Player.Collider.Offset)  },
-				{ "static_friction",  cfg.Player.Collider.StaticFriction        },
-				{ "dynamic_friction", cfg.Player.Collider.DynamicFriction       }
-			}},
-			{ "scale",  vec3_to_json(cfg.Player.Scale) },
-			{ "rest_y", cfg.Player.RestY }
-		};
-
-		root["physics"] = {
-			{ "gravity", vec3_to_json(cfg.Physics.Gravity) },
-			{ "floor",   {
-				{ "position",         vec3_to_json(cfg.Physics.Floor.Position) },
-				{ "scale",            vec3_to_json(cfg.Physics.Floor.Scale)    },
-				{ "static_friction",  cfg.Physics.Floor.StaticFriction         },
-				{ "dynamic_friction", cfg.Physics.Floor.DynamicFriction        }
-			}}
-		};
-
-		root["camera"] = {
-			{ "smoothing",       cfg.Camera.Smoothing     },
-			{ "visible_height",  cfg.Camera.VisibleHeight },
-			{ "player_screen_y", cfg.Camera.PlayerScreenY },
-			{ "y_bias",          cfg.Camera.YBias         },
-			{ "fov",             cfg.Camera.FOVDeg        },
-			{ "x_speed",         cfg.Camera.XSpeed        },
-			{ "y_speed",         cfg.Camera.YSpeed        },
-			{ "lead_strength",   cfg.Camera.LeadStrength  },
-			{ "y_dead_zone",     cfg.Camera.YDeadZone     },
-			{ "camera_x",        cfg.Camera.CameraX       },
-			{ "camera_z",        cfg.Camera.CameraZ       }
-		};
-
 		root["scene"] = {
-			{ "mesh_path", cfg.Scene.MeshPath },
+			{ "mesh_path", cfg.Scene.MeshPath              },
 			{ "position",  vec3_to_json(cfg.Scene.Position) },
 			{ "rotation",  vec3_to_json(cfg.Scene.Rotation) },
 			{ "scale",     vec3_to_json(cfg.Scene.Scale)    }
+		};
+
+		root["floor"] = { { "position", vec3_to_json(cfg.Floor.Position) } };
+
+		root["camera"] = {
+			{ "camera_x", cfg.CameraX },
+			{ "camera_z", cfg.CameraZ }
+		};
+
+		root["player"] = {
+			{ "spawn", { { "position", vec3_to_json(cfg.PlayerSpawnPos) } } }
 		};
 
 		json lightsArr = json::array();
 		for (const auto& l : cfg.Lights)
 		{
 			lightsArr.push_back({
-				{ "position",    vec3_to_json(l.Position)  },
-				{ "color",       vec3_to_json(l.Color)     },
-				{ "direction",   vec3_to_json(l.Direction) },
-				{ "intensity",   l.Intensity  },
-				{ "radius",      l.Radius     },
-				{ "inner_angle", l.InnerAngle },
-				{ "outer_angle", l.OuterAngle },
-				{ "source_radius", l.SourceRadius },
-				{ "type",        l.Type       }
+				{ "position",     vec3_to_json(l.Position)  },
+				{ "color",        vec3_to_json(l.Color)     },
+				{ "direction",    vec3_to_json(l.Direction) },
+				{ "intensity",    l.Intensity               },
+				{ "radius",       l.Radius                  },
+				{ "inner_angle",  l.InnerAngle              },
+				{ "outer_angle",  l.OuterAngle              },
+				{ "source_radius",l.SourceRadius            },
+				{ "type",         static_cast<uint32_t>(l.Type) }
 			});
 		}
 		root["lights"] = lightsArr;
+
+		// Remove stale keys from old format
+		root.erase("physics");
+		root.erase("player_old");
 
 		std::ofstream out(resolved);
 		if (!out.is_open())
