@@ -1,6 +1,8 @@
 #include "hmnpch.h"
 #include "Game/WorldConfig.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Scene/Scene.h"
+#include "Hominem/Physics/PhysicsWorld.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 
@@ -153,21 +155,27 @@ void WorldConfig::ApplyLights(const WorldConfig& cfg, std::vector<Hominem::Light
 	}
 }
 
+void WorldConfig::ApplyToScene(const WorldConfig& cfg, Hominem::Scene& scene)
+{
+	scene.SetPhysicsWorld(Hominem::CreateRef<Hominem::PhysicsWorld>(cfg.Physics.Gravity));
+	ApplyLights(cfg, scene.GetLights());
+}
+
 void WorldConfig::CaptureLights(WorldConfig& cfg, const std::vector<Hominem::Light>& in)
 {
 	cfg.Lights.clear();
-	for (const auto& l : in)
+	for (const auto&[Position, Color, Direction, Intensity, Radius, InnerAngle, OuterAngle, SourceRadius, Type] : in)
 	{
 		auto& lc       = cfg.Lights.emplace_back();
-		lc.Position    = l.Position;
-		lc.Color       = l.Color;
-		lc.Direction   = l.Direction;
-		lc.Intensity   = l.Intensity;
-		lc.Radius      = l.Radius;
-		lc.InnerAngle  = l.InnerAngle;
-		lc.OuterAngle  = l.OuterAngle;
-		lc.SourceRadius = l.SourceRadius;
-		lc.Type        = static_cast<uint32_t>(l.Type);
+		lc.Position    = Position;
+		lc.Color       = Color;
+		lc.Direction   = Direction;
+		lc.Intensity   = Intensity;
+		lc.Radius      = Radius;
+		lc.InnerAngle  = InnerAngle;
+		lc.OuterAngle  = OuterAngle;
+		lc.SourceRadius = SourceRadius;
+		lc.Type        = static_cast<uint32_t>(Type);
 	}
 }
 
@@ -281,4 +289,13 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 		HMN_CORE_ERROR("WorldConfig: save error '{}': {}", path, e.what());
 		return false;
 	}
+}
+
+bool WorldConfig::ModifyAndSave(const std::string& path, const std::function<void(WorldConfig&)>& mutate)
+{
+	WorldConfig cfg;
+	if (!LoadFromFile(path, cfg))
+		return false;
+	if (mutate) mutate(cfg);
+	return SaveToFile(path, cfg);
 }

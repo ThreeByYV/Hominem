@@ -23,7 +23,7 @@ void VoidLayer::OnUpdate(Timestep ts)
 
 void VoidLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor = { 0.6f, 0.1f, 0.2f, 1.0f };
+	SetFullscreenClear(frame, { 0.6f, 0.1f, 0.2f, 1.0f });
 }
 
 void VoidLayer::OnImGuiRender()

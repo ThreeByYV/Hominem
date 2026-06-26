@@ -4,6 +4,7 @@
 #include "Core.h"
 #include "Hominem/Renderer/Buffer.h"
 #include "Input.h"
+#include "InputMap.h"
 #include "glm/glm.hpp"
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Core/KeyCodes.h"
@@ -51,6 +52,12 @@ namespace Hominem {
 
 		Renderer::Init();
 		AssetManager::Init();
+
+		// Default gameplay action bindings. Games can rebind via InputMap::Bind.
+		InputMap::Bind("MoveLeft",  HMN_KEY_A);
+		InputMap::Bind("MoveRight", HMN_KEY_D);
+		InputMap::Bind("OpenMenu",  HMN_KEY_ESCAPE);
+		InputMap::Bind("SkipIntro", HMN_KEY_1);
 
 		// Initialize audio system
 		AudioConfig audioConfig;
@@ -141,6 +148,8 @@ namespace Hominem {
 			constexpr float kMaxFrameTime = 1.0f / 20.0f;
 			Timestep timestep = std::min(time - m_LastFrameTime, kMaxFrameTime);
 			m_LastFrameTime = time;
+
+			AssetManager::PumpCallbacks();
 
 			for (auto& layer : m_LayerStack)
 				layer->OnUpdate(timestep);

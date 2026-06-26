@@ -20,7 +20,7 @@ using namespace Hominem;
 SandboxLayer::SandboxLayer()
 	: Layer("Sandbox")
 {
-	if (!WorldConfig::LoadFromFile("Resources/Config/game_config.json", m_Config))
+	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
 		HMN_CORE_WARN("SandboxLayer: using default world config");
 }
 
@@ -60,12 +60,10 @@ void SandboxLayer::OnUpdate(Timestep ts)
 	if (Input::IsKeyPressed(HMN_KEY_R))
 	{
 		RenderSettings::RequestShaderReload();
-		if (m_Player) m_Player->ReloadShader();
+		m_Player->ReloadShader();
 	}
 
-	glm::vec2 playerPos = m_Player
-		? glm::vec2(m_Player->Position.x, m_Player->Position.y)
-		: glm::vec2(0.f);
+	const glm::vec2 playerPos = { m_Player->Position.x, m_Player->Position.y };
 
 	m_CinematicCamera->UpdateCameraForPlayer(playerPos);
 	m_CinematicCamera->OnUpdate(ts);
@@ -81,7 +79,7 @@ void SandboxLayer::OnBuildRenderFrame(RenderFrame& frame)
 void SandboxLayer::OnImGuiRender()
 {
 	UI::Window("Settings", [&] {
-		if (m_Player) m_Player->OnImGuiRender();
+		m_Player->OnImGuiRender();
 
 		ImGui::Separator();
 		ImGui::TextUnformatted("Camera");
@@ -89,31 +87,27 @@ void SandboxLayer::OnImGuiRender()
 		if (ImGui::DragFloat("Ortho Size", &m_OrthoSize, 0.5f, 1.f, 50.f))
 			m_CinematicCamera->SetZoomLevel(m_OrthoSize);
 
-		if (m_CinematicCamera)
-		{
-			ImGui::Text("In Cinematic: %s", m_CinematicCamera->IsInCinematic() ? "YES" : "NO");
+		ImGui::Text("In Cinematic: %s", m_CinematicCamera->IsInCinematic() ? "YES" : "NO");
 
-			float smoothing = m_CinematicCamera->GetSmoothingFactor();
-			if (ImGui::SliderFloat("Smoothing", &smoothing, 0.01f, 1.f))
-				m_CinematicCamera->SetSmoothingFactor(smoothing);
+		float smoothing = m_CinematicCamera->GetSmoothingFactor();
+		if (ImGui::SliderFloat("Smoothing", &smoothing, 0.01f, 1.f))
+			m_CinematicCamera->SetSmoothingFactor(smoothing);
 
-			float zoom = m_CinematicCamera->GetZoomLevel();
-			if (ImGui::SliderFloat("Zoom", &zoom, 1.f, 30.f))
-				m_CinematicCamera->SetZoomLevel(zoom);
+		float zoom = m_CinematicCamera->GetZoomLevel();
+		if (ImGui::SliderFloat("Zoom", &zoom, 1.f, 30.f))
+			m_CinematicCamera->SetZoomLevel(zoom);
 
-			if (ImGui::Button("Trigger Vista"))
-				m_CinematicCamera->TriggerCinematic("vista_reveal");
-			ImGui::SameLine();
-			if (ImGui::Button("End Cinematic"))
-				m_CinematicCamera->EndCinematic();
-		}
+		if (ImGui::Button("Trigger Vista"))
+			m_CinematicCamera->TriggerCinematic("vista_reveal");
+		ImGui::SameLine();
+		if (ImGui::Button("End Cinematic"))
+			m_CinematicCamera->EndCinematic();
 	});
 }
 
 bool SandboxLayer::OnWindowResize(WindowResizeEvent& e)
 {
-	if (m_Scene)
-		m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
+	m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
 	return false;
 }
 
@@ -121,8 +115,7 @@ void SandboxLayer::OnEvent(Event& e)
 {
 	EventDispatcher dispatcher(e);
 	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(SandboxLayer::OnWindowResize));
-	if (m_CinematicCamera)
-		m_CinematicCamera->OnEvent(e);
+	m_CinematicCamera->OnEvent(e);
 }
 
 void SandboxLayer::InitPhysics()

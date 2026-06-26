@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Player.h"
+#include "Game/WorldConfig.h"
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Scene/SceneCamera.h"
 
@@ -20,6 +21,21 @@ public:
         float YSpeed        = 0.05f;
         float LeadStrength  = 0.45f;
         float YDeadZone     = 0.15f;
+
+        /// Pulls the overlapping fields out of the on-disk CameraConfig.
+        static Config From(const CameraConfig& src)
+        {
+            Config cfg;
+            cfg.VisibleHeight = src.VisibleHeight;
+            cfg.PlayerScreenY = src.PlayerScreenY;
+            cfg.YBias         = src.YBias;
+            cfg.FOVDeg        = src.FOVDeg;
+            cfg.XSpeed        = src.XSpeed;
+            cfg.YSpeed        = src.YSpeed;
+            cfg.LeadStrength  = src.LeadStrength;
+            cfg.YDeadZone     = src.YDeadZone;
+            return cfg;
+        }
     };
 
     float ComputeCameraZ(float frontFaceZ) const

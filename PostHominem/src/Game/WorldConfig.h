@@ -1,10 +1,13 @@
 #pragma once
 
+#include "Hominem/Scene/Actor.h"
+
 #include <glm/glm.hpp>
+#include <functional>
 #include <string>
 #include <vector>
 
-namespace Hominem { struct Light; enum class LightType : uint32_t; }
+namespace Hominem { struct Light; enum class LightType : uint32_t; class Scene; }
 
 struct PlayerMovementConfig
 {
@@ -76,6 +79,12 @@ struct SceneConfig
 	glm::vec3   Position = {  0.f,  0.f,  -8.f };
 	glm::vec3   Rotation = {  0.f,  0.f,   0.f }; // degrees, applied as XYZ Euler
 	glm::vec3   Scale    = {  1.f,  1.f,   1.f };
+
+	/// Pushes Position/Rotation(->radians)/Scale onto an actor in one call.
+	void ApplyTo(Hominem::Actor& actor) const
+	{
+		actor.SetTransformDeg(Position, Rotation, Scale);
+	}
 };
 
 struct LightConfig
@@ -99,11 +108,18 @@ struct WorldConfig
 	SceneConfig                 Scene;
 	std::vector<LightConfig> Lights;
 
+	static constexpr const char* k_Path = "Resources/Config/game_config.json";
+
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
 	static bool SaveToFile(const std::string& path, const WorldConfig& in);
+
+	/// Load -> mutate -> Save in one call. Returns false (mutate/save skipped) if the load failed.
+	static bool ModifyAndSave(const std::string& path, const std::function<void(WorldConfig&)>& mutate);
 
 	/// Copy LightConfig entries from this config into a runtime light vector.
 	static void ApplyLights(const WorldConfig& cfg, std::vector<Hominem::Light>& out);
 	/// Snapshot a runtime light vector back into this config ready for SaveToFile.
 	static void CaptureLights(WorldConfig& cfg, const std::vector<Hominem::Light>& in);
+	/// Apply Physics (gravity) and Lights to a scene in one call.
+	static void ApplyToScene(const WorldConfig& cfg, Hominem::Scene& scene);
 };

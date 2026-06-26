@@ -61,6 +61,6 @@ struct CutsceneDesc
 	std::function<void()>                onImGuiCharacters;
 
 	// --- Lifecycle ---
-	std::function<void()>                             onComplete; // side-effects when cues finish
+	std::function<void()>                             onComplete; // side effects when cues finish
 	std::function<std::unique_ptr<Hominem::Layer>()>  nextLayer;  // factory for the transition target
 };

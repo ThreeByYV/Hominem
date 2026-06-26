@@ -45,14 +45,25 @@ public:
     [[nodiscard("dropping AssetHandle immediately releases the asset")]]
     static AssetHandle<T> LoadAsync(std::string_view virtualPath);
 
+    /// Same as LoadAsync, but invokes onLoaded(handle) once the load finishes (Loaded or
+    /// Failed) instead of requiring the caller to poll IsLoaded() every frame. The callback
+    /// fires on the main thread inside PumpCallbacks(), never on the loader thread.
+    template<Loadable T>
+    static AssetHandle<T> LoadAsync(std::string_view virtualPath, std::function<void(AssetHandle<T>)> onLoaded);
+
     static void EvictUnused();
 
     static void Evict(AssetID id);
+
+    /// Drains completed-load callbacks registered via the LoadAsync(path, onLoaded) overload.
+    /// Call once per frame from the main thread (Application::Run).
+    static void PumpCallbacks();
 
 private:
     static std::shared_ptr<AssetSlot> GetOrCreateSlot(AssetID id, std::string_view resolvedPath);
     static void                       LoadSync(std::shared_ptr<AssetSlot> slot, const AssetLoaderFn& loader);
     static void                       EnqueueAsync(std::shared_ptr<AssetSlot> slot, AssetLoaderFn loader);
+    static void                       RegisterPendingCallback(std::shared_ptr<AssetSlot> slot, std::function<void()> fn);
 };
 
 template<Loadable T>
@@ -98,6 +109,18 @@ AssetHandle<T> AssetManager::LoadAsync(std::string_view virtualPath)
     }
 
     return AssetHandle<T>{ id, slot };
+}
+
+template<Loadable T>
+AssetHandle<T> AssetManager::LoadAsync(std::string_view virtualPath, std::function<void(AssetHandle<T>)> onLoaded)
+{
+    AssetHandle<T> handle = LoadAsync<T>(virtualPath);
+    if (onLoaded && handle.IsValid())
+    {
+        auto slot = GetOrCreateSlot(handle.GetID(), ResolvePath(virtualPath));
+        RegisterPendingCallback(slot, [handle, cb = std::move(onLoaded)] { cb(handle); });
+    }
+    return handle;
 }
 
 }

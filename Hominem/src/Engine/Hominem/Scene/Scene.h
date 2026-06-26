@@ -69,6 +69,42 @@ namespace Hominem {
 		glm::vec3&         GetCameraPosition() { return m_CameraPosition; }
 		glm::vec3&         GetCameraFront()    { return m_CameraFront; }
 
+		/// Position + orthographic zoom, bundled so callers don't need two separate
+		/// members and two separate get/set calls to snapshot and restore camera state.
+		struct CameraSnapshot
+		{
+			glm::vec3 position{ 0.f };
+			float     orthoSize = 10.f;
+		};
+
+		[[nodiscard]] CameraSnapshot GetCameraSnapshot() const
+		{
+			return { m_CameraPosition, m_Camera.GetOrthographicSize() };
+		}
+
+		void ApplyCameraSnapshot(const CameraSnapshot& snap)
+		{
+			m_CameraPosition = snap.position;
+			m_Camera.SetOrthographicSize(snap.orthoSize);
+		}
+
+		/// Convert a screen-space pixel coordinate (origin top-left) to world space,
+		/// assuming an orthographic camera centered on the viewport.
+		[[nodiscard]] glm::vec2 ScreenToWorld(float screenX, float screenY) const
+		{
+			const float halfH = m_Camera.GetOrthographicSize() * 0.5f;
+			const float halfW = halfH * (m_ViewportHeight > 0
+				? (float)m_ViewportWidth / (float)m_ViewportHeight : 1.f);
+			const float ndcX = m_ViewportWidth  > 0 ? (screenX / (float)m_ViewportWidth)  * 2.f - 1.f : 0.f;
+			const float ndcY = m_ViewportHeight > 0 ? 1.f - (screenY / (float)m_ViewportHeight) * 2.f : 0.f;
+			return { ndcX * halfW, ndcY * halfH };
+		}
+
+		[[nodiscard]] glm::vec2 ScreenToWorld(glm::vec2 screenPos) const
+		{
+			return ScreenToWorld(screenPos.x, screenPos.y);
+		}
+
 		void               SetPhysicsWorld(Ref<PhysicsWorld> world) { m_PhysicsWorld = world; }
 		Ref<PhysicsWorld>  GetPhysicsWorld() const                  { return m_PhysicsWorld; }
 

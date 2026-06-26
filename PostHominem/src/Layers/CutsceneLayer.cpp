@@ -6,6 +6,7 @@
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Core/MouseButtonCodes.h"
 #include "Hominem/Utils/MathUtils.h"
+#include "Hominem/Utils/Transform.h"
 #include "Hominem/Cinematics/CutsceneLoader.h"
 #include "Game/Actors/SceneActor.h"
 
@@ -46,9 +47,9 @@ void CutsceneLayer::OnAttach()
 	dl.AmbientIntensity = m_Desc.lightAmbient;
 	dl.DiffuseIntensity = m_Desc.lightDiffuse;
 
-	// 3D set (guaranteed in cache from LoadingLayer preload; sync is a cache hit)
 	if (!m_Desc.setMeshPath.empty())
 	{
+		// 3D set (guaranteed in cache from LoadingLayer preload; sync is a cache hit)
 		if (auto r = AssetManager::Load<StaticMesh>(m_Desc.setMeshPath))
 			m_Set = &m_Scene->SpawnActor<SceneActor>(r->Get());
 	}
@@ -97,7 +98,6 @@ void CutsceneLayer::OnDetach()
 
 void CutsceneLayer::ApplyFraming()
 {
-	if (!m_Scene) return;
 	m_Scene->GetCamera().SetPerspectiveFOV(m_CamFOV);
 	m_Scene->GetCameraPosition() = m_CamPos;
 	m_Scene->GetCameraFront()    = glm::normalize(m_CamTarget - m_CamPos);
@@ -176,7 +176,7 @@ void CutsceneLayer::UpdateFreeFlyCamera(Timestep ts)
 void CutsceneLayer::OnUpdate(Timestep ts)
 {
 	UpdateFreeFlyCamera(ts);
-	if (m_Scene) m_DebugFly.OnUpdate(ts, *m_Scene);
+	m_DebugFly.OnUpdate(ts, *m_Scene);
 	m_FireTime  += ts;
 	m_SmokeTime += ts;
 
@@ -237,6 +237,8 @@ void CutsceneLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 	for (const auto& fi : m_FireInstances)
 	{
+		// rotDeg is XYZ-tweakable via the F4 editor — kept on eulerAngleYXZ (not Transform's
+		// quat-based XYZ composition) so multi-axis edits don't silently change orientation.
 		FireQuadDraw fq;
 		fq.transform = glm::translate(glm::mat4(1.f), fi.pos)
 		             * glm::eulerAngleYXZ(glm::radians(fi.rotDeg.y), glm::radians(fi.rotDeg.x), glm::radians(fi.rotDeg.z))
@@ -266,7 +268,7 @@ void CutsceneLayer::OnBuildRenderFrame(RenderFrame& frame)
 	if (m_TransitionRequested)
 	{
 		QuadDraw q;
-		q.transform = glm::scale(glm::mat4(1.f), { 20.f, 20.f, 1.f });
+		q.transform = Transform::Scale2D(20.f, 20.f).ToMatrix();
 		q.color     = { 0.f, 0.f, 0.f, 1.f };
 		frame.quads.push_back(std::move(q));
 	}
@@ -330,7 +332,7 @@ void CutsceneLayer::OnImGuiRender()
 
 bool CutsceneLayer::OnWindowResize(WindowResizeEvent& e)
 {
-	if (m_Scene && e.GetWidth() > 0 && e.GetHeight() > 0)
+	if (e.GetWidth() > 0 && e.GetHeight() > 0)
 		m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
 	return false;
 }
