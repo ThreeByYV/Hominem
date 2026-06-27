@@ -31,7 +31,8 @@ GameLayer::GameLayer()
 SceneDesc GameLayer::Describe()
 {
 	return {
-		.Physics = { .Gravity = PhysicsConfig{}.Gravity }
+		.Physics     = { .Gravity = PhysicsConfig{}.Gravity },
+		.PostProcess = { .renderScale = RenderSettings::RecommendedRenderScale }
 	};
 }
 
@@ -95,10 +96,6 @@ void GameLayer::OnSceneReady()
 	}
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
-
-	PostProcessSettings pp;
-	pp.renderScale = RenderSettings::RecommendedRenderScale;
-	m_Scene->SetPostProcess(pp);
 
 	if (const auto r =
 		AssetManager::Load<SoundBuffer>(k_MusicPath))

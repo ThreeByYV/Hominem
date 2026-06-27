@@ -6,22 +6,13 @@
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/PostProcessSettings.h"
 
 #include <vector>
 #include <concepts>
 #include <memory>
 
 namespace Hominem {
-
-	struct PostProcessSettings
-	{
-		bool  bloomEnabled       = false;
-		bool  toneMappingEnabled = false;
-		float bloomStrength      = 1.0f;
-		float bloomThreshold     = 0.8f;
-		float renderScale        = 1.0f;
-		bool  debugLights        = false;
-	};
 
 	class Scene : public RefCounted
 	{

@@ -20,6 +20,8 @@ void SceneLayer::OnAttach()
     m_Scene->GetCamera().SetOrthographic(
         desc.Camera.OrthoSize, desc.Camera.Near, desc.Camera.Far);
 
+    m_Scene->SetPostProcess(desc.PostProcess);
+
     auto& win = Application::Get().GetWindow();
     m_Scene->OnViewportResize(win.GetWidth(), win.GetHeight());
 
