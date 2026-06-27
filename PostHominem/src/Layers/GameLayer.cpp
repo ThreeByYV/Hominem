@@ -3,7 +3,6 @@
 #include "MenuLayer.h"
 #include "CutsceneLayer.h"
 
-#include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/InputMap.h"
 #include "Hominem/Core/KeyCodes.h"
@@ -31,23 +30,21 @@ GameLayer::GameLayer()
 SceneDesc GameLayer::Describe()
 {
 	return {
-		.Physics     = { .Gravity = PhysicsConfig{}.Gravity },
-		.PostProcess = { .renderScale = RenderSettings::RecommendedRenderScale }
+		.Physics     = { .Gravity = { 0.f, -9.81f, 0.f } },
+		.PostProcess = { .renderScale = 0.8f }
 	};
 }
 
-void GameLayer::OnSceneReady()
+void GameLayer::OnSceneReady(SceneContext& ctx)
 {
 	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
 		HMN_CORE_WARN("GameLayer: using default world config");
 
-	auto& window = Application::Get().GetWindow();
-	m_Aspect     = (float)window.GetWidth() / (float)window.GetHeight();
-
-	m_Scene->GetLights() = m_Config.Lights;
+	m_Aspect = ctx.aspect;
+	ctx.scene.GetLights() = m_Config.Lights;
 
 	const auto& sc = m_Config.Scene;
-	m_Scene3D = &m_Scene->SpawnActor<SceneActor>(sc.MeshPath);
+	m_Scene3D = &ctx.SpawnActor<SceneActor>(sc.MeshPath);
 	sc.ApplyTo(*m_Scene3D);
 
 	m_InitCameraX = m_Config.CameraX;
@@ -58,28 +55,26 @@ void GameLayer::OnSceneReady()
 		BootstrapFromAABB();
 
 	Ref<SkinnedMesh> playerMesh{};
-	if (const auto r =
-		AssetManager::Load<SkinnedMesh>(Player::k_MeshPath))
+	if (auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath))
 		playerMesh = r->Get();
 
 	PlayerConfig playerCfg;
 	playerCfg.Spawn.Position = m_Config.PlayerSpawnPos;
-	m_Player = &m_Scene->SpawnActor<Player>(playerCfg, playerMesh);
+	m_Player = &ctx.SpawnActor<Player>(playerCfg, playerMesh);
 
-	const auto camCfg = SideScrollerCamera::Config::From(CameraConfig{});
-
-	m_Camera.Init(m_Scene->GetCamera(),
-	              m_Scene->GetCameraPosition(),
-	              m_Scene->GetCameraFront(),
-	              m_Aspect, m_InitCameraZ, playerCfg.RestY, camCfg);
+	m_Camera.Init(ctx.scene.GetCamera(),
+	              ctx.scene.GetCameraPosition(),
+	              ctx.scene.GetCameraFront(),
+	              ctx.aspect, m_InitCameraZ, playerCfg.RestY,
+	              SideScrollerCamera::Config::From(CameraConfig{}));
 	m_Camera.SetTarget(m_Player);
-	m_Scene->GetCameraPosition().x = m_InitCameraX;
+	ctx.scene.GetCameraPosition().x = m_InitCameraX;
 
-	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Floor);
-	m_Scene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
+	ctx.SpawnActor<InfiniteFloorActor>(m_Config.Floor);
+	ctx.BakeEnvironment({ 0.1f, 1.5f, 27.0f });
 
 	// --- intro cutscene ---
-	m_IntroCtx.scene = m_Scene.get();
+	m_IntroCtx.scene = &ctx.scene;
 
 	if (s_SkipIntro)
 	{
@@ -97,11 +92,10 @@ void GameLayer::OnSceneReady()
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
 
-	if (const auto r =
-		AssetManager::Load<SoundBuffer>(k_MusicPath))
+	if (auto r = ctx.Load<SoundBuffer>(k_MusicPath))
 	{
 		m_Music       = *r;
-		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
+		m_MusicHandle = ctx.audio.Play(m_Music, 0.9f, /*loop=*/true);
 	}
 }
 
@@ -170,6 +164,7 @@ void GameLayer::StartIntroZoomIn()
 
 	const auto from = m_Scene->GetCameraSnapshot();
 	m_IntroCutscene.Add<CameraCue>(from.position, s_EyeTarget, from.orthoSize, k_EyeZoom).For(k_ZoomDur);
+
 	// Hard cut to white (From == To == 1), not a fade.
 	m_IntroCutscene.Add<FadeCue>(glm::vec3(1.f), 1.f, 1.f).At(k_ZoomDur).For(k_FlashDur);
 	m_IntroCutscene.Add<EventCue>([this] { TransitionTo<CutsceneLayer>(IntroCutscene::Make()); })

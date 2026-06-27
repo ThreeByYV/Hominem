@@ -19,9 +19,9 @@ public:
     void OnEvent(Hominem::Event& e)                  override;
 
 protected:
-    Hominem::SceneDesc Describe()    override;
-    void               OnSceneReady()  override;
-    void               OnSceneDetach() override;
+    Hominem::SceneDesc   Describe()                               override;
+    void                 OnSceneReady(Hominem::SceneContext& ctx) override;
+    void                 OnSceneDetach()                          override;
 
 private:
     Player*                                          m_Player        = nullptr;

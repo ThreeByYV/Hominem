@@ -3,6 +3,7 @@
 #include "Hominem/Core/Layer.h"
 #include "Hominem/Events/ApplicationEvent.h"
 #include "Hominem/Scene/SceneDesc.h"
+#include "Hominem/Scene/SceneContext.h"
 
 namespace Hominem {
 
@@ -18,7 +19,7 @@ public:
 
 protected:
     [[nodiscard]] virtual SceneDesc Describe()                    = 0;
-    virtual void OnSceneReady()                                   {}
+    virtual void OnSceneReady(SceneContext& ctx)                  {}
     virtual void OnSceneDetach()                                  {}
     virtual void OnWindowResized(uint32_t w, uint32_t h)         {}
 

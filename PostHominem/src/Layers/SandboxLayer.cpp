@@ -2,7 +2,6 @@
 #include "SandboxLayer.h"
 #include "MenuLayer.h"
 
-#include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderSettings.h"
@@ -20,21 +19,16 @@ SandboxLayer::SandboxLayer()
 
 SceneDesc SandboxLayer::Describe()
 {
-	constexpr CameraConfig kCam;
 	return {
-		.Camera  = { .OrthoSize = kCam.OrthoSize, .Near = kCam.OrthoNear, .Far = kCam.OrthoFar },
-		.Physics = { .Gravity = PhysicsConfig{}.Gravity }
+		.Camera  = { .OrthoSize = 10.f, .Near = -10.f, .Far = 10.f },
+		.Physics = { .Gravity = { 0.f, -9.81f, 0.f } }
 	};
 }
 
-void SandboxLayer::OnSceneReady()
+void SandboxLayer::OnSceneReady(SceneContext& ctx)
 {
-	auto& window = Application::Get().GetWindow();
-	uint32_t w   = window.GetWidth();
-	uint32_t h   = window.GetHeight();
-
-	m_CinematicCamera = CreateRef<CinematicCameraController>((float)w / (float)h);
-	m_CinematicCamera->SetCameraTarget(&m_Scene->GetCamera(), &m_Scene->GetCameraPosition());
+	m_CinematicCamera = CreateRef<CinematicCameraController>(ctx.aspect);
+	m_CinematicCamera->SetCameraTarget(&ctx.scene.GetCamera(), &ctx.scene.GetCameraPosition());
 
 	if (!m_CinematicCamera->LoadFromFile("Resources/Config/camera_config.json",
 	                                     "camera_sequences.level_01_vista"))
@@ -43,14 +37,13 @@ void SandboxLayer::OnSceneReady()
 	m_CinematicCamera->RegisterOnComplete("vista_reveal",   [] { HMN_CORE_INFO("Vista 1 complete"); });
 	m_CinematicCamera->RegisterOnComplete("vista_reveal_2", [] { HMN_CORE_INFO("Vista 2 complete"); });
 
-	if (auto result = AssetManager::Load<Texture2D>("game://Textures/gamebg.png"))
+	if (auto result = ctx.Load<Texture2D>("game://Textures/gamebg.png"))
 		m_BgTexHandle = *result;
-	m_Scene->SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
-	m_Scene->SpawnActor<InfiniteFloorActor>(FloorConfig{});
+	ctx.SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
+	ctx.SpawnActor<InfiniteFloorActor>(FloorConfig{});
 
-	m_Player = &m_Scene->SpawnActor<Player>(PlayerConfig{});
-
-	m_NarrativeText = &m_Scene->SpawnActor<NarrativeTextActor>();
+	m_Player        = &ctx.SpawnActor<Player>(PlayerConfig{});
+	m_NarrativeText = &ctx.SpawnActor<NarrativeTextActor>();
 	m_NarrativeText->Show("Any victory against death will always be temporary");
 }
 

@@ -3,6 +3,7 @@
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Core/Application.h"
 #include "Hominem/Physics/PhysicsWorld.h"
+#include "Hominem/Audio/AudioSystem.h"
 
 namespace Hominem {
 
@@ -25,7 +26,8 @@ void SceneLayer::OnAttach()
     auto& win = Application::Get().GetWindow();
     m_Scene->OnViewportResize(win.GetWidth(), win.GetHeight());
 
-    OnSceneReady();
+    SceneContext ctx(*m_Scene, AudioSystem::Get(), win.GetWidth(), win.GetHeight());
+    OnSceneReady(ctx);
 }
 
 void SceneLayer::OnDetach()

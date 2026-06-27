@@ -32,10 +32,10 @@ public:
 	static constexpr const char* k_MusicPath = "game://Sounds/menu_music_2.mp3";
 
 protected:
-	Hominem::SceneDesc Describe()                        override;
-	void               OnSceneReady()                    override;
-	void               OnSceneDetach()                   override;
-	void               OnWindowResized(uint32_t w, uint32_t h) override;
+	Hominem::SceneDesc   Describe()                               override;
+	void                 OnSceneReady(Hominem::SceneContext& ctx) override;
+	void                 OnSceneDetach()                          override;
+	void                 OnWindowResized(uint32_t w, uint32_t h) override;
 
 private:
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
