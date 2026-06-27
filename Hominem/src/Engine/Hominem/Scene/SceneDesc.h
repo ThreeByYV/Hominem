@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/PostProcessSettings.h"
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -27,6 +28,7 @@ struct SceneDesc
     Physics            Physics;
     glm::vec4          ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
     std::vector<Light> Lights;
+    PostProcessSettings PostProcess;
 };
 
 } // namespace Hominem
