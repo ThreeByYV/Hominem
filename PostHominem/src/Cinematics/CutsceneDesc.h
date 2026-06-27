@@ -30,24 +30,38 @@ struct SmokeInstance
 struct CutsceneDesc
 {
 	// --- Assets (virtual paths, e.g. "game://Textures/...") ---
-	std::string setMeshPath;
-	std::string skyboxPath;
-	std::string cutsceneJsonPath;
+	struct Assets
+	{
+		std::string setMesh;
+		std::string skybox;
+		std::string cutsceneJson;
+	} assets;
 
-	// --- Scene framing (live-tweakable via the F2 panel) ---
-	float     camFOV    = 90.f;
-	glm::vec3 camPos    = {};
-	glm::vec3 camTarget = { 1.f, 0.f, 0.f };
-	glm::vec3 setPos    = {};
-	glm::vec3 setScale  = { 1.f, 1.f, 1.f };
-	glm::vec3 setRotDeg = {};
+	// --- Camera framing ---
+	struct Camera
+	{
+		float     fov    = 90.f;
+		glm::vec3 pos    = {};
+		glm::vec3 target = { 1.f, 0.f, 0.f };
+	} camera;
 
-	// --- Directional light ---
-	glm::vec3 lightDir     = { -0.2f, -1.f, -0.4f };
-	glm::vec3 lightColor   = { 1.f, 1.f, 1.f };
-	float     lightAmbient = 0.3f;
-	float     lightDiffuse = 1.0f;
-	float     skyIntensity = 1.0f;
+	// --- 3D set transform ---
+	struct Set
+	{
+		glm::vec3 pos    = {};
+		glm::vec3 scale  = { 1.f, 1.f, 1.f };
+		glm::vec3 rotDeg = {};
+	} set;
+
+	// --- Directional light + sky ---
+	struct Light
+	{
+		glm::vec3 dir         = { -0.2f, -1.f, -0.4f };
+		glm::vec3 color       = { 1.f, 1.f, 1.f };
+		float     ambient     = 0.3f;
+		float     diffuse     = 1.0f;
+		float     skyIntensity = 1.0f;
+	} light;
 
 	// --- Procedural effects ---
 	std::vector<FireInstance>  fire;
@@ -61,6 +75,6 @@ struct CutsceneDesc
 	std::function<void()>                onImGuiCharacters;
 
 	// --- Lifecycle ---
-	std::function<void()>                             onComplete; // side effects when cues finish
-	std::function<std::unique_ptr<Hominem::Layer>()>  nextLayer;  // factory for the transition target
+	std::function<void()>                             onComplete;
+	std::function<std::unique_ptr<Hominem::Layer>()>  nextLayer;
 };

@@ -27,13 +27,13 @@ void CutsceneLayer::OnAttach()
 	m_Scene = CreateRef<Scene>();
 
 	// Seed live-tweakable values from desc
-	m_CamFOV     = m_Desc.camFOV;
-	m_CamPos     = m_Desc.camPos;
-	m_CamTarget  = m_Desc.camTarget;
-	m_SetPos     = m_Desc.setPos;
-	m_SetScale   = m_Desc.setScale;
-	m_SetRotDeg  = m_Desc.setRotDeg;
-	m_SkyIntensity = m_Desc.skyIntensity;
+	m_CamFOV       = m_Desc.camera.fov;
+	m_CamPos       = m_Desc.camera.pos;
+	m_CamTarget    = m_Desc.camera.target;
+	m_SetPos       = m_Desc.set.pos;
+	m_SetScale     = m_Desc.set.scale;
+	m_SetRotDeg    = m_Desc.set.rotDeg;
+	m_SkyIntensity = m_Desc.light.skyIntensity;
 
 	auto& window = Application::Get().GetWindow();
 	const float aspect = (float)window.GetWidth() / (float)window.GetHeight();
@@ -42,23 +42,23 @@ void CutsceneLayer::OnAttach()
 	m_Scene->SetClearColor({ 0.f, 0.f, 0.f, 1.f });
 
 	auto& dl = m_Scene->GetDirectionalLight();
-	dl.Direction        = glm::normalize(m_Desc.lightDir);
-	dl.Color            = m_Desc.lightColor;
-	dl.AmbientIntensity = m_Desc.lightAmbient;
-	dl.DiffuseIntensity = m_Desc.lightDiffuse;
+	dl.Direction        = glm::normalize(m_Desc.light.dir);
+	dl.Color            = m_Desc.light.color;
+	dl.AmbientIntensity = m_Desc.light.ambient;
+	dl.DiffuseIntensity = m_Desc.light.diffuse;
 
-	if (!m_Desc.setMeshPath.empty())
+	if (!m_Desc.assets.setMesh.empty())
 	{
 		// 3D set (guaranteed in cache from LoadingLayer preload; sync is a cache hit)
-		if (auto r = AssetManager::Load<StaticMesh>(m_Desc.setMeshPath))
+		if (auto r = AssetManager::Load<StaticMesh>(m_Desc.assets.setMesh))
 			m_Set = &m_Scene->SpawnActor<SceneActor>(r->Get());
 	}
 	ApplyFraming();
 
 	// Skybox
-	if (!m_Desc.skyboxPath.empty())
+	if (!m_Desc.assets.skybox.empty())
 	{
-		if (auto r = AssetManager::Load<Skybox>(m_Desc.skyboxPath))
+		if (auto r = AssetManager::Load<Skybox>(m_Desc.assets.skybox))
 			m_Skybox = r->Get();
 		m_Scene->SetSkybox(m_Skybox, m_SkyIntensity);
 	}
@@ -75,11 +75,11 @@ void CutsceneLayer::OnAttach()
 	m_Ctx.cutscene = &m_Cutscene;
 	m_Ctx.scene    = m_Scene.get();
 
-	if (!m_Desc.cutsceneJsonPath.empty())
+	if (!m_Desc.assets.cutsceneJson.empty())
 	{
-		if (!CutsceneLoader::LoadFromFile(m_Desc.cutsceneJsonPath, m_Cutscene))
-			HMN_CORE_WARN("CutsceneLayer: failed to load '{}'", m_Desc.cutsceneJsonPath);
-		m_Editor.SavePath = m_Desc.cutsceneJsonPath;
+		if (!CutsceneLoader::LoadFromFile(m_Desc.assets.cutsceneJson, m_Cutscene))
+			HMN_CORE_WARN("CutsceneLayer: failed to load '{}'", m_Desc.assets.cutsceneJson);
+		m_Editor.SavePath = m_Desc.assets.cutsceneJson;
 	}
 
 	m_Cutscene.SetOnFinished([this]

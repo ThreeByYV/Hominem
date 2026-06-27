@@ -146,50 +146,47 @@ static void CharactersImGui(std::shared_ptr<IntroChars> chars)
 
 CutsceneDesc IntroCutscene::Make()
 {
-	CutsceneDesc desc;
-
-	desc.setMeshPath      = k_SetMesh;
-	desc.skyboxPath       = "game://Textures/satara_night_2k.exr";
-	desc.cutsceneJsonPath = IntroCutscenePath();
-
-	desc.camFOV    = 120.f;
-	desc.camPos    = { -58.957f, 1.294f, -0.667f };
-	desc.camTarget = { -57.966f, 1.166f, -0.631f };
-	desc.setPos    = { 0.f, 0.f, 0.f };
-	desc.setScale  = { 2.f, 2.f, 2.f };
-	desc.setRotDeg = { 1.0f, -1.0f, -4.5f };
-
-	desc.lightDir     = glm::normalize(glm::vec3{ -0.2f, -1.f, -0.4f });
-	desc.lightColor   = { 0.877f, 0.365f, 0.232f };
-	desc.lightAmbient = 0.74f;
-	desc.lightDiffuse = 2.95f;
-	desc.skyIntensity = 1.0f;
-
 	auto fireSeed = [](int32_t i) {
 		return (float)(PCG_Hash(i) % 10000u) * 0.01f;
 	};
-	desc.fire = {
-		{ { -53.95f, 6.05f, -1.55f }, { 0.f, 90.f, 0.f }, { 20.f, 20.f }, 1.5f, 0.6f, fireSeed(0) },
-		{ { -54.65f, 6.30f, -4.05f }, { 0.f, 90.f, 0.f }, {  6.f,  5.f }, 1.5f, 0.6f, fireSeed(1) },
-		{ { -56.55f, 2.50f, -6.30f }, { 0.f, 90.f, 0.f }, {  6.f,  5.f }, 1.5f, 0.6f, fireSeed(2) },
-	};
-	desc.smoke = {
-		{ { -53.95f,  6.90f, -1.55f }, { 0.f, 90.f, 0.f }, { 28.f, 24.f }, 0.6f, 0.15f, 28.82f },
-		{ { -54.65f, 12.00f, -4.05f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 74.66f },
-		{ { -56.55f,  9.00f, -6.30f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f,  3.04f },
-	};
-
-	desc.spawnMeshPaths = {
-		k_RunMesh,
-		k_IdleMesh,
-	};
-
 	auto chars = std::make_shared<IntroChars>();
-	desc.onSpawnActors     = [chars](Scene& scene) { SpawnIntroCharacters(scene, chars); };
-	desc.onImGuiCharacters = [chars]()             { CharactersImGui(chars); };
 
-	desc.onComplete = [] { GameLayer::s_SkipIntro = true; };
-	desc.nextLayer  = [] { return std::make_unique<GameLayer>(); };
-
-	return desc;
+	return CutsceneDesc {
+		.assets = {
+			.setMesh      = k_SetMesh,
+			.skybox       = "game://Textures/satara_night_2k.exr",
+			.cutsceneJson = IntroCutscenePath()
+		},
+		.camera = {
+			.fov    = 120.f,
+			.pos    = { -58.957f, 1.294f, -0.667f },
+			.target = { -57.966f, 1.166f, -0.631f }
+		},
+		.set = {
+			.pos    = { 0.f, 0.f, 0.f },
+			.scale  = { 2.f, 2.f, 2.f },
+			.rotDeg = { 1.0f, -1.0f, -4.5f }
+		},
+		.light = {
+			.dir      = glm::normalize(glm::vec3{ -0.2f, -1.f, -0.4f }),
+			.color    = { 0.877f, 0.365f, 0.232f },
+			.ambient  = 0.74f,
+			.diffuse  = 2.95f
+		},
+		.fire = {
+			FireInstance{ { -53.95f, 6.05f, -1.55f }, { 0.f, 90.f, 0.f }, { 20.f, 20.f }, 1.5f, 0.6f, fireSeed(0) },
+			FireInstance{ { -54.65f, 6.30f, -4.05f }, { 0.f, 90.f, 0.f }, {  6.f,  5.f }, 1.5f, 0.6f, fireSeed(1) },
+			FireInstance{ { -56.55f, 2.50f, -6.30f }, { 0.f, 90.f, 0.f }, {  6.f,  5.f }, 1.5f, 0.6f, fireSeed(2) }
+		},
+		.smoke = {
+			SmokeInstance{ { -53.95f,  6.90f, -1.55f }, { 0.f, 90.f, 0.f }, { 28.f, 24.f }, 0.6f, 0.15f, 28.82f },
+			SmokeInstance{ { -54.65f, 12.00f, -4.05f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f, 74.66f },
+			SmokeInstance{ { -56.55f,  9.00f, -6.30f }, { 0.f, 90.f, 0.f }, { 16.f, 16.f }, 0.6f, 0.15f,  3.04f }
+		},
+		.spawnMeshPaths    = { k_RunMesh, k_IdleMesh },
+		.onSpawnActors     = [chars](Scene& scene) { SpawnIntroCharacters(scene, chars); },
+		.onImGuiCharacters = [chars]()             { CharactersImGui(chars); },
+		.onComplete        = [] { GameLayer::s_SkipIntro = true; },
+		.nextLayer         = [] { return std::make_unique<GameLayer>(); }
+	};
 }
