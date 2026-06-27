@@ -24,23 +24,26 @@
 using namespace Hominem;
 
 GameLayer::GameLayer()
-	: Layer("Game")
+	: SceneLayer("Game")
 {
 }
 
-void GameLayer::OnAttach()
+SceneDesc GameLayer::Describe()
 {
-	m_Scene = CreateRef<Scene>();
+	return {
+		.Physics = { .Gravity = PhysicsConfig{}.Gravity }
+	};
+}
 
+void GameLayer::OnSceneReady()
+{
 	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
 		HMN_CORE_WARN("GameLayer: using default world config");
 
 	auto& window = Application::Get().GetWindow();
 	m_Aspect     = (float)window.GetWidth() / (float)window.GetHeight();
-	m_Scene->OnViewportResize(window.GetWidth(), window.GetHeight());
 
-	// --- world setup ---
-	WorldConfig::ApplyToScene(m_Config, *m_Scene);
+	m_Scene->GetLights() = m_Config.Lights;
 
 	const auto& sc = m_Config.Scene;
 	m_Scene3D = &m_Scene->SpawnActor<SceneActor>(sc.MeshPath);
@@ -73,7 +76,6 @@ void GameLayer::OnAttach()
 
 	m_Scene->SpawnActor<InfiniteFloorActor>(m_Config.Floor);
 	m_Scene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
-	m_Scene->SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
 
 	// --- intro cutscene ---
 	m_IntroCtx.scene = m_Scene.get();
@@ -88,7 +90,6 @@ void GameLayer::OnAttach()
 		const auto [position, orthoSize] = m_Scene->GetCameraSnapshot();
 		m_Scene->ApplyCameraSnapshot({ s_EyeTarget, k_EyeZoom });
 
-		// Zoom back out to the resting view -- no flash, no transition.
 		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, position, k_EyeZoom, orthoSize).For(k_ZoomDur);
 		m_IntroCutscene.Play();
 	}
@@ -107,14 +108,22 @@ void GameLayer::OnAttach()
 	}
 }
 
-void GameLayer::OnDetach()
+void GameLayer::OnSceneDetach()
 {
 	if (m_MusicHandle != InvalidSound) AudioSystem::Get().Stop(m_MusicHandle);
 	m_Music       = {};
 	m_MusicHandle = InvalidSound;
 	m_Player  = nullptr;
 	m_Scene3D = nullptr;
-	m_Scene.reset();
+}
+
+void GameLayer::OnWindowResized(uint32_t w, uint32_t h)
+{
+	if (w > 0 && h > 0)
+	{
+		m_Aspect = (float)w / (float)h;
+		m_Camera.OnWindowResize(m_Aspect);
+	}
 }
 
 void GameLayer::OnUpdate(Timestep ts)
@@ -238,21 +247,10 @@ void GameLayer::OnImGuiRender()
 	});
 }
 
-bool GameLayer::OnWindowResize(WindowResizeEvent& e)
-{
-	m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
-	if (e.GetWidth() > 0 && e.GetHeight() > 0)
-	{
-		m_Aspect = (float)e.GetWidth() / (float)e.GetHeight();
-		m_Camera.OnWindowResize(m_Aspect);
-	}
-	return false;
-}
-
 void GameLayer::OnEvent(Event& e)
 {
+	SceneLayer::OnEvent(e);
 	EventDispatcher dispatcher(e);
-	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(GameLayer::OnWindowResize));
 	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnKeyPressed));
 }
 

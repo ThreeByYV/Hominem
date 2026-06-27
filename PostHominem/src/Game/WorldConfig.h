@@ -8,8 +8,6 @@
 #include <string>
 #include <vector>
 
-namespace Hominem { class Scene; }
-
 // tweak defaults here, recompile to apply
 
 struct PlayerMovementConfig
@@ -96,5 +94,4 @@ struct WorldConfig
 	static bool LoadFromFile(const std::string& path, WorldConfig& out);
 	static bool SaveToFile(const std::string& path, const WorldConfig& in);
 	static bool ModifyAndSave(const std::string& path, const std::function<void(WorldConfig&)>& mutate);
-	static void ApplyToScene(const WorldConfig& cfg, Hominem::Scene& scene);
 };

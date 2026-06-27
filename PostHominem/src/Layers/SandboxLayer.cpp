@@ -6,10 +6,6 @@
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderSettings.h"
-#include "Hominem/Physics/PhysicsWorld.h"
-#include "Hominem/Physics/PhysicsTypes.h"
-#include "Hominem/Physics/Rigidbody.h"
-#include "Hominem/Physics/Collider.h"
 #include "Game/Actors/InfiniteBackgroundActor.h"
 #include "Game/Actors/InfiniteFloorActor.h"
 
@@ -18,21 +14,39 @@
 using namespace Hominem;
 
 SandboxLayer::SandboxLayer()
-	: Layer("Sandbox")
+	: SceneLayer("Sandbox")
 {
 }
 
-void SandboxLayer::OnAttach()
+SceneDesc SandboxLayer::Describe()
 {
-	m_Scene = CreateRef<Scene>();
-	m_Scene->SetClearColor({ 0.1f, 0.1f, 0.1f, 1.f });
+	constexpr CameraConfig kCam;
+	return {
+		.Camera  = { .OrthoSize = kCam.OrthoSize, .Near = kCam.OrthoNear, .Far = kCam.OrthoFar },
+		.Physics = { .Gravity = PhysicsConfig{}.Gravity }
+	};
+}
 
-	InitPhysics();
-	InitCamera();
-	InitWorld();
+void SandboxLayer::OnSceneReady()
+{
+	auto& window = Application::Get().GetWindow();
+	uint32_t w   = window.GetWidth();
+	uint32_t h   = window.GetHeight();
+
+	m_CinematicCamera = CreateRef<CinematicCameraController>((float)w / (float)h);
+	m_CinematicCamera->SetCameraTarget(&m_Scene->GetCamera(), &m_Scene->GetCameraPosition());
+
+	if (!m_CinematicCamera->LoadFromFile("Resources/Config/camera_config.json",
+	                                     "camera_sequences.level_01_vista"))
+		HMN_CORE_WARN("SandboxLayer: camera_config.json not found, using defaults");
 
 	m_CinematicCamera->RegisterOnComplete("vista_reveal",   [] { HMN_CORE_INFO("Vista 1 complete"); });
 	m_CinematicCamera->RegisterOnComplete("vista_reveal_2", [] { HMN_CORE_INFO("Vista 2 complete"); });
+
+	if (auto result = AssetManager::Load<Texture2D>("game://Textures/gamebg.png"))
+		m_BgTexHandle = *result;
+	m_Scene->SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
+	m_Scene->SpawnActor<InfiniteFloorActor>(FloorConfig{});
 
 	m_Player = &m_Scene->SpawnActor<Player>(PlayerConfig{});
 
@@ -40,11 +54,10 @@ void SandboxLayer::OnAttach()
 	m_NarrativeText->Show("Any victory against death will always be temporary");
 }
 
-void SandboxLayer::OnDetach()
+void SandboxLayer::OnSceneDetach()
 {
 	m_Player        = nullptr;
 	m_NarrativeText = nullptr;
-	m_Scene.reset();
 }
 
 void SandboxLayer::OnUpdate(Timestep ts)
@@ -103,48 +116,8 @@ void SandboxLayer::OnImGuiRender()
 	});
 }
 
-bool SandboxLayer::OnWindowResize(WindowResizeEvent& e)
-{
-	m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
-	return false;
-}
-
 void SandboxLayer::OnEvent(Event& e)
 {
-	EventDispatcher dispatcher(e);
-	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(SandboxLayer::OnWindowResize));
+	SceneLayer::OnEvent(e);
 	m_CinematicCamera->OnEvent(e);
-}
-
-void SandboxLayer::InitPhysics()
-{
-	m_Scene->SetPhysicsWorld(CreateRef<PhysicsWorld>(PhysicsConfig{}.Gravity));
-}
-
-void SandboxLayer::InitCamera()
-{
-	auto& window = Application::Get().GetWindow();
-	uint32_t w   = window.GetWidth();
-	uint32_t h   = window.GetHeight();
-
-	constexpr CameraConfig kCam;
-	m_Scene->GetCamera().SetOrthographic(kCam.OrthoSize, kCam.OrthoNear, kCam.OrthoFar);
-
-	m_Scene->OnViewportResize(w, h);
-
-	m_CinematicCamera = CreateRef<CinematicCameraController>((float)w / (float)h);
-	m_CinematicCamera->SetCameraTarget(&m_Scene->GetCamera(), &m_Scene->GetCameraPosition());
-
-	if (!m_CinematicCamera->LoadFromFile("Resources/Config/camera_config.json",
-	                                     "camera_sequences.level_01_vista"))
-		HMN_CORE_WARN("SandboxLayer: camera_config.json not found, using defaults");
-}
-
-void SandboxLayer::InitWorld()
-{
-	if (auto result = AssetManager::Load<Texture2D>("game://Textures/gamebg.png"))
-		m_BgTexHandle = *result;
-	m_Scene->SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
-
-	m_Scene->SpawnActor<InfiniteFloorActor>(FloorConfig{});
 }

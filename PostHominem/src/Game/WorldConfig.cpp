@@ -1,7 +1,5 @@
 #include "hmnpch.h"
 #include "Game/WorldConfig.h"
-#include "Hominem/Scene/Scene.h"
-#include "Hominem/Physics/PhysicsWorld.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 
@@ -80,12 +78,6 @@ static std::string ResolvePath(const std::string& path)
 		return std::string(HMN_SOURCE_RESOURCES_PATH) + "/" + path.substr(it + 10);
 #endif
 	return path;
-}
-
-void WorldConfig::ApplyToScene(const WorldConfig& cfg, Hominem::Scene& scene)
-{
-	scene.SetPhysicsWorld(Hominem::CreateRef<Hominem::PhysicsWorld>(PhysicsConfig{}.Gravity));
-	scene.GetLights() = cfg.Lights;
 }
 
 bool WorldConfig::LoadFromFile(const std::string& path, WorldConfig& out)

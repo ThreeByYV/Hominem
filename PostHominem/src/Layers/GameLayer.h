@@ -1,10 +1,8 @@
 #pragma once
 
-#include "Hominem/Core/Layer.h"
-#include "Hominem/Events/ApplicationEvent.h"
+#include "Hominem/Scene/SceneLayer.h"
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Events/MouseEvent.h"
-#include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Cinematics/Cutscene.h"
 #include "Game/Player.h"
@@ -17,13 +15,11 @@
 
 class SceneActor;
 
-class GameLayer : public Hominem::Layer
+class GameLayer : public Hominem::SceneLayer
 {
 public:
 	GameLayer();
 
-	void OnAttach()                                  override;
-	void OnDetach()                                  override;
 	void OnUpdate(Hominem::Timestep ts)              override;
 	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
 	void OnImGuiRender()                             override;
@@ -35,8 +31,13 @@ public:
 	/// Virtual asset path for the in-game music — published so LoadingLayer can preload it.
 	static constexpr const char* k_MusicPath = "game://Sounds/menu_music_2.mp3";
 
+protected:
+	Hominem::SceneDesc Describe()                        override;
+	void               OnSceneReady()                    override;
+	void               OnSceneDetach()                   override;
+	void               OnWindowResized(uint32_t w, uint32_t h) override;
+
 private:
-	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
 	bool OnMouseMoved(Hominem::MouseMovedEvent& e);
 
@@ -47,8 +48,6 @@ private:
 	void StartIntroZoomIn();
 
 	// --- intro cutscene ---
-	// The wait is a plain timer (Play() isn't called yet, so nothing to delegate to);
-	// once it expires, StartIntroZoomIn() builds the cues and hands off to m_IntroCutscene.
 	float                    m_IntroTimer = 0.f;
 	Hominem::Cutscene        m_IntroCutscene;
 	Hominem::CutsceneContext m_IntroCtx;
