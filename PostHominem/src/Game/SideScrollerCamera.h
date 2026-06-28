@@ -33,19 +33,7 @@ public:
               float                 aspect,
               float                 cameraZ,
               float                 playerWorldY,
-              const Config&         cfg = {})
-    {
-        m_Cfg    = cfg;
-        m_Camera = &camera;
-        m_Pos    = &cameraPos;
-        m_Aspect = aspect;
-        m_CamZ   = cameraZ;
-        m_YOffset = m_Cfg.VisibleHeight * (0.5f - m_Cfg.PlayerScreenY);
-
-        cameraFront = { 0.f, 0.f, -1.f };
-        cameraPos   = { cameraPos.x, playerWorldY + m_YOffset + m_Cfg.YBias, cameraZ };
-        ApplyProjection();
-    }
+              Config                cfg);
 
     void    SetTarget(const Player* player) { m_Target = player; }
     Config& GetConfig()                     { return m_Cfg; }
@@ -105,3 +93,23 @@ private:
     float                 m_YOffset = 0.f;
     float                 m_Aspect  = 1.f;
 };
+
+inline void SideScrollerCamera::Init(Hominem::SceneCamera& camera,
+                                     glm::vec3&            cameraPos,
+                                     glm::vec3&            cameraFront,
+                                     float                 aspect,
+                                     float                 cameraZ,
+                                     float                 playerWorldY,
+                                     Config                cfg = Config{})
+{
+    m_Cfg    = cfg;
+    m_Camera = &camera;
+    m_Pos    = &cameraPos;
+    m_Aspect = aspect;
+    m_CamZ   = cameraZ;
+    m_YOffset = m_Cfg.VisibleHeight * (0.5f - m_Cfg.PlayerScreenY);
+
+    cameraFront = { 0.f, 0.f, -1.f };
+    cameraPos   = { cameraPos.x, playerWorldY + m_YOffset + m_Cfg.YBias, cameraZ };
+    ApplyProjection();
+}

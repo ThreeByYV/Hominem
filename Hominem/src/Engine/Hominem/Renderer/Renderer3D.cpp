@@ -4,6 +4,7 @@
 #include "RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
 #include "EnvironmentProbe.h"
+#include "RenderThread.h"
 
 #include <glad/glad.h>
 #include <ranges>
@@ -63,7 +64,9 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/prefilter_convolve.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/brdf_lut.glsl");
 
-    s_Data->BRDFLUT = EnvironmentProbe::BakeBRDFLUT();
+    RenderThread::QueueUpload([] {
+        s_Data->BRDFLUT = EnvironmentProbe::BakeBRDFLUT();
+    });
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});

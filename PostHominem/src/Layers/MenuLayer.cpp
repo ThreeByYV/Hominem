@@ -32,6 +32,7 @@ void MenuLayer::OnAttach()
 	m_ActiveScene->OnViewportResize(m_ViewportW, m_ViewportH);
 
 	float aspect = (float)m_ViewportW / (float)m_ViewportH;
+
 	m_Background = &m_ActiveScene->SpawnActor<SpriteActor>(
 		glm::vec3{ 0.f, 0.f, -0.5f },
 		glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f },

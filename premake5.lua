@@ -181,6 +181,8 @@ project "PostHominem"
               "PostHominem/src" })
     )
 
+    dependson { "assimp" }
+
     links
     {
         "Hominem",
@@ -214,7 +216,7 @@ project "PostHominem"
             "Hominem/vendor/assimp/build/lib/Debug",
             "Hominem/vendor/assimp/build/contrib/zlib/Debug"
         }
-        links { "assimp-vc143-mtd", "zlibstaticd" }
+        links { "assimpd", "zlibstaticd" }
 
     filter "configurations:Release"
         defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
@@ -224,7 +226,7 @@ project "PostHominem"
             "Hominem/vendor/assimp/build/lib/Release",
             "Hominem/vendor/assimp/build/contrib/zlib/Release"
         }
-        links { "assimp-vc143-mt", "zlibstatic" }
+        links { "assimp", "zlibstatic" }
 
     filter "configurations:Dist"
         defines { "HMN_DIST", "NDEBUG" }
@@ -234,4 +236,4 @@ project "PostHominem"
             "Hominem/vendor/assimp/build/lib/Release",
             "Hominem/vendor/assimp/build/contrib/zlib/Release"
         }
-        links { "assimp-vc143-mt", "zlibstatic" }
+        links { "assimp", "zlibstatic" }

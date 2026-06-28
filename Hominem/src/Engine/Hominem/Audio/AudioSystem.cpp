@@ -12,7 +12,7 @@ namespace Hominem {
 			Shutdown();
 	}
 
-	bool AudioSystem::Init(const AudioConfig& config)
+	bool AudioSystem::Init(AudioConfig config)
 	{
 		if (m_Initialized)
 		{

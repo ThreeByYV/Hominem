@@ -2,6 +2,7 @@
 #include "CutscenePreload.h"
 
 #include "Hominem/Core/AsyncLoad.h"
+#include <filesystem>
 
 namespace CutscenePreload
 {
@@ -12,6 +13,11 @@ namespace CutscenePreload
 		HMN_CORE_INFO("CutscenePreload: loading '{}' on a background thread", meshPath);
 		s_Load.Begin([meshPath]() -> Hominem::Ref<Hominem::StaticMesh>
 		{
+			if (!std::filesystem::exists(meshPath))
+			{
+				HMN_CORE_ERROR("CutscenePreload: file not found '{}'", meshPath);
+				return nullptr;
+			}
 			auto mesh = Hominem::StaticMesh::Create();
 			if (auto res = mesh->LoadFromFile(meshPath); !res)
 			{
@@ -24,4 +30,5 @@ namespace CutscenePreload
 	}
 
 	Hominem::Ref<Hominem::StaticMesh> TryGet() { return s_Load.TryGet(); }
+	bool IsDone()                             { return s_Load.IsDone(); }
 }

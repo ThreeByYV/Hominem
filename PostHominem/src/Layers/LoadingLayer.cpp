@@ -28,10 +28,16 @@ void LoadingLayer::OnUpdate(Timestep ts)
 {
 	m_PulseT += (float)ts;
 
-	if (!m_Transitioning && CutscenePreload::TryGet())
+	if (!m_Transitioning)
 	{
-		m_Transitioning = true;
-		TransitionTo<GameLayer>();
+		auto mesh = CutscenePreload::TryGet(); // pump: sets m_Done once future resolves
+		if (CutscenePreload::IsDone())
+		{
+			if (!mesh)
+				HMN_CORE_ERROR("LoadingLayer: CutscenePreload failed — check that the asset file exists");
+			m_Transitioning = true;
+			TransitionTo<GameLayer>();
+		}
 	}
 }
 
