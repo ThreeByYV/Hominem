@@ -37,6 +37,18 @@ namespace Hominem {
 
 	void Scene::BuildRenderFrame(RenderFrame& frame)
 	{
+		frame.clearColor         = m_ClearColor;
+		frame.light              = m_DirectionalLight;
+		frame.skybox             = m_Skybox;
+		frame.skyboxIntensity    = m_SkyboxIntensity;
+		frame.lights             = m_SceneLights;
+		frame.bloomEnabled       = m_PostProcess.bloomEnabled;
+		frame.toneMappingEnabled = m_PostProcess.toneMappingEnabled;
+		frame.bloomStrength      = m_PostProcess.bloomStrength;
+		frame.bloomThreshold     = m_PostProcess.bloomThreshold;
+		frame.renderScale        = m_PostProcess.renderScale;
+		frame.debugLights        = m_PostProcess.debugLights;
+
 		frame.viewportWidth  = m_ViewportWidth;
 		frame.viewportHeight = m_ViewportHeight;
 

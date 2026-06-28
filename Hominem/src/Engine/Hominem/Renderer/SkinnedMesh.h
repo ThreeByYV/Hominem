@@ -11,6 +11,7 @@
 #include "Hominem/Renderer/Shader.h"
 #include "Hominem/Renderer/Material.h"
 #include "Hominem/Renderer/CommandList.h"
+#include "Hominem/Core/AsyncLoad.h"
 #include "Skeleton.h"
 
 namespace Hominem {
