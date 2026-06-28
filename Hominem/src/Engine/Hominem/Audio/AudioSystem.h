@@ -2,127 +2,86 @@
 
 #include <thread>
 #include <vector>
-#include <unordered_map>
 #include <atomic>
 
 #include "Hominem/Core/Core.h"
 #include "Hominem/Threading/Queue.h"
-#include "Hominem/Threading/JobSystem.h"
+#include "Hominem/Assets/AssetHandle.h"
 #include "AudioCommand.h"
 #include "SoundBuffer.h"
 #include "SoundInstance.h"
-#include "AudioBackend.h"
-#include <future>
+
+struct ma_engine;
 
 namespace Hominem {
 
-	struct AudioConfig
-	{
-		uint32_t SampleRate = 44100;
-		uint32_t BufferSize = 1024;
-		uint32_t MaxSounds = 64;
-		float MasterVolume = 1.0f;
-	};
+struct AudioConfig
+{
+    uint32_t SampleRate   = 44100;
+    uint32_t BufferSize   = 1024;
+    uint32_t MaxSounds    = 64;
+    float    MasterVolume = 1.0f;
+};
 
-	enum class MusicState
-	{
-		Idle,      
-		Loading,    
-		Ready,    
-		Playing,  
-		Paused 
-	};
+class AudioSystem
+{
+public:
+    AudioSystem() = default;
+    ~AudioSystem();
 
-	/// @brief Audio playback system with dedicated audio thread.
-	class AudioSystem
-	{
-	public:
-		AudioSystem() = default;
-		~AudioSystem();
+    AudioSystem(const AudioSystem&)            = delete;
+    AudioSystem& operator=(const AudioSystem&) = delete;
 
-		AudioSystem(const AudioSystem&) = delete;
-		AudioSystem& operator=(const AudioSystem&) = delete;
+    bool Init(AudioConfig config = AudioConfig{});
+    void Shutdown();
+    bool IsInitialized() const { return m_Initialized; }
 
-		bool Init(AudioConfig config = AudioConfig{});
-		void Shutdown();
-		bool IsInitialized() const { return m_Initialized; }
+    static AudioSystem& Get() { return *s_Instance; }
 
-		// Sound loading
-		SoundBufferHandle LoadSound(const std::string& filepath);
-		void UnloadSound(SoundBufferHandle handle);
+    AssetHandle<SoundBuffer> LoadSound(std::string_view virtualPath);
+    void UnloadSound(AssetHandle<SoundBuffer>& handle);
 
-		// Playback
-		SoundHandle Play(SoundBufferHandle buffer, float volume = 1.0f, bool loop = false);
-		SoundHandle PlayEx(SoundBufferHandle buffer, float volume, float pitch, float pan, bool loop);
-		
-		void Stop(SoundHandle handle);
-		void Pause(SoundHandle handle);
-		void Resume(SoundHandle handle);
-		void StopAll();
+    SoundHandle Play(AssetHandle<SoundBuffer> handle, float volume = 1.0f, bool loop = false);
+    SoundHandle PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop);
 
-		// Properties
-		void SetVolume(SoundHandle handle, float volume);
-		void SetPitch(SoundHandle handle, float pitch);
-		void SetPan(SoundHandle handle, float pan);
+    void Stop(SoundHandle handle);
+    void Pause(SoundHandle handle);
+    void Resume(SoundHandle handle);
+    void StopAll();
 
-		// Global
-		void SetMasterVolume(float volume);
-		float GetMasterVolume() const { return m_MasterVolume; }
+    void SetVolume(SoundHandle handle, float volume);
+    void SetPitch(SoundHandle handle, float pitch);
+    void SetPan(SoundHandle handle, float pan);
 
-		// Callbacks
-		void SetOnSoundFinished(SoundFinishedCallback callback) { m_OnSoundFinished = callback; }
+    void  SetMasterVolume(float volume);
+    float GetMasterVolume() const { return m_MasterVolume; }
 
-		uint32_t GetActiveSoundCount() const { return m_ActiveSoundCount.load(); }
+    void     SetOnSoundFinished(SoundFinishedCallback callback) { m_OnSoundFinished = std::move(callback); }
+    uint32_t GetActiveSoundCount() const { return m_ActiveSoundCount.load(); }
 
-		// High-level music management
-		void LoadMusicAsync(const std::string& filepath, bool autoPlay = true, float volume = 1.0f, bool loop = true);
-		void PlayMusic();
-		void PauseMusic();
-		void ResumeMusic();
-		void StopMusic();
-		void ToggleMusic();
-		void UpdateMusic(); // Call each frame to process async loading
+private:
+    void        AudioThreadFunc();
+    void        ProcessCommand(const AudioCommand& cmd);
+    void        MixAudio();
+    SoundHandle AllocateSoundHandle();
 
-		MusicState GetMusicState() const { return m_MusicState; }
-		bool IsMusicLoaded() const { return m_MusicState != MusicState::Idle && m_MusicState != MusicState::Loading; }
-		bool IsMusicPlaying() const { return m_MusicState == MusicState::Playing; }
+    static AudioSystem* s_Instance;
 
-	private:
-		void AudioThreadFunc();
-		void ProcessCommand(const AudioCommand& cmd);
-		void MixAudio();
-		SoundHandle AllocateSoundHandle();
+    AudioConfig m_Config;
+    bool        m_Initialized = false;
 
-	private:
-		AudioConfig m_Config;
-		bool m_Initialized = false;
+    ma_engine* m_Engine = nullptr; // heap-allocated so miniaudio.h stays out of this header
 
-		Ref<AudioBackend> m_Backend;
+    std::thread         m_AudioThread;
+    Queue<AudioCommand> m_CommandQueue;
+    std::atomic<bool>   m_Running{ false };
 
-		std::thread m_AudioThread;
-		Queue<AudioCommand> m_CommandQueue;
-		std::atomic<bool> m_Running{ false };
+    std::vector<SoundInstance> m_Instances;
+    std::atomic<uint32_t>      m_NextSoundHandle{ 0 };
+    std::atomic<uint32_t>      m_ActiveSoundCount{ 0 };
 
-		std::vector<SoundBuffer> m_Buffers;
-		std::unordered_map<std::string, SoundBufferHandle> m_BufferCache;
-		std::mutex m_BufferMutex;
-
-		std::vector<SoundInstance> m_Instances;
-		std::atomic<uint32_t> m_NextSoundHandle{ 0 };
-		std::atomic<uint32_t> m_ActiveSoundCount{ 0 };
-
-		std::atomic<float> m_MasterVolume{ 1.0f };
-		SoundFinishedCallback m_OnSoundFinished;
-
-		// High-level music playback state
-		MusicState m_MusicState = MusicState::Idle;
-		JobSystem m_MusicJobSystem;
-		std::future<SoundBufferHandle> m_MusicLoadFuture;
-		SoundBufferHandle m_MusicBuffer = InvalidSoundBuffer;
-		SoundHandle m_MusicHandle = InvalidSound;
-		bool m_AutoPlayOnLoad = false;
-		float m_MusicVolume = 1.0f;
-		bool m_MusicLoop = true;
-	};
+    std::atomic<float>    m_MasterVolume{ 1.0f };
+    SoundFinishedCallback m_OnSoundFinished;
+};
 
 }

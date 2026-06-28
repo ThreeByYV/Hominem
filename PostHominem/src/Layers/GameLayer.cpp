@@ -3,350 +3,244 @@
 #include "MenuLayer.h"
 #include "CutsceneLayer.h"
 
-#include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
+#include "Hominem/Core/InputMap.h"
 #include "Hominem/Core/KeyCodes.h"
-#include "Hominem/Renderer/RenderCommand.h"
-#include "Hominem/Renderer/Renderer3D.h"
-#include "Game/FactoryLevel.h"
+#include "Hominem/Renderer/RenderSettings.h"
+#include "Hominem/Renderer/DebugCommands.h"
+#include "Hominem/Utils/MathUtils.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Cinematics/Cues/CameraCue.h"
+#include "Hominem/Cinematics/Cues/FadeCue.h"
+#include "Hominem/Cinematics/Cues/EventCue.h"
+#include "Cinematics/IntroCutscene.h"
+#include "Game/Actors/InfiniteFloorActor.h"
+#include "Game/Actors/SceneActor.h"
 
 #include <imgui.h>
-
+#include "Hominem/ImGui/UI.h"
 
 using namespace Hominem;
 
 GameLayer::GameLayer()
-	: Layer("Game")
+	: SceneLayer("Game")
 {
 }
 
-void GameLayer::OnAttach()
+SceneDesc GameLayer::Describe()
 {
-	m_RenderScale = Renderer3D::GetRecommendedRenderScale();
+	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
+		HMN_CORE_WARN("GameLayer: using default world config");
 
-	m_ActiveScene = CreateRef<Scene>();
-	m_GameMode    = CreateScope<FactoryLevel>();
+	return {
+		.Physics     = { .Gravity = { 0.f, -9.81f, 0.f } },
+		.Lights      = m_Config.Lights,
+		.PostProcess = { .renderScale = 0.8f },
+		.Spawners    = {
+			[this](SceneContext& ctx) {
+				m_Scene3D = &ctx.SpawnActor<SceneActor>(m_Config.Scene.MeshPath);
+				m_Config.Scene.ApplyTo(*m_Scene3D);
+				m_InitCameraX = m_Config.CameraX;
+				m_InitCameraZ = m_Config.CameraZ;
+				if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
+				    m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
+					BootstrapFromAABB();
+			},
+			[this](SceneContext& ctx) {
+				Ref<SkinnedMesh> mesh;
+				if (auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath)) mesh = r->Get();
+				PlayerConfig cfg;
+				cfg.Spawn.Position = m_Config.PlayerSpawnPos;
+				m_Player = &ctx.SpawnActor<Player>(cfg, mesh);
+			},
+			[this](SceneContext& ctx) { ctx.SpawnActor<InfiniteFloorActor>(m_Config.Floor); },
+			[this](SceneContext& ctx) { ctx.BakeEnvironment({ 0.1f, 1.5f, 27.0f }); },
+			[this](SceneContext& ctx) {
+				if (auto r = ctx.Load<SoundBuffer>(k_MusicPath)) {
+					m_Music       = *r;
+					m_MusicHandle = ctx.audio.Play(m_Music, 0.9f, /*loop=*/true);
+				}
+			}
+		}
+	};
+}
 
-	auto& window = Application::Get().GetWindow();
-	m_ActiveScene->OnViewportResize(window.GetWidth(), window.GetHeight());
-	m_GameMode->OnEnter(*m_ActiveScene);
+void GameLayer::OnSceneReady(SceneContext& ctx)
+{
+	m_Aspect = ctx.aspect;
+	m_Camera.Init(ctx.scene.GetCamera(),
+	              ctx.scene.GetCameraPosition(),
+	              ctx.scene.GetCameraFront(),
+	              ctx.aspect, m_InitCameraZ, PlayerConfig{}.RestY,
+	              SideScrollerCamera::Config::From(CameraConfig{}));
+	m_Camera.SetTarget(m_Player);
+	ctx.scene.GetCameraPosition().x = m_InitCameraX;
+
+	// --- intro cutscene ---
+	m_IntroCtx.scene = &ctx.scene;
 
 	if (s_SkipIntro)
 	{
-		// Snap camera to the player so the zoom-out lands on the normal gameplay view,
-		// not the config's initial off-screen camera position.
-		m_GameMode->SnapCameraToPlayer();
+		m_Camera.Snap();
 
-		// Re-resolve in case Wait phase never ran (e.g. key-1 shortcut direct to cutscene).
-		s_EyeTarget   = m_GameMode->ResolveEyeTarget(k_EyeTarget);
+		s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
 		s_EyeTarget.z = k_EyeTarget.z;
 
-		m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
-		m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
+		const auto [position, orthoSize] = m_Scene->GetCameraSnapshot();
+		m_Scene->ApplyCameraSnapshot({ s_EyeTarget, k_EyeZoom });
 
-		m_ActiveScene->GetCameraPosition() = s_EyeTarget;
-		m_ActiveScene->GetCamera().SetOrthographicSize(k_EyeZoom);
-		m_IntroPhase = IntroPhase::ZoomOut;
-	}
-	else
-	{
-		m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
-		m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
-		m_IntroPhase    = IntroPhase::Wait;
+		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, position, k_EyeZoom, orthoSize).For(k_ZoomDur);
+		m_IntroCutscene.Play();
 	}
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
-
-	m_ActiveScene->BakeEnvironment(glm::vec3(0.1f, 1.5f, 27.0f), /*intensity=*/1.0f);
-
-	WorldConfig cfg;
-	if (WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg))
-	{
-		m_Lights.clear();
-		for (const auto& lc : cfg.Lights)
-		{
-			Light l;
-			l.Position   = lc.Position;
-			l.Color      = lc.Color;
-			l.Direction  = lc.Direction;
-			l.Intensity  = lc.Intensity;
-			l.Radius     = lc.Radius;
-			l.InnerAngle = lc.InnerAngle;
-			l.OuterAngle = lc.OuterAngle;
-			l.SourceRadius = lc.SourceRadius;
-			l.Type       = static_cast<LightType>(lc.Type);
-			m_Lights.push_back(l);
-		}
-	}
-
-	auto& audio = Application::Get().GetAudioSystem();
-	audio.LoadMusicAsync("Resources/Sounds/menu_music_2.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
 }
 
-void GameLayer::OnDetach()
+void GameLayer::OnSceneDetach()
 {
-	Application::Get().GetAudioSystem().StopMusic();
-	m_GameMode->OnExit();
-	m_ActiveScene.reset();
+	if (m_MusicHandle != InvalidSound) AudioSystem::Get().Stop(m_MusicHandle);
+	m_Music       = {};
+	m_MusicHandle = InvalidSound;
+	m_Player  = nullptr;
+	m_Scene3D = nullptr;
+}
+
+void GameLayer::OnWindowResized(uint32_t w, uint32_t h)
+{
+	if (w > 0 && h > 0)
+	{
+		m_Aspect = (float)w / (float)h;
+		m_Camera.OnWindowResize(m_Aspect);
+	}
 }
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	Application::Get().GetAudioSystem().UpdateMusic();
-
-	if (m_IntroPhase == IntroPhase::Done || m_IntroPhase == IntroPhase::Wait)
+	if (!m_IntroCutscene.IsPlaying())
 	{
-		m_ActiveScene->OnUpdate(ts);
-		m_GameMode->OnUpdate(ts);
+		m_Scene->OnUpdate(ts);
 
-		if (m_IntroPhase == IntroPhase::Wait)
+		if (Input::IsKeyPressed(HMN_KEY_R))
+		{
+			if (WorldConfig newCfg; WorldConfig::LoadFromFile(WorldConfig::k_Path, newCfg))
+			{
+				HMN_CORE_INFO("Config reloaded");
+				m_Config = newCfg;
+				m_Camera.OnWindowResize(m_Aspect);
+				m_Player->Reload(PlayerConfig{});
+				newCfg.Scene.ApplyTo(*m_Scene3D);
+				m_Scene->GetLights() = newCfg.Lights;
+			}
+			RenderSettings::RequestShaderReload();
+		}
+
+		m_Camera.OnUpdate(ts);
+
+		// Still waiting to kick off the zoom-in (normal, non-skip path only --
+		// the skip path's zoom-out cue is already playing by the time we get here).
+		if (!m_IntroCutscene.IsFinished())
 		{
 			m_IntroTimer += ts;
 			if (m_IntroTimer >= k_WaitDur)
-			{
-				// Resolve the head-bone world XY; keep Z pinned to k_EyeTarget.z so the
-			// camera stays 2 units behind the player's Z plane and the player remains visible.
-			s_EyeTarget   = m_GameMode->ResolveEyeTarget(k_EyeTarget);
-			s_EyeTarget.z = k_EyeTarget.z;
-
-				// Snapshot where the camera is now so ZoomIn starts from the live position.
-				m_IntroFromPos  = m_ActiveScene->GetCameraPosition();
-				m_IntroFromZoom = m_ActiveScene->GetCamera().GetOrthographicSize();
-				m_IntroPhase    = IntroPhase::ZoomIn;
-				m_IntroTimer    = 0.f;
-			}
+				StartIntroZoomIn();
 		}
 	}
-	else if (m_IntroPhase == IntroPhase::ZoomIn)
+	else
 	{
-		m_IntroTimer += ts;
-		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
-		const float ease = n * n * (3.f - 2.f * n); // smoothstep
-
-		// Only X/Y track the eye; Z is pinned to the scene depth so geometry stays in frame.
-		m_ActiveScene->GetCameraPosition() = glm::mix(m_IntroFromPos, s_EyeTarget, ease);
-		m_ActiveScene->GetCamera().SetOrthographicSize(
-			glm::mix(m_IntroFromZoom, k_EyeZoom, ease));
-
-		if (n >= 1.f)
-		{
-			m_IntroPhase = IntroPhase::Flash;
-			m_IntroTimer = 0.f;
-		}
-	}
-	else if (m_IntroPhase == IntroPhase::Flash)
-	{
-		m_IntroTimer += ts;
-		if (m_IntroTimer >= k_FlashDur)
-		{
-			m_IntroPhase = IntroPhase::Done;
-			TransitionTo<CutsceneLayer>();
-		}
-	}
-	else if (m_IntroPhase == IntroPhase::ZoomOut)
-	{
-		m_IntroTimer += ts;
-		const float n    = glm::clamp(m_IntroTimer / k_ZoomDur, 0.f, 1.f);
-		const float ease = n * n * (3.f - 2.f * n);
-
-		m_ActiveScene->GetCameraPosition() = glm::mix(s_EyeTarget, m_IntroFromPos, ease);
-		m_ActiveScene->GetCamera().SetOrthographicSize(
-			glm::mix(k_EyeZoom, m_IntroFromZoom, ease));
-
-		if (n >= 1.f)
-			m_IntroPhase = IntroPhase::Done;
+		m_IntroCutscene.OnUpdate(ts, m_IntroCtx);
 	}
 
 	m_FrameTimeMs = ts.GetMilliseconds();
 	m_FPS         = ts > 0.f ? 1.f / ts : 0.f;
 }
 
+void GameLayer::StartIntroZoomIn()
+{
+	s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
+	s_EyeTarget.z = k_EyeTarget.z;
+
+	const auto from = m_Scene->GetCameraSnapshot();
+	m_IntroCutscene.Add<CameraCue>(from.position, s_EyeTarget, from.orthoSize, k_EyeZoom).For(k_ZoomDur);
+
+	// Hard cut to white (From == To == 1), not a fade.
+	m_IntroCutscene.Add<FadeCue>(glm::vec3(1.f), 1.f, 1.f).At(k_ZoomDur).For(k_FlashDur);
+	m_IntroCutscene.Add<EventCue>([this] { TransitionTo<CutsceneLayer>(IntroCutscene::Make()); })
+		.At(k_ZoomDur + k_FlashDur);
+
+	m_IntroCutscene.Play();
+}
+
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor         = { 0.1f, 0.1f, 0.1f, 1.f };
-	frame.light              = m_Light;
-	frame.lights             = m_Lights;
-	frame.debugLights        = m_DebugLights;
-	frame.bloomEnabled       = m_BloomEnabled;
-	frame.toneMappingEnabled = m_ToneMappingEnabled;
-	frame.renderScale        = m_RenderScale;
-	frame.bloomStrength      = m_BloomStrength;
-	frame.bloomThreshold     = m_BloomThreshold;
-
-	if (m_ActiveScene)
-	{
-		m_ActiveScene->SetEnvMapIntensity(m_EnvMapIntensity);
-		m_ActiveScene->BuildRenderFrame(frame);
-	}
-
-	if (m_IntroPhase == IntroPhase::Flash)
-	{
-		QuadDraw q;
-		q.transform = glm::scale(glm::mat4(1.f), { 1000.f, 1000.f, 1.f });
-		q.color     = { 1.f, 1.f, 1.f, 1.f };
-		frame.quads.push_back(std::move(q));
-	}
+	m_Scene->SetEnvMapIntensity(m_EnvMapEnabled ? m_EnvMapIntensity : 0.f);
+	Layer::OnBuildRenderFrame(frame);
+	m_IntroCutscene.BuildRenderFrame(frame);
 }
 
 void GameLayer::OnImGuiRender()
 {
-	// Perf panel — top left, toggled with P
 	if (m_ShowPerfPanel)
-	{
-		ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
-		ImGui::SetNextWindowBgAlpha(0.6f);
-		constexpr ImGuiWindowFlags kOverlayFlags =
-			ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
-			ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
-			ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
-
-		if (ImGui::Begin("##PerfPanel", nullptr, kOverlayFlags))
-		{
-			ImVec4 fpsColor = m_FPS >= 60.f ? ImVec4(0.2f, 1.f, 0.2f, 1.f)
-			                : m_FPS >= 30.f ? ImVec4(1.f,  0.8f, 0.f,  1.f)
-			                                : ImVec4(1.f,  0.3f, 0.3f, 1.f);
-			ImGui::TextColored(fpsColor, "%.0f FPS  %.2f ms", m_FPS, m_FrameTimeMs);
-
-			uint64_t tris = Renderer3D::GetTriangles();
-			const char* triUnit = tris >= 1000000 ? "M" : tris >= 1000 ? "K" : "";
-			float       triVal  = tris >= 1000000 ? tris / 1000000.f : tris >= 1000 ? tris / 1000.f : (float)tris;
-			ImGui::Text("Draw calls  %u", Renderer3D::GetDrawCalls());
-			ImGui::Text("Triangles   %.1f%s", triVal, triUnit);
-			ImGui::Text("Groups      %u / %u culled", Renderer3D::GetGroupsTotal(), Renderer3D::GetGroupsCulled());
-
-			if (m_ActiveScene && m_ActiveScene->GetPhysicsWorld())
-				ImGui::Text("Physics     %.2f ms", m_ActiveScene->GetPhysicsWorld()->GetLastStepMs());
-		}
-		ImGui::End();
-	}
+		UI::PerfPanel(m_FPS, m_FrameTimeMs, m_Scene.get());
 
 	if (!m_ShowDebugUI) return;
-	ImGui::Begin("Settings");
-	if (ImGui::CollapsingHeader("Lighting"))
-	{
-		ImGui::SliderFloat("Ambient",       &m_Light.AmbientIntensity, 0.f, 1.f);
-		ImGui::ColorEdit3("Ambient Color",  &m_Light.AmbientColor.x);
-		ImGui::SliderFloat("Diffuse",       &m_Light.DiffuseIntensity, 0.f, 20.f);
-		ImGui::ColorEdit3("Light Color",    &m_Light.Color.x);
-		ImGui::SliderFloat3("Direction",    &m_Light.Direction.x, -1.f, 1.f);
-		ImGui::SliderFloat("IBL Intensity", &m_EnvMapIntensity, 0.f, 5.f);
-
-		bool areaLights = Renderer3D::GetAreaLightsEnabled();
-		if (ImGui::Checkbox("Area Lights", &areaLights))
-			Renderer3D::SetAreaLightsEnabled(areaLights);
-	}
-	if (ImGui::CollapsingHeader("Lights"))
-	{
-		ImGui::Text("%d light(s)", (int)m_Lights.size());
-		ImGui::SameLine();
-		if (ImGui::SmallButton("Add Point"))
-		{
-			Light l;
-			l.Position = { 0.f, 1.f, 0.f };
-			l.Color    = { 1.f, 0.9f, 0.7f };
-			l.Type     = LightType::Point;
-			m_Lights.push_back(l);
-			m_SelectedLight = (int)m_Lights.size() - 1;
-		}
-		ImGui::SameLine();
-		if (ImGui::SmallButton("Add Spot"))
-		{
-			Light l;
-			l.Position = { 0.f, 2.f, 0.f };
-			l.Color    = { 1.f, 0.9f, 0.7f };
-			l.Type     = LightType::Spot;
-			m_Lights.push_back(l);
-			m_SelectedLight = (int)m_Lights.size() - 1;
-		}
-		ImGui::SameLine();
-		if (ImGui::SmallButton("Save"))
-		{
-			WorldConfig cfg;
-			WorldConfig::LoadFromFile("Resources/Config/game_config.json", cfg);
-			cfg.Lights.clear();
-			for (const auto& l : m_Lights)
-			{
-				LightConfig lc;
-				lc.Position   = l.Position;
-				lc.Color      = l.Color;
-				lc.Direction  = l.Direction;
-				lc.Intensity  = l.Intensity;
-				lc.Radius     = l.Radius;
-				lc.InnerAngle = l.InnerAngle;
-				lc.OuterAngle = l.OuterAngle;
-				lc.SourceRadius = l.SourceRadius;
-				lc.Type       = static_cast<uint32_t>(l.Type);
-				cfg.Lights.push_back(lc);
-			}
-			WorldConfig::SaveToFile("Resources/Config/game_config.json", cfg);
+	UI::Window("Settings", [&] {
+		if (ImGui::CollapsingHeader("Lighting")) {
+			UI::EditDirectionalLight(m_Scene->GetDirectionalLight());
+			ImGui::Checkbox("IBL", &m_EnvMapEnabled);
+			if (m_EnvMapEnabled)
+				ImGui::SliderFloat("IBL Intensity", &m_EnvMapIntensity, 0.f, 5.f);
+			ImGui::Checkbox("Area Lights", &RenderSettings::AreaLights);
 		}
 
-		for (int i = 0; i < (int)m_Lights.size(); i++)
-		{
-			ImGui::PushID(i);
-			auto& l = m_Lights[i];
-			char label[32];
-			snprintf(label, sizeof(label), "%s %d",
-			         l.Type == LightType::Spot ? "Spot" : "Point", i);
-			bool selected = (m_SelectedLight == i);
-			if (ImGui::Selectable(label, selected))
-				m_SelectedLight = i;
-			if (m_SelectedLight == i)
-			{
-				ImGui::DragFloat3("Position",  &l.Position.x, 0.05f);
-				ImGui::ColorEdit3("Color",     &l.Color.x);
-				ImGui::DragFloat("Intensity",  &l.Intensity,  0.1f, 0.f, 100.f);
-				ImGui::DragFloat("Radius",     &l.Radius,     0.1f, 0.1f, 50.f);
-				ImGui::DragFloat("Source Radius", &l.SourceRadius, 0.01f, 0.f, 5.f);
-				if (l.Type == LightType::Spot)
-				{
-					ImGui::DragFloat3("Direction",   &l.Direction.x,  0.01f, -1.f, 1.f);
-					ImGui::DragFloat("Inner Angle",  &l.InnerAngle,   0.5f,  0.f, 89.f);
-					ImGui::DragFloat("Outer Angle",  &l.OuterAngle,   0.5f,  0.f, 89.f);
-				}
-				if (ImGui::SmallButton("Remove"))
-				{
-					m_Lights.erase(m_Lights.begin() + i);
-					m_SelectedLight = -1;
-					ImGui::PopID();
-					break;
-				}
-			}
+		if (ImGui::CollapsingHeader("Lights")) {
+			auto& lights = m_Scene->GetLights();
+			if (ImGui::SmallButton("Save"))
+				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [&lights](WorldConfig& cfg) {
+					cfg.Lights = lights;
+				});
+			UI::EditLightList(lights, m_SelectedLight);
+		}
+
+		if (ImGui::CollapsingHeader("Render")) {
+			auto& pp = m_Scene->GetPostProcess();
+			ImGui::SliderFloat("Render Scale", &pp.renderScale, 0.25f, 1.0f);
+			ImGui::SameLine();
+			ImGui::TextDisabled("%.0f%%", pp.renderScale * 100.f);
+		}
+
+		if (ImGui::CollapsingHeader("Post Processing")) UI::EditPostProcess(m_Scene->GetPostProcess());
+
+		if (ImGui::CollapsingHeader("Camera"))
+			ImGui::DragFloat("Y Bias", &m_Camera.GetConfig().YBias, 0.01f);
+
+		if (ImGui::CollapsingHeader("Scene Transform")) {
+			ImGui::PushID("SceneTx");
+			UI::EditTransform(*m_Scene3D, 0.1f);
+			if (ImGui::Button("Save Scene Transform"))
+				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [this](WorldConfig& cfg) {
+					cfg.Scene.Position = m_Scene3D->Position;
+					cfg.Scene.Rotation = m_Scene3D->GetRotationDeg();
+					cfg.Scene.Scale    = m_Scene3D->Scale;
+					cfg.CameraX = m_InitCameraX;
+					cfg.CameraZ = m_Camera.GetCameraZ();
+					m_Config = cfg;
+				});
 			ImGui::PopID();
 		}
-	}
-	if (ImGui::CollapsingHeader("Render"))
-	{
-		ImGui::SliderFloat("Render Scale", &m_RenderScale, 0.25f, 1.0f);
-		ImGui::SameLine();
-		ImGui::TextDisabled("%.0f%%", m_RenderScale * 100.f);
-	}
-	if (ImGui::CollapsingHeader("Post Processing"))
-	{
-		ImGui::Checkbox("Bloom",         &m_BloomEnabled);
-		ImGui::Checkbox("Tone Mapping",  &m_ToneMappingEnabled);
-		if (m_BloomEnabled)
-		{
-			ImGui::SliderFloat("Bloom Strength",   &m_BloomStrength,  0.f, 3.f);
-			ImGui::SliderFloat("Bloom Threshold",  &m_BloomThreshold, 0.f, 2.f);
-		}
-	}
-	m_GameMode->OnImGuiRender();
-	ImGui::End();
-}
 
-bool GameLayer::OnWindowResize(WindowResizeEvent& e)
-{
-	if (m_ActiveScene) m_ActiveScene->OnViewportResize(e.GetWidth(), e.GetHeight());
-	return false;
+		if (ImGui::CollapsingHeader("Player")) {
+			ImGui::PushID("Player");
+			m_Player->OnImGuiRender();
+			ImGui::PopID();
+		}
+	});
 }
 
 void GameLayer::OnEvent(Event& e)
 {
+	SceneLayer::OnEvent(e);
 	EventDispatcher dispatcher(e);
-	dispatcher.Dispatch<WindowResizeEvent>(HMN_BIND_EVENT_FN(GameLayer::OnWindowResize));
 	dispatcher.Dispatch<KeyPressedEvent>(HMN_BIND_EVENT_FN(GameLayer::OnKeyPressed));
-	m_GameMode->OnEvent(e);
 }
 
 bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
@@ -360,49 +254,55 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		return false;
 	}
 
-	if (e.GetKeyCode() == HMN_KEY_ESCAPE)
+	if (e.GetKeyCode() == InputMap::GetKeyCode("OpenMenu"))
 	{
 		TransitionTo<MenuLayer>();
 		return true;
 	}
 
-	if (e.GetKeyCode() == HMN_KEY_1)
+	if (e.GetKeyCode() == InputMap::GetKeyCode("SkipIntro"))
 	{
 		s_SkipIntro = false;
-		TransitionTo<CutsceneLayer>();
+		TransitionTo<CutsceneLayer>(IntroCutscene::Make());
 		return true;
 	}
 
 	if (ImGui::GetIO().WantCaptureKeyboard)
 		return false;
 
-	if (e.GetKeyCode() == HMN_KEY_N)
-		Renderer3D::SetDrawNormals(!Renderer3D::GetDrawNormals());
-
-	if (e.GetKeyCode() == HMN_KEY_B)
-		Renderer3D::SetDrawAABB(!Renderer3D::GetDrawAABB());
-
-	if (e.GetKeyCode() == HMN_KEY_L)
-		m_DebugLights = !m_DebugLights;
-
-	if (e.GetKeyCode() == HMN_KEY_H)
-		Renderer3D::SetDebugHeatmap(!Renderer3D::GetDebugHeatmap());
-
-	if (e.GetKeyCode() == HMN_KEY_T)
-		Renderer3D::SetToonShading(!Renderer3D::GetToonShading());
-
-	if (e.GetKeyCode() == HMN_KEY_O)
-		Renderer3D::SetDrawBoneWeights(!Renderer3D::GetDrawBoneWeights());
-
-	if (e.GetKeyCode() == HMN_KEY_LEFT_BRACKET && Renderer3D::GetDrawBoneWeights())
-		Renderer3D::SetDisplayBoneIndex(std::max(0, Renderer3D::GetDisplayBoneIndex() - 1));
-
-	if (e.GetKeyCode() == HMN_KEY_RIGHT_BRACKET && Renderer3D::GetDrawBoneWeights())
-		Renderer3D::SetDisplayBoneIndex(Renderer3D::GetDisplayBoneIndex() + 1);
-
-	if (e.GetKeyCode() == HMN_KEY_P)
-		m_ShowPerfPanel = !m_ShowPerfPanel;
+	HandleDebugKey(e.GetKeyCode(), m_Scene->GetPostProcess(), m_ShowPerfPanel);
 
 	return false;
 }
 
+bool GameLayer::OnMouseMoved(MouseMovedEvent& e) { return false; }
+
+glm::vec3 GameLayer::ResolveEyeTarget(const glm::vec3& fallback) const
+{
+	auto* mesh = m_Player->GetMesh();
+	if (!mesh)    return fallback;
+	auto mat = mesh->GetBoneWorldTransform("mixamorig:Head");
+	if (!mat)     return fallback;
+	return glm::vec3(m_Player->GetTransform() * glm::vec4(glm::vec3((*mat)[3]), 1.0f));
+}
+
+void GameLayer::BootstrapFromAABB()
+{
+	if (!m_Scene3D->GetMesh()) return;
+
+	glm::vec3 wMin, wMax;
+	TransformAABB(m_Scene3D->GetMesh()->GetAABBMin(), m_Scene3D->GetMesh()->GetAABBMax(),
+	              m_Scene3D->GetTransform(), wMin, wMax);
+
+	glm::vec3 size = wMax - wMin;
+	if (m_InitCameraX == 0.f) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
+	if (m_InitCameraZ == 0.f) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);
+	if (m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
+	{
+		m_Config.PlayerSpawnPos = {
+			m_InitCameraX,
+			PlayerConfig{}.RestY,
+			wMin.z + size.z * 0.9f
+		};
+	}
+}

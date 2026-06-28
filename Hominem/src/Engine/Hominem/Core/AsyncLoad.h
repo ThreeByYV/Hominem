@@ -1,10 +1,12 @@
 #pragma once
 
 #include "Hominem/Core/Ref.h"
+#include "Hominem/Threading/ThreadPriority.h"
 
 #include <future>
 #include <functional>
 #include <chrono>
+#include <thread>
 
 namespace Hominem {
 
@@ -20,7 +22,10 @@ namespace Hominem {
 			if (m_Started)
 				return;
 			m_Started = true;
-			m_Future  = std::async(std::launch::async, std::move(loader));
+			m_Future  = std::async(std::launch::async, [loader = std::move(loader)]() mutable -> Ref<T> {
+				SetCurrentThreadPriorityLow();
+				return loader();
+			});
 		}
 
 		/// Non-blocking. Returns the loaded value once ready (cached), else nullptr.
@@ -41,6 +46,14 @@ namespace Hominem {
 
 		/// True once the async task has finished, regardless of whether it succeeded.
 		bool IsDone() const { return m_Done; }
+
+		/// Non-blocking abandon: moves the future to a detached thread so the destructor
+		/// doesn't stall. Safe to call if the load hasn't completed yet.
+		void Detach()
+		{
+			if (m_Future.valid() && !m_Cached)
+				std::thread([f = std::move(m_Future)]() mutable { if (f.valid()) f.wait(); }).detach();
+		}
 
 	private:
 		std::future<Ref<T>> m_Future;

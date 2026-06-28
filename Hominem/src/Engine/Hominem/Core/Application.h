@@ -10,6 +10,7 @@
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Audio/AudioSystem.h"
 #include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Assets/AssetManager.h"
 
 
 namespace Hominem {
@@ -34,7 +35,6 @@ namespace Hominem {
 
 
         inline Window&       GetWindow()       { return *m_Window; }
-        inline AudioSystem&  GetAudioSystem()  { return m_AudioSystem; }
         inline RenderThread& GetRenderThread() { return m_RenderThread; }
 
         inline static Application& Get() { return *s_Instance; }

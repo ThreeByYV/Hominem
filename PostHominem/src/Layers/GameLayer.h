@@ -1,63 +1,82 @@
 #pragma once
 
-#include "Hominem/Core/Layer.h"
-#include "Hominem/Events/ApplicationEvent.h"
+#include "Hominem/Scene/SceneLayer.h"
 #include "Hominem/Events/KeyEvent.h"
-#include "Hominem/Scene/Scene.h"
-#include "Hominem/Renderer/RenderFrame.h"
-#include "Game/Level.h"
-#include "Game/WorldConfig.h"
 #include "Hominem/Events/MouseEvent.h"
+#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Cinematics/Cutscene.h"
+#include "Game/Player.h"
+#include "Game/SideScrollerCamera.h"
+#include "Game/WorldConfig.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Audio/AudioSystem.h"
+
 #include <glm/glm.hpp>
 
-class GameLayer : public Hominem::Layer
+class SceneActor;
+
+class GameLayer : public Hominem::SceneLayer
 {
 public:
 	GameLayer();
 
-	void OnAttach()                                  override;
-	void OnDetach()                                  override;
 	void OnUpdate(Hominem::Timestep ts)              override;
 	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
 	void OnImGuiRender()                             override;
 	void OnEvent(Hominem::Event& e)                  override;
 
+	static inline bool      s_SkipIntro = false;
+	static inline glm::vec3 s_EyeTarget = { 0.084f, 0.8f, 40.0f };
 
-	static inline bool      s_SkipIntro  = false;
-	static inline glm::vec3 s_EyeTarget  = { 0.084f, 0.8f, 40.0f };
+	/// Virtual asset path for the in-game music — published so LoadingLayer can preload it.
+	static constexpr const char* k_MusicPath = "game://Sounds/menu_music_2.mp3";
+
+protected:
+	Hominem::SceneDesc   Describe()                               override;
+	void                 OnSceneReady(Hominem::SceneContext& ctx) override;
+	void                 OnSceneDetach()                          override;
+	void                 OnWindowResized(uint32_t w, uint32_t h) override;
 
 private:
-	bool OnWindowResize(Hominem::WindowResizeEvent& e);
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
 	bool OnMouseMoved(Hominem::MouseMovedEvent& e);
 
-	enum class IntroPhase { Wait, ZoomIn, Flash, ZoomOut, Done };
-	IntroPhase  m_IntroPhase  = IntroPhase::Wait;
-	float       m_IntroTimer  = 0.f;
-	glm::vec3   m_IntroFromPos{ 0.f };
-	float       m_IntroFromZoom = 10.f;
+	glm::vec3 ResolveEyeTarget(const glm::vec3& fallback) const;
+	void      BootstrapFromAABB();
 
-	static constexpr glm::vec3 k_EyeTarget  = { 0.084f, 0.8f, 29.0f };
-	static constexpr float     k_EyeZoom    = 0.08f;  // ortho size at peak
-	static constexpr float     k_WaitDur    = 2.5f;   // seconds of normal play before zoom starts
-	static constexpr float     k_ZoomDur    = 0.7f;   // seconds to zoom in/out
-	static constexpr float     k_FlashDur   = 0.15f;  // white hold before cut
+	/// Builds and plays the zoom-in/flash/transition cues once the wait timer expires.
+	void StartIntroZoomIn();
 
-	Hominem::Ref<Hominem::Scene>    m_ActiveScene;
-	Hominem::Scope<Level>           m_GameMode;
-	bool  m_ShowDebugUI   = false;
-	bool  m_ShowPerfPanel = true;
-	float m_FPS           = 0.f;
-	float m_FrameTimeMs   = 0.f;
-	Hominem::DirectionalLight      m_Light;
-	std::vector<Hominem::Light>    m_Lights;
-	int                            m_SelectedLight = -1;
-	bool                           m_DebugLights   = false;
+	// --- intro cutscene ---
+	float                    m_IntroTimer = 0.f;
+	Hominem::Cutscene        m_IntroCutscene;
+	Hominem::CutsceneContext m_IntroCtx;
 
-	bool  m_BloomEnabled       = false;
-	bool  m_ToneMappingEnabled = false;
-	float m_BloomStrength      = 1.0f;
-	float m_BloomThreshold     = 0.8f;
-	float m_RenderScale        = 1.0f;
-	float m_EnvMapIntensity    = 1.0f;
+	static constexpr glm::vec3 k_EyeTarget = { 0.084f, 0.8f, 29.0f };
+	static constexpr float     k_EyeZoom   = 0.08f;
+	static constexpr float     k_WaitDur   = 2.5f;
+	static constexpr float     k_ZoomDur   = 0.7f;
+	static constexpr float     k_FlashDur  = 0.15f;
+
+	// --- game world ---
+	WorldConfig        m_Config;
+	float              m_Aspect      = 1.f;
+	float              m_InitCameraX = 0.f;
+	float              m_InitCameraZ = 0.f;
+	SideScrollerCamera m_Camera;
+	Player*            m_Player  = nullptr;
+	SceneActor*        m_Scene3D = nullptr;
+
+	// --- audio ---
+	Hominem::AssetHandle<Hominem::SoundBuffer> m_Music;
+	Hominem::SoundHandle                       m_MusicHandle = Hominem::InvalidSound;
+
+	// --- debug UI ---
+	bool  m_ShowDebugUI     = false;
+	bool  m_ShowPerfPanel   = true;
+	float m_FPS             = 0.f;
+	float m_FrameTimeMs     = 0.f;
+	int   m_SelectedLight   = -1;
+	bool  m_EnvMapEnabled   = true;
+	float m_EnvMapIntensity = 1.0f;
 };

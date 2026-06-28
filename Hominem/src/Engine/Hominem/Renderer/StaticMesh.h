@@ -4,6 +4,7 @@
 #include "Texture.h"
 #include "Material.h"
 #include "CommandList.h"
+#include "Hominem/Core/AsyncLoad.h"
 
 #include <glm/glm.hpp>
 #include <string>

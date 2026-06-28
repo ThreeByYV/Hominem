@@ -5,12 +5,10 @@
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/MouseCodes.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Assets/AssetLoaders.h"
 #include "Hominem/Scene/Actors/SpriteActor.h"
 #include "Hominem/Utils/MathUtils.h"
-
-#include <glm/gtc/matrix_transform.hpp>
-
+#include "Hominem/Utils/Transform.h"
 #include "Hominem/Core/KeyCodes.h"
 
 using namespace Hominem;
@@ -22,56 +20,70 @@ MenuLayer::MenuLayer()
 
 void MenuLayer::OnAttach()
 {
-	m_ActiveScene = CreateRef<Scene>();
+	m_Scene = CreateRef<Scene>();
 
-	auto& window  = Application::Get().GetWindow();
-	m_ViewportW   = window.GetWidth();
-	m_ViewportH   = window.GetHeight();
+	auto& window = Application::Get().GetWindow();
+	m_ViewportW  = window.GetWidth();
+	m_ViewportH  = window.GetHeight();
 
-	m_ActiveScene->GetCamera().SetOrthographic(k_OrthoSize, -1.f, 1.f);
-	m_ActiveScene->OnViewportResize(m_ViewportW, m_ViewportH);
+	m_Scene->GetCamera().SetOrthographic(k_OrthoSize, -1.f, 1.f);
+	m_Scene->OnViewportResize(m_ViewportW, m_ViewportH);
+	m_Scene->SetClearColor({ 0.05f, 0.05f, 0.05f, 1.f });
 
 	float aspect = (float)m_ViewportW / (float)m_ViewportH;
+	if (const auto result=
+			AssetManager::Load<Texture2D>("game://Textures/menu2.png"))
+		m_BackgroundHandle = *result;
 
-	m_Background = &m_ActiveScene->SpawnActor<SpriteActor>(
+	m_Background = &m_Scene->SpawnActor<SpriteActor>(
 		glm::vec3{ 0.f, 0.f, -0.5f },
 		glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f },
-		Texture2D::Create("Resources/Textures/menu2.png"));
+		m_BackgroundHandle.Get());
 
 	m_Font   = Font::GetDefaultFont();
 	m_ArrowY = k_Items[0].y;
 
-	auto& audio = Application::Get().GetAudioSystem();
-	audio.LoadMusicAsync("Resources/Sounds/menu_music.mp3", /*autoPlay=*/true, 0.9f, /*loop=*/true);
+	AssetManager::LoadAsync<SoundBuffer>("game://Sounds/menu_music.mp3",
+		[this](const AssetHandle<SoundBuffer> &music) {
+			m_Music = music;
+			if (!m_MusicPaused)
+				m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
+		});
 }
 
 void MenuLayer::OnDetach()
 {
-	Application::Get().GetAudioSystem().StopMusic();
-	m_ActiveScene.reset();
+	if (m_MusicHandle != InvalidSound)
+		AudioSystem::Get().Stop(m_MusicHandle);
+	m_Music       = {};
+	m_MusicHandle = InvalidSound;
+	m_Scene.reset();
 	m_Background = nullptr;
 }
 
 void MenuLayer::OnUpdate(Timestep ts)
 {
 	if (Input::IsKeyPressed(HMN_KEY_M))
-		Application::Get().GetAudioSystem().ToggleMusic();
+	{
+		if (m_MusicPaused)
+		{
+			AudioSystem::Get().Resume(m_MusicHandle);
+			m_MusicPaused = false;
+		}
+		else
+		{
+			AudioSystem::Get().Pause(m_MusicHandle);
+			m_MusicPaused = true;
+		}
+	}
 
-	Application::Get().GetAudioSystem().UpdateMusic();
-
-	// Convert mouse pixel coords to world space (camera at origin, ortho).
-	float halfH  = k_OrthoSize * 0.5f;
-	float halfW  = halfH * ((float)m_ViewportW / (float)m_ViewportH);
-	float ndcX   = (Input::GetMouseX() / (float)m_ViewportW) * 2.f - 1.f;
-	float ndcY   = 1.f - (Input::GetMouseY() / (float)m_ViewportH) * 2.f;
-	float worldX = ndcX * halfW;
-	float worldY = ndcY * halfH;
+	const glm::vec2 worldPos = m_Scene->ScreenToWorld(Input::GetMouseX(), Input::GetMouseY());
 
 	m_HoveredIndex = -1;
 	for (int i = 0; i < (int)k_Items.size(); ++i)
 	{
-		if (std::abs(worldY - k_Items[i].y) < k_HoverBand
-		    && worldX >= k_ArrowX && worldX <= k_ItemX + 0.9f)
+		if (std::abs(worldPos.y - k_Items[i].y) < k_HoverBand
+		    && worldPos.x >= k_ArrowX && worldPos.x <= k_ItemX + 0.9f)
 		{
 			m_HoveredIndex = i;
 			break;
@@ -81,7 +93,7 @@ void MenuLayer::OnUpdate(Timestep ts)
 	if (m_HoveredIndex >= 0)
 		m_ArrowY = Lerp(m_ArrowY, k_Items[m_HoveredIndex].y, k_LerpSpeed * ts.GetSeconds());
 
-	m_ActiveScene->OnUpdate(ts);
+	m_Scene->OnUpdate(ts);
 }
 
 void MenuLayer::FireMenuAction(int index)
@@ -102,9 +114,7 @@ void MenuLayer::FireMenuAction(int index)
 
 void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
-	frame.clearColor = { 0.05f, 0.05f, 0.05f, 1.f };
-	if (m_ActiveScene)
-		m_ActiveScene->BuildRenderFrame(frame);
+	Layer::OnBuildRenderFrame(frame);
 
 	if (!m_Font) return;
 
@@ -115,8 +125,7 @@ void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 
 	// Title
 	{
-		glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(k_TitleX, k_TitleY, 0.f))
-		            * glm::scale(glm::mat4(1.f), glm::vec3(k_TitleScale));
+		glm::mat4 t = Transform::PosScale({ k_TitleX, k_TitleY, 0.f }, glm::vec3(k_TitleScale)).ToMatrix();
 		frame.texts.push_back({ "Hominem", m_Font, t, k_TitleColor });
 	}
 
@@ -126,17 +135,16 @@ void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 		const glm::vec4 dividerColor = { 0.85f, 0.62f, 0.38f, 0.6f };
 		const float dividerY    = k_TitleY - k_DividerGap;
 		const float lineCenterX = k_TitleX + k_DividerWidth * 0.5f;
+		const glm::vec3 dividerPos = { lineCenterX, dividerY, 0.f };
 
 		QuadDraw line;
-		line.transform = glm::translate(glm::mat4(1.f), glm::vec3(lineCenterX, dividerY, 0.f))
-		               * glm::scale(glm::mat4(1.f), glm::vec3(k_DividerWidth, k_DividerHeight, 1.f));
+		line.transform = Transform::PosScale(dividerPos, { k_DividerWidth, k_DividerHeight, 1.f }).ToMatrix();
 		line.color = dividerColor;
 		frame.quads.push_back(line);
 
 		QuadDraw diamond;
-		diamond.transform = glm::translate(glm::mat4(1.f), glm::vec3(lineCenterX, dividerY, 0.f))
-		                   * glm::rotate(glm::mat4(1.f), glm::radians(45.f), glm::vec3(0.f, 0.f, 1.f))
-		                   * glm::scale(glm::mat4(1.f), glm::vec3(k_DiamondSize));
+		diamond.transform = Transform::PosRotScale(dividerPos, { 0.f, 0.f, glm::radians(45.f) },
+		                                            glm::vec3(k_DiamondSize)).ToMatrix();
 		diamond.color = dividerColor;
 		frame.quads.push_back(diamond);
 	}
@@ -145,8 +153,7 @@ void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 	for (int i = 0; i < (int)k_Items.size(); ++i)
 	{
 		const bool hovered = (i == m_HoveredIndex);
-		glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(k_ItemX, k_Items[i].y, 0.f))
-		            * glm::scale(glm::mat4(1.f), glm::vec3(k_ItemScale));
+		glm::mat4 t = Transform::PosScale({ k_ItemX, k_Items[i].y, 0.f }, glm::vec3(k_ItemScale)).ToMatrix();
 
 		TextDraw draw;
 		draw.text       = k_Items[i].label;
@@ -160,8 +167,7 @@ void MenuLayer::OnBuildRenderFrame(RenderFrame& frame)
 	// Arrow — only shown while something is hovered, lerps to the target item
 	if (m_HoveredIndex >= 0)
 	{
-		glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(k_ArrowX, m_ArrowY, 0.f))
-		            * glm::scale(glm::mat4(1.f), glm::vec3(k_ItemScale));
+		glm::mat4 t = Transform::PosScale({ k_ArrowX, m_ArrowY, 0.f }, glm::vec3(k_ItemScale)).ToMatrix();
 		frame.texts.push_back({ ">", m_Font, t, k_ArrowColor });
 	}
 }
@@ -171,14 +177,10 @@ bool MenuLayer::OnWindowResize(WindowResizeEvent& e)
 	m_ViewportW = e.GetWidth();
 	m_ViewportH = e.GetHeight();
 
-	if (m_ActiveScene)
-		m_ActiveScene->OnViewportResize(m_ViewportW, m_ViewportH);
+	m_Scene->OnViewportResize(m_ViewportW, m_ViewportH);
 
-	if (m_Background)
-	{
-		float aspect = (float)m_ViewportW / (float)m_ViewportH;
-		m_Background->Scale = glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f };
-	}
+	const float aspect = (float)m_ViewportW / (float)m_ViewportH;
+	m_Background->Scale = glm::vec3{ k_OrthoSize * aspect, k_OrthoSize, 1.f };
 
 	return false;
 }

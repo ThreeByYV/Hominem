@@ -2,9 +2,7 @@
 
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Scene/Scene.h"
-#include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Font.h"
-#include "Hominem/Renderer/MSDFData.h"
 
 #include <string>
 #include <glm/glm.hpp>
@@ -45,26 +43,7 @@ public:
 
 		if (!m_Font) return;
 
-		// Compute text half-width for centering — CPU math only, no GL.
-		float halfWidth = 0.f;
-		{
-			const auto& fg  = m_Font->GetMSDFData()->FontGeometry;
-			const auto& met = fg.getMetrics();
-			double fsS  = 1.0 / (met.ascenderY - met.descenderY);
-			double xAcc = 0.0;
-			for (size_t i = 0; i < m_Text.size(); i++)
-			{
-				auto g = fg.getGlyph(m_Text[i]);
-				if (!g) g = fg.getGlyph('?');
-				if (!g) continue;
-				double adv = g->getAdvance();
-				if (i + 1 < m_Text.size())
-					fg.getAdvance(adv, m_Text[i], m_Text[i + 1]);
-				xAcc += fsS * adv;
-			}
-			halfWidth = static_cast<float>(xAcc * 0.5 * TextScale);
-		}
-
+		float halfWidth = m_Font->MeasureWidth(m_Text) * TextScale * 0.5f;
 		glm::vec3 textPos = Position + glm::vec3(-halfWidth, 0.f, 0.5f);
 		glm::mat4 textTransform = glm::translate(glm::mat4(1.f), textPos)
 		                        * glm::scale(glm::mat4(1.f), glm::vec3(TextScale));

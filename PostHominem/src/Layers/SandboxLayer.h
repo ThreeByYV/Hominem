@@ -1,26 +1,33 @@
 #pragma once
 
-#include "Hominem/Core/Layer.h"
-#include "Hominem/Events/ApplicationEvent.h"
-#include "Hominem/Scene/Scene.h"
-#include "Game/Level.h"
+#include "Hominem/Scene/SceneLayer.h"
+#include "Hominem/Renderer/CinematicCameraController.h"
+#include "Game/Player.h"
+#include "Game/WorldConfig.h"
+#include "Game/Actors/NarrativeTextActor.h"
+#include "Hominem/Assets/AssetLoaders.h"
 
-class SandboxLayer : public Hominem::Layer
+class SandboxLayer : public Hominem::SceneLayer
 {
 public:
-	SandboxLayer();
-	virtual ~SandboxLayer() = default;
+    SandboxLayer();
+    virtual ~SandboxLayer() = default;
 
-	void OnAttach()                      override;
-	void OnDetach()                      override;
-	void OnUpdate(Hominem::Timestep ts)              override;
-	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
-	void OnImGuiRender()                             override;
-	void OnEvent(Hominem::Event& e)                  override;
+    void OnUpdate(Hominem::Timestep ts)              override;
+    void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
+    void OnImGuiRender()                             override;
+    void OnEvent(Hominem::Event& e)                  override;
+
+protected:
+    Hominem::SceneDesc   Describe()                               override;
+    void                 OnSceneReady(Hominem::SceneContext& ctx) override;
+    void                 OnSceneDetach()                          override;
 
 private:
-	bool OnWindowResize(Hominem::WindowResizeEvent& e);
+    Player*                                          m_Player        = nullptr;
+    NarrativeTextActor*                              m_NarrativeText = nullptr;
+    Hominem::Ref<Hominem::CinematicCameraController> m_CinematicCamera;
 
-	Hominem::Ref<Hominem::Scene> m_ActiveScene;
-	Hominem::Scope<Level>        m_GameMode;
+    Hominem::AssetHandle<Hominem::Texture2D> m_BgTexHandle;
+    float m_OrthoSize = 10.f;
 };

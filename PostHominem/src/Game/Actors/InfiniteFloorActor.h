@@ -3,7 +3,7 @@
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Physics/PhysicsWorld.h"
-#include "Hominem/Physics/PhysicsTypes.h"
+#include "Hominem/Physics/PhysicsHelpers.h"
 #include "Hominem/Physics/Rigidbody.h"
 #include "Game/WorldConfig.h"
 
@@ -78,16 +78,11 @@ private:
 		auto world = m_Scene ? m_Scene->GetPhysicsWorld() : nullptr;
 		if (!world) return;
 
-		Hominem::RigidbodySpec spec;
-		spec.Type     = Hominem::RigidbodyType::Static;
-		spec.Position = glm::vec3(centerX, m_FloorY, 0.f);
-		auto body = world->CreateRigidbody(spec);
-		body->SetGravityEnabled(false);
-
-		auto mat = world->CreateMaterial(m_Cfg.StaticFriction, m_Cfg.DynamicFriction, 0.f);
-		Hominem::BoxColliderSpec col;
-		col.HalfExtents = { m_SegW * 0.5f, m_SegH * 0.5f, m_SegW * 0.5f };
-		body->AttachCollider(world->CreateBoxCollider(col, mat));
+		auto body = Hominem::Physics::CreateStaticBody(world.get(), { centerX, m_FloorY, 0.f });
+		Hominem::Physics::AttachBoxCollider(world.get(), body,
+			{ m_SegW * 0.5f, m_SegH * 0.5f, m_SegW * 0.5f },
+			{},
+			m_Cfg.StaticFriction, m_Cfg.DynamicFriction);
 
 		Segment seg{ centerX, body };
 		const auto it = std::ranges::lower_bound(m_Segments, seg,

@@ -6,6 +6,8 @@
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Scene/Actors/SpriteActor.h"
 #include "Hominem/Renderer/Font.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Audio/AudioSystem.h"
 
 #include <array>
 
@@ -54,9 +56,13 @@ private:
 		{ "Quit",     -0.50f },
 	}};
 
-	Hominem::Ref<Hominem::Scene>  m_ActiveScene;
-	Hominem::SpriteActor*         m_Background = nullptr;
-	Hominem::Ref<Hominem::Font>   m_Font;
+	Hominem::SpriteActor*                    m_Background       = nullptr;
+	Hominem::AssetHandle<Hominem::Texture2D> m_BackgroundHandle;
+	Hominem::Ref<Hominem::Font>              m_Font;
+
+	Hominem::AssetHandle<Hominem::SoundBuffer> m_Music;
+	Hominem::SoundHandle                       m_MusicHandle = Hominem::InvalidSound;
+	bool                                       m_MusicPaused = false;
 
 	int      m_HoveredIndex = -1;
 	float    m_ArrowY       = 0.18f;

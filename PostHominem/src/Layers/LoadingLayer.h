@@ -2,6 +2,7 @@
 
 #include "Hominem/Core/Layer.h"
 #include "Hominem/Renderer/Font.h"
+#include "Hominem/Assets/AssetLoaders.h"
 
 #include <array>
 #include <string_view>
@@ -17,6 +18,8 @@ public:
 	void OnBuildRenderFrame(Hominem::RenderFrame& f) override;
 
 private:
+	void OnAssetLoaded();
+
 	static constexpr std::array<std::string_view, 6> k_Quotes = {{
 		"\"Ah, to the lord who dwells in the sky that granted my prayers,\n"
 		"I make one final wish - Let her rest in peace\"  - Malice Mizer",
@@ -35,8 +38,14 @@ private:
 		"\"What does not destroy me, makes me stronger.\"  - Nietzsche",
 	}};
 
-	Hominem::Ref<Hominem::Font> m_Font;
+	Hominem::Ref<Hominem::Font>                   m_Font;
+	Hominem::AssetHandle<Hominem::StaticMesh>     m_SetMesh;
+	Hominem::AssetHandle<Hominem::SoundBuffer>    m_GameMusic;
+	Hominem::AssetHandle<Hominem::SkinnedMesh>    m_PlayerMesh;
+	Hominem::AssetHandle<Hominem::SkinnedMesh>    m_RunMesh;
+	Hominem::AssetHandle<Hominem::SkinnedMesh>    m_IdleMesh;
 	int   m_QuoteIndex    = 0;
 	float m_PulseT        = 0.f;
+	int   m_PendingLoads  = 5;
 	bool  m_Transitioning = false;
 };
