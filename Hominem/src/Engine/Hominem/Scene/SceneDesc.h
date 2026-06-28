@@ -2,15 +2,21 @@
 
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Renderer/PostProcessSettings.h"
+#include <functional>
 #include <glm/glm.hpp>
 #include <vector>
 
 namespace Hominem {
 
+class SceneContext;
+
 /// Declarative description of a scene's static configuration.
 /// Fill this out in SceneLayer::Describe() — the framework wires the rest.
 struct SceneDesc
 {
+    /// Called in order after the scene is created, before OnSceneReady.
+    using SpawnFn = std::function<void(SceneContext&)>;
+
     struct Camera
     {
         float OrthoSize = 10.f;
@@ -24,11 +30,12 @@ struct SceneDesc
         glm::vec3 Gravity = { 0.f, -9.81f, 0.f };
     };
 
-    Camera             Camera;
-    Physics            Physics;
-    glm::vec4          ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
-    std::vector<Light> Lights;
-    PostProcessSettings PostProcess;
+    Camera               Camera;
+    Physics              Physics;
+    glm::vec4            ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+    std::vector<Light>   Lights;
+    PostProcessSettings  PostProcess;
+    std::vector<SpawnFn> Spawners;
 };
 
 } // namespace Hominem

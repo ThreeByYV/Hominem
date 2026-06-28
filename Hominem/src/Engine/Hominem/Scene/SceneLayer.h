@@ -13,6 +13,8 @@ namespace Hominem {
 class SceneLayer : public Layer
 {
 public:
+    explicit SceneLayer(const std::string& name = "SceneLayer") : Layer(name) {}
+
     void OnAttach() final;
     void OnDetach() final;
     void OnEvent(Event& e) override;

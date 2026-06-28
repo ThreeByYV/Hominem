@@ -27,6 +27,8 @@ void SceneLayer::OnAttach()
     m_Scene->OnViewportResize(win.GetWidth(), win.GetHeight());
 
     SceneContext ctx(*m_Scene, AudioSystem::Get(), win.GetWidth(), win.GetHeight());
+    for (auto& spawn : desc.Spawners)
+        spawn(ctx);
     OnSceneReady(ctx);
 }
 
