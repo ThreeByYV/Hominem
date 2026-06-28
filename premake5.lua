@@ -166,10 +166,11 @@ project "PostHominem"
 
     vpaths
     {
-        ["Game/**"]       = "PostHominem/src/Game/**",
-        ["Layers/**"]     = "PostHominem/src/Layers/**",
-        ["Resources/**"]  = "PostHominem/src/Resources/**",
-        ["*"]             = "PostHominem/src/*",
+        ["Game/**"]        = "PostHominem/src/Game/**",
+        ["Layers/**"]      = "PostHominem/src/Layers/**",
+        ["Cinematics/**"]  = "PostHominem/src/Cinematics/**",
+        ["Resources/**"]   = "PostHominem/src/Resources/**",
+        ["*"]              = "PostHominem/src/*",
     }
 
     defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
