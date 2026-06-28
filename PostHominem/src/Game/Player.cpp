@@ -105,8 +105,7 @@ void Player::OnImGuiRender()
 		m_Config.Spawn.Position = Position;
 		m_Config.Scale = Scale;
 		WorldConfig::ModifyAndSave(WorldConfig::k_Path, [this](WorldConfig& cfg) {
-			cfg.Player.Spawn.Position = Position;
-			cfg.Player.Scale          = Scale;
+			cfg.PlayerSpawnPos = Position;
 		});
 	}
 }

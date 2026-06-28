@@ -29,49 +29,52 @@ GameLayer::GameLayer()
 
 SceneDesc GameLayer::Describe()
 {
+	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
+		HMN_CORE_WARN("GameLayer: using default world config");
+
 	return {
 		.Physics     = { .Gravity = { 0.f, -9.81f, 0.f } },
-		.PostProcess = { .renderScale = 0.8f }
+		.Lights      = m_Config.Lights,
+		.PostProcess = { .renderScale = 0.8f },
+		.Spawners    = {
+			[this](SceneContext& ctx) {
+				m_Scene3D = &ctx.SpawnActor<SceneActor>(m_Config.Scene.MeshPath);
+				m_Config.Scene.ApplyTo(*m_Scene3D);
+				m_InitCameraX = m_Config.CameraX;
+				m_InitCameraZ = m_Config.CameraZ;
+				if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
+				    m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
+					BootstrapFromAABB();
+			},
+			[this](SceneContext& ctx) {
+				Ref<SkinnedMesh> mesh;
+				if (auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath)) mesh = r->Get();
+				PlayerConfig cfg;
+				cfg.Spawn.Position = m_Config.PlayerSpawnPos;
+				m_Player = &ctx.SpawnActor<Player>(cfg, mesh);
+			},
+			[this](SceneContext& ctx) { ctx.SpawnActor<InfiniteFloorActor>(m_Config.Floor); },
+			[this](SceneContext& ctx) { ctx.BakeEnvironment({ 0.1f, 1.5f, 27.0f }); },
+			[this](SceneContext& ctx) {
+				if (auto r = ctx.Load<SoundBuffer>(k_MusicPath)) {
+					m_Music       = *r;
+					m_MusicHandle = ctx.audio.Play(m_Music, 0.9f, /*loop=*/true);
+				}
+			}
+		}
 	};
 }
 
 void GameLayer::OnSceneReady(SceneContext& ctx)
 {
-	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
-		HMN_CORE_WARN("GameLayer: using default world config");
-
 	m_Aspect = ctx.aspect;
-	ctx.scene.GetLights() = m_Config.Lights;
-
-	const auto& sc = m_Config.Scene;
-	m_Scene3D = &ctx.SpawnActor<SceneActor>(sc.MeshPath);
-	sc.ApplyTo(*m_Scene3D);
-
-	m_InitCameraX = m_Config.CameraX;
-	m_InitCameraZ = m_Config.CameraZ;
-
-	if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
-	    m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
-		BootstrapFromAABB();
-
-	Ref<SkinnedMesh> playerMesh{};
-	if (auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath))
-		playerMesh = r->Get();
-
-	PlayerConfig playerCfg;
-	playerCfg.Spawn.Position = m_Config.PlayerSpawnPos;
-	m_Player = &ctx.SpawnActor<Player>(playerCfg, playerMesh);
-
 	m_Camera.Init(ctx.scene.GetCamera(),
 	              ctx.scene.GetCameraPosition(),
 	              ctx.scene.GetCameraFront(),
-	              ctx.aspect, m_InitCameraZ, playerCfg.RestY,
+	              ctx.aspect, m_InitCameraZ, PlayerConfig{}.RestY,
 	              SideScrollerCamera::Config::From(CameraConfig{}));
 	m_Camera.SetTarget(m_Player);
 	ctx.scene.GetCameraPosition().x = m_InitCameraX;
-
-	ctx.SpawnActor<InfiniteFloorActor>(m_Config.Floor);
-	ctx.BakeEnvironment({ 0.1f, 1.5f, 27.0f });
 
 	// --- intro cutscene ---
 	m_IntroCtx.scene = &ctx.scene;
@@ -91,12 +94,6 @@ void GameLayer::OnSceneReady(SceneContext& ctx)
 	}
 	m_IntroTimer = 0.f;
 	s_SkipIntro  = false;
-
-	if (auto r = ctx.Load<SoundBuffer>(k_MusicPath))
-	{
-		m_Music       = *r;
-		m_MusicHandle = ctx.audio.Play(m_Music, 0.9f, /*loop=*/true);
-	}
 }
 
 void GameLayer::OnSceneDetach()

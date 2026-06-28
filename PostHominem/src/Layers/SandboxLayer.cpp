@@ -20,8 +20,19 @@ SandboxLayer::SandboxLayer()
 SceneDesc SandboxLayer::Describe()
 {
 	return {
-		.Camera  = { .OrthoSize = 10.f, .Near = -10.f, .Far = 10.f },
-		.Physics = { .Gravity = { 0.f, -9.81f, 0.f } }
+		.Camera   = { .OrthoSize = 10.f, .Near = -10.f, .Far = 10.f },
+		.Physics  = { .Gravity = { 0.f, -9.81f, 0.f } },
+		.Spawners = {
+			[this](SceneContext& ctx) {
+				if (auto result = ctx.Load<Texture2D>("game://Textures/gamebg.png"))
+					m_BgTexHandle = *result;
+				ctx.SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
+				ctx.SpawnActor<InfiniteFloorActor>(FloorConfig{});
+				m_Player        = &ctx.SpawnActor<Player>(PlayerConfig{});
+				m_NarrativeText = &ctx.SpawnActor<NarrativeTextActor>();
+				m_NarrativeText->Show("Any victory against death will always be temporary");
+			}
+		}
 	};
 }
 
@@ -36,15 +47,6 @@ void SandboxLayer::OnSceneReady(SceneContext& ctx)
 
 	m_CinematicCamera->RegisterOnComplete("vista_reveal",   [] { HMN_CORE_INFO("Vista 1 complete"); });
 	m_CinematicCamera->RegisterOnComplete("vista_reveal_2", [] { HMN_CORE_INFO("Vista 2 complete"); });
-
-	if (auto result = ctx.Load<Texture2D>("game://Textures/gamebg.png"))
-		m_BgTexHandle = *result;
-	ctx.SpawnActor<InfiniteBackgroundActor>(m_BgTexHandle.Get(), 20.f);
-	ctx.SpawnActor<InfiniteFloorActor>(FloorConfig{});
-
-	m_Player        = &ctx.SpawnActor<Player>(PlayerConfig{});
-	m_NarrativeText = &ctx.SpawnActor<NarrativeTextActor>();
-	m_NarrativeText->Show("Any victory against death will always be temporary");
 }
 
 void SandboxLayer::OnSceneDetach()
