@@ -17,6 +17,9 @@ cmake-build-*/
 *.gltf.bin
 *.fbx.bin
 *.obj.bin
+# ...but DO track pre-baked caches committed to source resources (shipped via LFS)
+!PostHominem/src/Resources/**/*.glb.bin
+!Hominem/src/Engine/Resources/**/*.glb.bin
 
 # Visual Studio files and folder
 .vs/

@@ -72,31 +72,60 @@ target_include_directories(Tracy PUBLIC Hominem/vendor/tracy/public)
 # Each target opts in explicitly via its own compile definitions below.
 target_compile_definitions(Tracy PRIVATE TRACY_ENABLE TRACY_NO_SYSTEM_TRACING)
 
+# Pre-create assimp generated-include dirs so CMake configure succeeds before the
+# first assimp build (scripts/Build-Assimp.bat will populate them).
+if(MSVC)
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/include")
+    set(_ASSIMP_INC_DIRS
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/include"
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/include")
+    set(_ASSIMP_ZLIB_INC
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib")
+else()
+    # MinGW/Ninja: single-config generator — separate Debug & Release build dirs.
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/include")
+    set(_ASSIMP_INC_DIRS
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/include"
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/include")
+    set(_ASSIMP_ZLIB_INC
+        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/contrib/zlib")
+endif()
+
 add_library(assimp_lib STATIC IMPORTED GLOBAL)
-set_target_properties(assimp_lib PROPERTIES
-    IMPORTED_LOCATION_DEBUG
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimp-vc143-mtd.lib"
-    IMPORTED_LOCATION_RELEASE
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
-    IMPORTED_LOCATION_RELWITHDEBINFO
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
-    IMPORTED_LOCATION_MINSIZEREL
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
-    INTERFACE_INCLUDE_DIRECTORIES
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/include;${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/include"
-)
+if(MSVC)
+    set_target_properties(assimp_lib PROPERTIES
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimp-vc143-mtd.lib"
+        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+        INTERFACE_INCLUDE_DIRECTORIES    "${_ASSIMP_INC_DIRS}"
+    )
+else()
+    set_target_properties(assimp_lib PROPERTIES
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/lib/libassimpd.a"
+        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
+        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
+        INTERFACE_INCLUDE_DIRECTORIES    "${_ASSIMP_INC_DIRS}"
+    )
+endif()
 
 add_library(zlib_lib STATIC IMPORTED GLOBAL)
-set_target_properties(zlib_lib PROPERTIES
-    IMPORTED_LOCATION_DEBUG
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Debug/zlibstaticd.lib"
-    IMPORTED_LOCATION_RELEASE
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-    IMPORTED_LOCATION_RELWITHDEBINFO
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-    IMPORTED_LOCATION_MINSIZEREL
-        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-)
+if(MSVC)
+    set_target_properties(zlib_lib PROPERTIES
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Debug/zlibstaticd.lib"
+        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
+        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
+    )
+else()
+    set_target_properties(zlib_lib PROPERTIES
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/contrib/zlib/libzlibstaticd.a"
+        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
+        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
+    )
+endif()
 
 set(FREETYPE_WITH_ZLIB     OFF CACHE BOOL "" FORCE)
 set(FREETYPE_WITH_BZIP2    OFF CACHE BOOL "" FORCE)
@@ -140,8 +169,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdfgen
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/miniaudio
-    ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/include
-    ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/include
+    ${_ASSIMP_INC_DIRS}
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/json
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/Box2D/include
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/tracy/public
@@ -170,13 +198,13 @@ add_library(tinyexr STATIC Hominem/vendor/tinyexr/tinyexr.cpp)
 target_include_directories(tinyexr PUBLIC Hominem/vendor/tinyexr)
 target_include_directories(tinyexr PRIVATE
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/contrib/zlib
-    ${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib
+    ${_ASSIMP_ZLIB_INC}
 )
 target_link_libraries(tinyexr PRIVATE zlib_lib)
 set_target_properties(tinyexr PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 target_compile_options(tinyexr PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
-file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE ENGINE_SOURCES
     "Hominem/src/Engine/*.cpp"
     "Hominem/src/Engine/*.h"
     "Hominem/src/Platform/*.cpp"
@@ -207,7 +235,7 @@ if(MSVC)
     target_compile_options(Hominem PRIVATE /utf-8 /FS /MP /we4834)
 endif()
 
-file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE GAME_SOURCES
     "PostHominem/src/*.cpp"
     "PostHominem/src/*.h"
 )

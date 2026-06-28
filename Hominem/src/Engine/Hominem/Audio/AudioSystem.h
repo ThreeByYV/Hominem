@@ -43,7 +43,7 @@ namespace Hominem {
 		AudioSystem(const AudioSystem&) = delete;
 		AudioSystem& operator=(const AudioSystem&) = delete;
 
-		bool Init(const AudioConfig& config = {});
+		bool Init(AudioConfig config = AudioConfig{});
 		void Shutdown();
 		bool IsInitialized() const { return m_Initialized; }
 

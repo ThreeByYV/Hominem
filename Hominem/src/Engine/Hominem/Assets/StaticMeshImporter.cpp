@@ -9,6 +9,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/ProgressHandler.hpp>
 #include <meshoptimizer.h>
 
 #include <fstream>
@@ -27,7 +28,6 @@ constexpr unsigned int k_AssimpFlags =
         aiProcess_GenSmoothNormals |
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
-        aiProcess_OptimizeMeshes |
         aiProcess_PreTransformVertices |
         aiProcess_CalcTangentSpace |
         aiProcess_GlobalScale; // FBX UnitScaleFactor -> metres (no-op for glTF/OBJ)
@@ -429,10 +429,31 @@ void WriteCache(const std::string& binPath, const MeshData& data,
 
 // assimp import
 
+class ImportProgressHandler : public Assimp::ProgressHandler
+{
+public:
+    ImportProgressHandler(const std::string& path) : m_Path(path) {}
+    bool Update(float percentage) override
+    {
+        int pct = (int)(percentage * 100.f);
+        if (pct >= m_NextLog)
+        {
+            HMN_CORE_INFO("StaticMesh: importing '{}' ... {}%", m_Path, pct);
+            m_NextLog = ((pct / 25) + 1) * 25;
+        }
+        return true;
+    }
+private:
+    std::string m_Path;
+    int m_NextLog = 25;
+};
+
 std::expected<void, std::string> ImportAssimp(const std::string& path, MeshData& data,
     std::vector<MaterialTexSet>& outMaterials, std::vector<uint32_t>& outGroupMatIndex)
 {
     Assimp::Importer importer;
+    importer.SetProgressHandler(new ImportProgressHandler(path));
+    HMN_CORE_INFO("StaticMesh: importing '{}' via assimp (building cache)...", path);
     const aiScene* scene = importer.ReadFile(path, k_AssimpFlags);
     if (!scene || !scene->mRootNode)
         return std::unexpected(std::format("StaticMesh: failed to import '{}': {}", path, importer.GetErrorString()));
