@@ -114,6 +114,12 @@ namespace Hominem {
 		glfwMakeContextCurrent(nullptr);
 	}
 
+	void RenderThread::WaitIdle()
+	{
+		std::unique_lock lock(m_Mutex);
+		m_ConsumedCV.wait(lock, [this]{ return m_Consumed || m_Shutdown; });
+	}
+
 	void RenderThread::WaitImGuiConsumed()
 	{
 		std::unique_lock lock(m_ImGuiMutex);

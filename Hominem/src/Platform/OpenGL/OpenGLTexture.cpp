@@ -315,8 +315,10 @@ namespace Hominem {
 
 	void OpenGLTexture2D::UnbindAll()
 	{
-		glBindTexture(GL_TEXTURE_2D, 0);
-
+		// glBindTextureUnit(slot, 0) unbinds ALL targets (2D, cubemap, etc.) on that unit
+		// without needing glActiveTexture first — covers every slot the renderer uses.
+		for (uint32_t i = 0; i < 16; i++)
+			glBindTextureUnit(i, 0);
 	}
 
 	OpenGLTexture2D::~OpenGLTexture2D()
