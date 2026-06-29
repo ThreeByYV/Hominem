@@ -41,6 +41,15 @@ if(MSVC)
 endif()
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Use lld if available — much faster than GNU ld on large debug builds.
+if(NOT MSVC)
+    find_program(_LLD lld HINTS "C:/Program Files/LLVM/bin")
+    if(_LLD)
+        message(STATUS "Using lld: ${_LLD}")
+        add_link_options(-fuse-ld=lld)
+    endif()
+endif()
+
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -94,10 +103,10 @@ endif()
 add_library(assimp_lib STATIC IMPORTED GLOBAL)
 if(MSVC)
     set_target_properties(assimp_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimp-vc143-mtd.lib"
-        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
-        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
-        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp-vc143-mt.lib"
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimpd.lib"
+        IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
+        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
         INTERFACE_INCLUDE_DIRECTORIES    "${_ASSIMP_INC_DIRS}"
     )
 else()
@@ -176,6 +185,16 @@ set(VENDOR_INCLUDES
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/meshoptimizer/src
 )
 
+# Vendor libs compiled without debug info — we never step into them in the debugger
+# and -g0 significantly reduces the data GNU ld has to process at link time.
+if(NOT MSVC)
+    foreach(_vend Glad ImGui Tracy stb_image tinyexr msdfgen msdf-atlas-gen meshoptimizer freetype glfw box2d)
+        if(TARGET ${_vend})
+            target_compile_options(${_vend} PRIVATE -g0)
+        endif()
+    endforeach()
+endif()
+
 set(COMMON_DEFINES
     _CRT_SECURE_NO_WARNINGS
     GLM_ENABLE_EXPERIMENTAL
@@ -230,6 +249,10 @@ target_compile_definitions(Hominem PRIVATE ${COMMON_DEFINES})
 target_link_libraries(Hominem PUBLIC
     glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer
 )
+
+if(WIN32)
+    target_link_libraries(Hominem PUBLIC winmm ws2_32 dbghelp)
+endif()
 
 if(MSVC)
     target_compile_options(Hominem PRIVATE /utf-8 /FS /MP /we4834)

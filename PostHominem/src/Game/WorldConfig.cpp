@@ -66,6 +66,8 @@ namespace nlohmann {
 		// Player spawn position (bootstrapped from scene AABB on first load)
 		if (j.contains("player") && j.at("player").contains("spawn"))
 			j.at("player").at("spawn").at("position").get_to(c.PlayerSpawnPos);
+
+		if (j.contains("render_scale")) c.RenderScale = j.at("render_scale").get<float>();
 	}
 
 }
@@ -131,6 +133,8 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 		root["player"] = {
 			{ "spawn", { { "position", vec3_to_json(cfg.PlayerSpawnPos) } } }
 		};
+
+		if (cfg.RenderScale > 0.f) root["render_scale"] = cfg.RenderScale;
 
 		json lightsArr = json::array();
 		for (const auto& l : cfg.Lights)

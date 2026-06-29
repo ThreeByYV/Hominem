@@ -32,10 +32,14 @@ SceneDesc GameLayer::Describe()
 	if (!WorldConfig::LoadFromFile(WorldConfig::k_Path, m_Config))
 		HMN_CORE_WARN("GameLayer: using default world config");
 
+	const float scale = (m_Config.RenderScale > 0.f)
+	    ? m_Config.RenderScale
+	    : RenderSettings::RecommendedRenderScale;
+
 	return {
 		.Physics     = { .Gravity = { 0.f, -9.81f, 0.f } },
 		.Lights      = m_Config.Lights,
-		.PostProcess = { .renderScale = 0.8f },
+		.PostProcess = { .renderScale = scale },
 		.Spawners    = {
 			[this](SceneContext& ctx) {
 				m_Scene3D = &ctx.SpawnActor<SceneActor>(m_Config.Scene.MeshPath);
@@ -203,6 +207,11 @@ void GameLayer::OnImGuiRender()
 
 		if (ImGui::CollapsingHeader("Render")) {
 			auto& pp = m_Scene->GetPostProcess();
+			if (ImGui::SmallButton("Save##rs"))
+				WorldConfig::ModifyAndSave(WorldConfig::k_Path, [scale = pp.renderScale, this](WorldConfig& cfg) {
+					cfg.RenderScale    = scale;
+					m_Config.RenderScale = scale;
+				});
 			ImGui::SliderFloat("Render Scale", &pp.renderScale, 0.25f, 1.0f);
 			ImGui::SameLine();
 			ImGui::TextDisabled("%.0f%%", pp.renderScale * 100.f);

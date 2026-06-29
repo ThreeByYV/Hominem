@@ -64,6 +64,10 @@ namespace Hominem {
 		/// Safe to call from any thread. Captured data must remain valid until the next frame.
 		static void QueueUpload(Job task);
 
+		/// Blocks until the render thread has finished executing the last submitted frame.
+		/// Must be called before destroying GL-owning objects on the main thread.
+		void WaitIdle();
+
 		/// Call before building ImGui each frame — waits for the render thread to finish
 		/// reading the previous frame's draw data so main can safely overwrite it.
 		void WaitImGuiConsumed();

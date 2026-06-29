@@ -91,6 +91,7 @@ Ref<Texture2D> Realize(const CachedTexture& t)
 // Describe a raw Assimp texture reference: "*N" embedded (bytes captured) or a file path.
 CachedTexture DescribeRaw(const aiScene* scene, const std::string& raw, const std::string& dir)
 {
+
     CachedTexture t;
     if (raw.empty()) return t;
 

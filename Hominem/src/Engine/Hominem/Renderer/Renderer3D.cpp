@@ -143,7 +143,8 @@ void Renderer3D::ResizeTileBuffers(uint32_t w, uint32_t h)
     s_Data->LightGrid      = StorageBuffer::Create(numTiles * sizeof(LightGridEntry));
 }
 
-void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd)
+void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd,
+                             uint32_t renderW, uint32_t renderH)
 {
     HMN_PROFILE_FUNCTION();
 
@@ -170,12 +171,11 @@ void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd)
     // All SSBO/compute work runs on the render thread: ResizeTileBuffers calls
     // StorageBuffer::Create (glGenBuffers), which requires a valid GL context.
     cmd.Invoke([gpuLights = std::move(gpuLights), lightCount,
-                viewW   = frame.viewportWidth,
-                viewH   = frame.viewportHeight,
+                renderW, renderH,
                 view    = frame.view3D,
                 invProj = glm::inverse(frame.proj3D)]() mutable
     {
-        ResizeTileBuffers(viewW, viewH);
+        ResizeTileBuffers(renderW, renderH);
 
         constexpr uint32_t zero = 0u;
         s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
@@ -193,16 +193,29 @@ void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd)
         cs->SetUint("u_NumLights",     lightCount);
         cs->SetUint("u_NumTilesX",     s_Data->NumTilesX);
         cs->SetUint("u_NumTilesY",     s_Data->NumTilesY);
-        cs->SetUint("u_ScreenWidth",   viewW);
-        cs->SetUint("u_ScreenHeight",  viewH);
+        cs->SetUint("u_ScreenWidth",   renderW);
+        cs->SetUint("u_ScreenHeight",  renderH);
         cs->Dispatch(s_Data->NumTilesX, s_Data->NumTilesY, 1);
         // Slots 1-3 remain bound for the subsequent shading pass.
     });
 }
 
-Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandList& cmd)
+Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandList& cmd,
+                                               uint32_t renderW, uint32_t renderH)
 {
     HMN_CORE_ASSERT(s_Data, "Renderer3D::BeginScene called before Init()");
+
+    // Reset all texture slots to 0 so every draw call in this scene must explicitly
+    // bind what it needs. Prevents stale bindings.
+    for (uint32_t i = 0; i < 16; i++)
+        cmd.BindTexture(i, 0);
+
+    // Use provided render dimensions; fall back to the frame's viewport if not given.
+    // renderW/renderH must equal the actual HDR FBO size — when renderScale != 1.0 they
+    // differ from frame.viewportWidth/Height (which is the window size), and using the
+    // wrong value shifts every Forward+ tile index in the fragment shader.
+    const uint32_t useW = (renderW != 0) ? renderW : frame.viewportWidth;
+    const uint32_t useH = (renderH != 0) ? renderH : frame.viewportHeight;
 
     SceneData scene;
     const uint32_t envID    = frame.envMap ? frame.envMap->GetRendererID() : 0u;
@@ -233,14 +246,17 @@ Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandLi
         ubo.EnvMapIntensity  = scene.EnvMapIntensity;
         ubo.ETA              = scene.ETA;
         ubo.FresnelPower     = scene.FresnelPower;
-        ubo.ScreenWidth      = frame.viewportWidth;
+        ubo.ScreenWidth      = useW;
         ubo.DebugMode         = RenderSettings::DebugHeatmap ? 1 : 0;
         ubo.AreaLightsEnabled = RenderSettings::AreaLights   ? 1 : 0;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
-    if (s_Data->LightCullingShader && !frame.lights.empty())
-        CullLights(frame, cmd);
+    // Always cull even with 0 lights, ensures the tile grid is properly sized/cleared.
+    // Skipping leaves a stale grid from a prior bake (512x512) or layer, which the
+    // fragment shader then reads with wrong tile indices → garbage counts → rainbow.
+    if (s_Data->LightCullingShader)
+        CullLights(frame, cmd, useW, useH);
 
     return scene;
 }

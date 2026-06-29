@@ -126,7 +126,7 @@ namespace Hominem {
 	void Application::Run()
 	{
 		// Hand the GL context to the render thread — all GL calls happen there from now on.
-		GLFWwindow* nativeWindow = static_cast<GLFWwindow*>(m_Window->GetNativeWindow());
+		auto* nativeWindow = static_cast<GLFWwindow*>(m_Window->GetNativeWindow());
 		glfwMakeContextCurrent(nullptr); // release from main thread
 		m_RenderThread.Start(nativeWindow, m_Window->GetWidth(), m_Window->GetHeight());
 
@@ -240,6 +240,11 @@ namespace Hominem {
 
 	void Application::ProcessPendingTransitions()
 	{
+		if (m_PendingTransitions.empty()) return;
+
+		// Wait for the render thread to finish the last submitted frame to avoid GL_INVALID_OPERATION
+		m_RenderThread.WaitIdle();
+
 		for (auto& transition : m_PendingTransitions)
 		{
 			for (auto& layer : m_LayerStack)

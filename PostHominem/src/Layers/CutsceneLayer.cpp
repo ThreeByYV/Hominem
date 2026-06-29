@@ -49,7 +49,7 @@ void CutsceneLayer::OnAttach()
 
 	if (!m_Desc.assets.setMesh.empty())
 	{
-		// 3D set (guaranteed in cache from LoadingLayer preload; sync is a cache hit)
+		// guaranteed in cache hit
 		if (auto r = AssetManager::Load<StaticMesh>(m_Desc.assets.setMesh))
 			m_Set = &m_Scene->SpawnActor<SceneActor>(r->Get());
 	}

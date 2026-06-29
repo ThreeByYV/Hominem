@@ -77,6 +77,8 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
             frame.bakedEnvMapOut->prefiltered = std::move(prefiltered);
             frame.bakedEnvMapOut->ready.store(true, std::memory_order_release);
         });
+        // Irradiance/prefilter convolutions use NoDepthNoCull; restore for the main 3D pass.
+        cmd.SetPipelineState(PipelineState::DepthTestWriteCull());
     }
 
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
@@ -104,7 +106,9 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
         cmd.SetPipelineState(PipelineState::DepthTestWriteCull());
     }
 
-    Renderer3D::SceneData scene = Renderer3D::BeginScene(frame, cmd);
+    // Pass the FBO render dimensions so u_ScreenWidth and tile-culling dispatch
+    // match gl_FragCoord — they diverge from frame.viewportWidth when renderScale != 1.
+    Renderer3D::SceneData scene = Renderer3D::BeginScene(frame, cmd, hdrSpec.Width, hdrSpec.Height);
 
     for (const auto& sm : frame.staticMeshes)
         Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);

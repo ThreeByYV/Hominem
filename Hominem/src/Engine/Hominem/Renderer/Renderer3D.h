@@ -91,7 +91,11 @@ public:
     static void InitForwardPlus();
     static void Shutdown();
 
-    [[nodiscard]] static SceneData BeginScene(const RenderFrame& frame, CommandList& cmd);
+    // renderW/renderH: the actual render-target dimensions (HDR FBO size).
+    // Pass these explicitly when renderScale != 1.0 so ScreenWidth and light
+    // culling tile dimensions match gl_FragCoord — they default to frame.viewportWidth/Height.
+    [[nodiscard]] static SceneData BeginScene(const RenderFrame& frame, CommandList& cmd,
+                                               uint32_t renderW = 0, uint32_t renderH = 0);
     static void EndScene();
 
     static void SetOverrideShader(const Ref<Shader>& shader) { s_Data->OverrideShader = shader; }
@@ -110,7 +114,8 @@ public:
     static void ReloadVariants() { if (s_Data->MeshVariants) s_Data->MeshVariants->ReloadAll(); }
 
 private:
-    static void CullLights(const RenderFrame& frame, CommandList& cmd);
+    static void CullLights(const RenderFrame& frame, CommandList& cmd,
+                           uint32_t renderW, uint32_t renderH);
     static void ResizeTileBuffers(uint32_t w, uint32_t h);
 
     static constexpr uint32_t MAX_POINT_LIGHTS_SKINNED = 16u;

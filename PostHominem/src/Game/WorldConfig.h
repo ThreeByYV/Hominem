@@ -88,6 +88,7 @@ struct WorldConfig
 	float                        CameraX        = 0.f;
 	float                        CameraZ        = 0.f;
 	glm::vec3                    PlayerSpawnPos = { 0.f, 1.f, 0.f };
+	float                        RenderScale    = 0.f; // 0 = let renderer decide via RecommendedRenderScale
 
 	static constexpr const char* k_Path = "Resources/Config/game_config.json";
 
