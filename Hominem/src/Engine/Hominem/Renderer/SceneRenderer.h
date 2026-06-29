@@ -9,6 +9,11 @@
 
 namespace Hominem {
 
+// Blackboard output types — published by passes, consumed by downstream passes.
+// TODO: add ShadowOutput (ESM shadow map depth ID + light-space matrix) when shadow mapping is implemented.
+// TODO: add DDGIOutput (irradiance volume texture + probe grid params) when DDGI is implemented.
+struct ExposureOutput { float value; };
+
 class SceneRenderer
 {
 public:
