@@ -180,6 +180,8 @@ void CommandList::SetCullFaceEnabled(bool enabled)
 void CommandList::Invoke(std::function<void()> fn)
 {
     m_Cmds.push_back(Cmd::Invoke{ std::move(fn) });
+    if (m_DeclaredState)
+        m_Cmds.push_back(Cmd::SetPipelineState{ *m_DeclaredState });
 }
 
 void CommandList::Submit()

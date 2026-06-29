@@ -49,13 +49,40 @@ void SceneRenderer::SetupPasses()
     m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f);
     m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f);
 
-    m_RenderGraph.AddPass("scene",           PipelineState::DepthTestWriteCull(), [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { GeometryPass(f, cmd);       });
-    m_RenderGraph.AddPass("auto_exposure",   PipelineState::NoDepthNoCull(),      [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { AutoExposurePass(f, cmd);   });
-    m_RenderGraph.AddPass("bloom_threshold", PipelineState::NoDepthNoCull(),      [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomThresholdPass(f, cmd); });
-    m_RenderGraph.AddPass("bloom_blur_h",    PipelineState::NoDepthNoCull(),      [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomBlurHPass(f, cmd);     });
-    m_RenderGraph.AddPass("bloom_blur_v",    PipelineState::NoDepthNoCull(),      [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomBlurVPass(f, cmd);     });
-    m_RenderGraph.AddPass("composite",       PipelineState::NoDepthNoCull(),      [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { CompositePass(f, cmd);      });
-    m_RenderGraph.AddPass("imgui",           PipelineState::AlphaBlendNoDepth(),  [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { ImGuiPass(f, cmd);          });
+    m_RenderGraph.AddPass("scene",
+        PipelineState::DepthTestWriteCull(),
+        PassBuilder{}.WriteFBO("hdr"),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { GeometryPass(f, cmd); });
+
+    m_RenderGraph.AddPass("auto_exposure",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{},
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { AutoExposurePass(f, cmd); });
+
+    m_RenderGraph.AddPass("bloom_threshold",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{}.Read("hdr.color", Slot::Color0).WriteFBO("bloom"),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomThresholdPass(f, cmd); });
+
+    m_RenderGraph.AddPass("bloom_blur_h",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{}.Read("bloom.color", Slot::Color0).WriteFBO("bloom_temp"),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomBlurHPass(f, cmd); });
+
+    m_RenderGraph.AddPass("bloom_blur_v",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{}.Read("bloom_temp.color", Slot::Color0).WriteFBO("bloom"),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomBlurVPass(f, cmd); });
+
+    m_RenderGraph.AddPass("composite",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{}.Read("hdr.color", Slot::Color0).Read("bloom.color", Slot::Color1),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { CompositePass(f, cmd); });
+
+    m_RenderGraph.AddPass("imgui",
+        PipelineState::AlphaBlendNoDepth(),
+        PassBuilder{},
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { ImGuiPass(f, cmd); });
 }
 
 void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
@@ -77,17 +104,23 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
             frame.bakedEnvMapOut->prefiltered = std::move(prefiltered);
             frame.bakedEnvMapOut->ready.store(true, std::memory_order_release);
         });
-        // Irradiance/prefilter convolutions use NoDepthNoCull; restore for the main 3D pass.
-        cmd.SetPipelineState(PipelineState::DepthTestWriteCull());
+        // Bake uses immediate RenderCommand GL calls that trash the bound FBO and viewport.
+        // Re-establish both so subsequent recorded commands target the right surface at
+        // the right size (bake's RenderCommand::SetViewport calls are immediate and override
+        // the graph's recorded SetViewport that ran before this Invoke).
+        auto hdrAfterBake = m_RenderGraph.GetFBO("hdr");
+        if (hdrAfterBake)
+        {
+            const auto& s = hdrAfterBake->GetSpecification();
+            cmd.BindFramebuffer(hdrAfterBake->GetRendererID());
+            cmd.SetViewport(0, 0, s.Width, s.Height);
+        }
     }
 
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
 
     const auto hdr = m_RenderGraph.GetFBO("hdr");
-    cmd.BindFramebuffer(hdr->GetRendererID());
-
     const auto& hdrSpec = hdr->GetSpecification();
-    cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
     cmd.SetClearColor(frame.clearColor);
     cmd.Clear();
 
@@ -103,7 +136,6 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
         cmd.SetFloat (m_SkyboxShader, "u_Intensity",   frame.skyboxIntensity);
         cmd.BindTexture(0, frame.skybox->GetRendererID());
         cmd.DrawFullscreenTriangle();
-        cmd.SetPipelineState(PipelineState::DepthTestWriteCull());
     }
 
     // Pass the FBO render dimensions so u_ScreenWidth and tile-culling dispatch
@@ -178,8 +210,7 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
 
         Renderer2D::EndScene();
     });
-
-    cmd.BindFramebuffer(0);
+    // FBO unbound by graph after this fn returns.
 }
 
 void SceneRenderer::ImGuiPass(const RenderFrame& frame, CommandList& cmd)
@@ -203,64 +234,52 @@ void SceneRenderer::ImGuiPass(const RenderFrame& frame, CommandList& cmd)
 void SceneRenderer::AutoExposurePass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
-    if (!frame.toneMappingEnabled) return;
-    auto hdr = m_RenderGraph.GetFBO("hdr");
-    const auto& spec = hdr->GetSpecification();
-    uint32_t colorAttachment = hdr->GetColorAttachmentRendererID();
-    cmd.Invoke([this, colorAttachment, width = spec.Width, height = spec.Height]()
+    if (frame.toneMappingEnabled)
     {
-        m_AutoExposure.Compute(colorAttachment, width, height);
-    });
+        auto hdr = m_RenderGraph.GetFBO("hdr");
+        const auto& spec = hdr->GetSpecification();
+        uint32_t colorAttachment = hdr->GetColorAttachmentRendererID();
+        cmd.Invoke([this, colorAttachment, width = spec.Width, height = spec.Height]()
+        {
+            m_AutoExposure.Compute(colorAttachment, width, height);
+        });
+    }
+    m_RenderGraph.SetBlackboard(ExposureOutput{ m_AutoExposure.GetExposure() });
 }
 
 void SceneRenderer::BloomThresholdPass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
-    auto bloom = m_RenderGraph.GetFBO("bloom");
-    cmd.BindFramebuffer(bloom->GetRendererID());
-    auto& spec = bloom->GetSpecification();
-    cmd.SetViewport(0, 0, spec.Width, spec.Height);
+    // FBO bound, viewport set, slot 0 = hdr.color — all from PassBuilder.
     cmd.SetClearColor({ 0.f, 0.f, 0.f, 1.f });
     cmd.Clear();
     cmd.BindShader(m_ThresholdShader);
     cmd.SetInt  (m_ThresholdShader, "u_HDR",       0);
     cmd.SetFloat(m_ThresholdShader, "u_Threshold", frame.bloomThreshold);
-    cmd.BindTexture(0, m_RenderGraph.GetFBO("hdr")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::BloomBlurHPass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
-    auto dst = m_RenderGraph.GetFBO("bloom_temp");
-    cmd.BindFramebuffer(dst->GetRendererID());
-    auto& spec = dst->GetSpecification();
-    cmd.SetViewport(0, 0, spec.Width, spec.Height);
+    // FBO bound, viewport set, slot 0 = bloom.color — all from PassBuilder.
     cmd.BindShader(m_BlurShader);
     cmd.SetInt(m_BlurShader, "u_Src",        0);
     cmd.SetInt(m_BlurShader, "u_Horizontal", 1);
-    cmd.BindTexture(0, m_RenderGraph.GetFBO("bloom")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::BloomBlurVPass(const RenderFrame& frame, CommandList& cmd)
 {
     HMN_PROFILE_FUNCTION();
     if (!frame.bloomEnabled) return;
-    const auto dst = m_RenderGraph.GetFBO("bloom");
-    cmd.BindFramebuffer(dst->GetRendererID());
-    auto& spec = dst->GetSpecification();
-    cmd.SetViewport(0, 0, spec.Width, spec.Height);
+    // FBO bound, viewport set, slot 0 = bloom_temp.color — all from PassBuilder.
     cmd.BindShader(m_BlurShader);
     cmd.SetInt(m_BlurShader, "u_Src",        0);
     cmd.SetInt(m_BlurShader, "u_Horizontal", 0);
-    cmd.BindTexture(0, m_RenderGraph.GetFBO("bloom_temp")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    cmd.BindFramebuffer(0);
 }
 
 void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
@@ -268,20 +287,17 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
     HMN_PROFILE_FUNCTION();
 
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
-    auto hdrFBO = m_RenderGraph.GetFBO("hdr");
-    if (!hdrFBO) return;
+    // Slot 0 = hdr.color, slot 1 = bloom.color — bound by graph (PassBuilder).
+    // No WriteFBO — renders to the default backbuffer at full window resolution.
     cmd.SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
     cmd.BindShader(m_CompositeShader);
     cmd.SetInt  (m_CompositeShader, "u_HDR",               0);
     cmd.SetInt  (m_CompositeShader, "u_Bloom",             1);
-    cmd.SetFloat(m_CompositeShader, "u_Exposure",          m_AutoExposure.GetExposure());
+    cmd.SetFloat(m_CompositeShader, "u_Exposure",          m_RenderGraph.GetBlackboard<ExposureOutput>().value);
     cmd.SetFloat(m_CompositeShader, "u_BloomStrength",     frame.bloomStrength);
     cmd.SetInt  (m_CompositeShader, "u_BloomEnabled",       frame.bloomEnabled       ? 1 : 0);
     cmd.SetInt  (m_CompositeShader, "u_ToneMappingEnabled", frame.toneMappingEnabled ? 1 : 0);
-    cmd.BindTexture(0, hdrFBO->GetColorAttachmentRendererID());
-    cmd.BindTexture(1, m_RenderGraph.GetFBO("bloom")->GetColorAttachmentRendererID());
     cmd.DrawFullscreenTriangle();
-    // RenderGraph calls Submit() after — bloom FBO was unbound by BloomBlurVPass, so draws to window
 }
 
 }

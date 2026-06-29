@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <optional>
 
 namespace Hominem {
 
@@ -145,8 +146,14 @@ public:
     void MultiDrawElementsIndirect(uint32_t byteOffset, uint32_t drawCount, uint32_t stride);
     void SetCullFaceEnabled(bool enabled);
 
-    /// Records arbitrary immediate work to run in order at Submit() time.
+    /// Records arbitrary immediate work to run at Submit() time. Automatically
+    /// appends a SetPipelineState restore after the callback so GL state
+    /// corruption inside the lambda can't leak into subsequent recorded commands.
     void Invoke(std::function<void()> fn);
+
+    /// Stores the pass's declared pipeline state for auto-restore after Invoke.
+    /// Called by RenderGraph::Record — not intended for use inside pass fns.
+    void SetDeclaredState(const PipelineState& state) { m_DeclaredState = state; }
 
     /// Replays all recorded commands through the RendererAPI in order, then clears the list.
     void Submit();
@@ -154,8 +161,9 @@ public:
 private:
     explicit CommandList(RendererAPI* api) : m_API(api) {}
 
-    RendererAPI*            m_API = nullptr;
-    std::vector<GpuCommand> m_Cmds;
+    RendererAPI*                   m_API = nullptr;
+    std::vector<GpuCommand>        m_Cmds;
+    std::optional<PipelineState>   m_DeclaredState;
 
     friend class RenderCommand;
 };
