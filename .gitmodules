@@ -34,3 +34,12 @@
 [submodule "Hominem/vendor/meshoptimizer"]
 	path = Hominem/vendor/meshoptimizer
 	url = https://github.com/zeux/meshoptimizer.git
+[submodule "Hominem/vendor/volk"]
+	path = Hominem/vendor/volk
+	url = https://github.com/zeux/volk.git
+[submodule "Hominem/vendor/VulkanMemoryAllocator"]
+	path = Hominem/vendor/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "Hominem/vendor/Vulkan-Headers"]
+	path = Hominem/vendor/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
