@@ -136,6 +136,36 @@ else()
     )
 endif()
 
+if(WIN32)
+    set(_VK_SDK_ROOT "")
+    if(DEFINED ENV{VULKAN_SDK})
+        set(_VK_SDK_ROOT "$ENV{VULKAN_SDK}")
+    else()
+        file(GLOB _VK_SDK_CANDIDATES "C:/VulkanSDK/*")
+        list(SORT _VK_SDK_CANDIDATES ORDER DESCENDING)
+        foreach(_candidate IN LISTS _VK_SDK_CANDIDATES)
+            if(IS_DIRECTORY "${_candidate}" AND EXISTS "${_candidate}/Lib/shaderc_combined.lib")
+                set(_VK_SDK_ROOT "${_candidate}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    if(_VK_SDK_ROOT AND EXISTS "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib")
+        message(STATUS "Vulkan SDK: ${_VK_SDK_ROOT}")
+        add_library(shaderc_lib STATIC IMPORTED GLOBAL)
+        set_target_properties(shaderc_lib PROPERTIES
+            IMPORTED_LOCATION_DEBUG          "${_VK_SDK_ROOT}/Lib/shaderc_combinedd.lib"
+            IMPORTED_LOCATION_RELEASE        "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
+            IMPORTED_LOCATION_RELWITHDEBINFO "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
+            IMPORTED_LOCATION_MINSIZEREL     "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
+            INTERFACE_INCLUDE_DIRECTORIES    "${_VK_SDK_ROOT}/Include"
+        )
+    else()
+        message(WARNING "Vulkan SDK not found — shaderc will not be available")
+    endif()
+endif()
+
 set(FREETYPE_WITH_ZLIB     OFF CACHE BOOL "" FORCE)
 set(FREETYPE_WITH_BZIP2    OFF CACHE BOOL "" FORCE)
 set(FREETYPE_WITH_PNG      OFF CACHE BOOL "" FORCE)
@@ -183,6 +213,9 @@ set(VENDOR_INCLUDES
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/Box2D/include
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/tracy/public
     ${CMAKE_SOURCE_DIR}/Hominem/vendor/meshoptimizer/src
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/volk
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/Vulkan-Headers/include
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/VulkanMemoryAllocator/include
 )
 
 # Vendor libs compiled without debug info — we never step into them in the debugger
@@ -205,6 +238,18 @@ set(COMMON_DEFINES
 )
 
 add_subdirectory(Hominem/vendor/meshoptimizer)
+
+add_library(Vulkan-Headers INTERFACE)
+target_include_directories(Vulkan-Headers INTERFACE
+    ${CMAKE_SOURCE_DIR}/Hominem/vendor/Vulkan-Headers/include
+)
+
+add_library(volk STATIC Hominem/vendor/volk/volk.c)
+target_include_directories(volk PUBLIC ${CMAKE_SOURCE_DIR}/Hominem/vendor/volk)
+target_link_libraries(volk PUBLIC Vulkan-Headers)
+if(WIN32)
+    target_compile_definitions(volk PUBLIC VK_USE_PLATFORM_WIN32_KHR)
+endif()
 
 add_library(stb_image STATIC Hominem/vendor/stb_image/stb_image.cpp)
 target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
@@ -246,9 +291,18 @@ target_precompile_headers(Hominem PRIVATE
 
 target_compile_definitions(Hominem PRIVATE ${COMMON_DEFINES})
 
-target_link_libraries(Hominem PUBLIC
-    glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/Hominem/src/Platform/Vulkan/VulkanMemory.cpp"
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
+
+target_link_libraries(Hominem PUBLIC
+    glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer volk
+)
+
+if(TARGET shaderc_lib)
+    target_link_libraries(Hominem PUBLIC shaderc_lib)
+endif()
 
 if(WIN32)
     target_link_libraries(Hominem PUBLIC winmm ws2_32 dbghelp)

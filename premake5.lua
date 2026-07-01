@@ -32,6 +32,15 @@ IncludeDir["json"]           = "Hominem/vendor/json"
 IncludeDir["Box2D"]          = "Hominem/vendor/Box2D/include"
 IncludeDir["tracy"]          = "Hominem/vendor/tracy/public"
 IncludeDir["meshoptimizer"]  = "Hominem/vendor/meshoptimizer/src"
+IncludeDir["volk"]              = "Hominem/vendor/volk"
+IncludeDir["VulkanHeaders"]     = "Hominem/vendor/Vulkan-Headers/include"
+IncludeDir["VulkanMemAlloc"]    = "Hominem/vendor/VulkanMemoryAllocator/include"
+
+local VulkanSDK = os.getenv("VULKAN_SDK") or ""
+if VulkanSDK == "" then
+    print("WARNING: VULKAN_SDK not set — shaderc_combined will not link until the Vulkan SDK is installed")
+end
+IncludeDir["shaderc"] = VulkanSDK .. "/Include"
 
 include "Hominem/vendor/GLFW"
 include "Hominem/vendor/Glad"
@@ -64,7 +73,11 @@ VendorIncludes = {
     "%{IncludeDir.json}",
     "%{IncludeDir.Box2D}",
     "%{IncludeDir.tracy}",
-    "%{IncludeDir.meshoptimizer}"
+    "%{IncludeDir.meshoptimizer}",
+    "%{IncludeDir.volk}",
+    "%{IncludeDir.VulkanHeaders}",
+    "%{IncludeDir.VulkanMemAlloc}",
+    "%{IncludeDir.shaderc}"
 }
 
 project "Hominem"
@@ -92,13 +105,19 @@ project "Hominem"
         "Hominem/vendor/tinyexr/tinyexr.h",
         "Hominem/vendor/tinyexr/tinyexr.cpp",
         "Hominem/vendor/glm/glm/**.hpp",
-        "Hominem/vendor/glm/glm/**.inl"
+        "Hominem/vendor/glm/glm/**.inl",
+        "Hominem/vendor/volk/volk.c"
     }
 
-    -- stb_image and tinyexr compile as plain TUs without the PCH
+    -- stb_image, tinyexr, and volk compile as plain TUs without the PCH
     filter "files:**/stb_image/**.cpp"
         enablepch "Off"
     filter "files:**/tinyexr/**.cpp"
+        enablepch "Off"
+    filter "files:**/volk/volk.c"
+        enablepch "Off"
+    -- VMA implementation TU: isolated from the PCH because it's a huge header-only lib.
+    filter "files:**/Vulkan/VulkanMemory.cpp"
         enablepch "Off"
     filter {}
 
@@ -179,6 +198,7 @@ project "PostHominem"
     (
         table.move(VendorIncludes, 1, #VendorIncludes, 3,
             { "Hominem/src/Engine",
+              "Hominem/src",
               "PostHominem/src" })
     )
 
@@ -215,9 +235,10 @@ project "PostHominem"
         linkoptions { "/NODEFAULTLIB:LIBCMTD", "/DEBUG:FASTLINK" }
         libdirs {
             "Hominem/vendor/assimp/build/lib/Debug",
-            "Hominem/vendor/assimp/build/contrib/zlib/Debug"
+            "Hominem/vendor/assimp/build/contrib/zlib/Debug",
+            VulkanSDK .. "/Lib"
         }
-        links { "assimpd", "zlibstaticd" }
+        links { "assimpd", "zlibstaticd", "shaderc_combinedd" }
 
     filter "configurations:Release"
         defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
@@ -225,9 +246,10 @@ project "PostHominem"
         runtime "Release"
         libdirs {
             "Hominem/vendor/assimp/build/lib/Release",
-            "Hominem/vendor/assimp/build/contrib/zlib/Release"
+            "Hominem/vendor/assimp/build/contrib/zlib/Release",
+            VulkanSDK .. "/Lib"
         }
-        links { "assimp", "zlibstatic" }
+        links { "assimp", "zlibstatic", "shaderc_combined" }
 
     filter "configurations:Dist"
         defines { "HMN_DIST", "NDEBUG" }
@@ -235,6 +257,7 @@ project "PostHominem"
         runtime "Release"
         libdirs {
             "Hominem/vendor/assimp/build/lib/Release",
-            "Hominem/vendor/assimp/build/contrib/zlib/Release"
+            "Hominem/vendor/assimp/build/contrib/zlib/Release",
+            VulkanSDK .. "/Lib"
         }
-        links { "assimp", "zlibstatic" }
+        links { "assimp", "zlibstatic", "shaderc_combined" }
