@@ -33,10 +33,12 @@ void SceneRenderer::Init()
     m_SkyboxShader    = Renderer3D::GetShaderLibrary()->Get("skybox");
     m_FireQuadShader  = Renderer3D::GetShaderLibrary()->Get("fire_quad");
     m_SmokeQuadShader = Renderer3D::GetShaderLibrary()->Get("smoke_quad");
+    m_VkBlitShader    = Renderer3D::GetShaderLibrary()->Get("vk_blit");
 }
 
 void SceneRenderer::Shutdown()
 {
+    m_VkBlitShader.reset();
     m_ThresholdShader.reset();
     m_BlurShader.reset();
     m_CompositeShader.reset();
@@ -78,6 +80,11 @@ void SceneRenderer::SetupPasses()
         PipelineState::NoDepthNoCull(),
         PassBuilder{}.Read("hdr.color", Slot::Color0).Read("bloom.color", Slot::Color1),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { CompositePass(f, cmd); });
+
+    m_RenderGraph.AddPass("vk_output",
+        PipelineState::AlphaBlendNoDepth(),
+        PassBuilder{},
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { VulkanBlitPass(f, cmd); });
 
     m_RenderGraph.AddPass("imgui",
         PipelineState::AlphaBlendNoDepth(),
@@ -297,6 +304,16 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
     cmd.SetFloat(m_CompositeShader, "u_BloomStrength",     frame.bloomStrength);
     cmd.SetInt  (m_CompositeShader, "u_BloomEnabled",       frame.bloomEnabled       ? 1 : 0);
     cmd.SetInt  (m_CompositeShader, "u_ToneMappingEnabled", frame.toneMappingEnabled ? 1 : 0);
+    cmd.DrawFullscreenTriangle();
+}
+
+void SceneRenderer::VulkanBlitPass(const RenderFrame& frame, CommandList& cmd)
+{
+    if (!m_SharedVkTexture || frame.vulkanPasses.empty()) return;
+
+    cmd.BindShader (m_VkBlitShader);
+    cmd.SetInt     (m_VkBlitShader, "u_VkTexture", 0);
+    cmd.BindTexture(0, m_SharedVkTexture);
     cmd.DrawFullscreenTriangle();
 }
 

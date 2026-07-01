@@ -2,75 +2,36 @@
 #include "Shader.h"
 
 #include "Platform/OpenGL/OpenGLShader.h"
-#include "Renderer.h"
 
 namespace Hominem {
 
 	Ref<Shader> Shader::Create(const std::string& filepath)
 	{
-		switch (Renderer::GetAPI())
-		{
-			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(filepath);
-		}
-		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-		return nullptr;
+		return CreateRef<OpenGLShader>(filepath);
 	}
 
 	Ref<Shader> Shader::Create(const std::string& filepath, const std::vector<std::string>& defines)
 	{
-		switch (Renderer::GetAPI())
-		{
-			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(filepath, defines);
-		}
-		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-		return nullptr;
-	}
-
-	void Shader::UnbindAll()
-	{
-		switch (Renderer::GetAPI())
-		{
-		case RendererAPI::API::None:
-			HMN_CORE_ASSERT(false, "RendererAPI::None is not supported");
-			return;
-
-		case RendererAPI::API::OpenGL:
-			OpenGLShader::UnbindAll();
-			return;
-		}
-
-		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
+		return CreateRef<OpenGLShader>(filepath, defines);
 	}
 
 	Ref<Shader> Shader::Create(const std::string& name, const std::filesystem::path& vertexPath, const std::filesystem::path& fragmentPath)
 	{
-		switch (Renderer::GetAPI())
-		{
-			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(name, vertexPath, fragmentPath);
-		}
-
-		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-		return nullptr;
+		return CreateRef<OpenGLShader>(name, vertexPath, fragmentPath);
 	}
 
 	Ref<Shader> Shader::Create(const std::string& name, const std::string& vertexSrc, const std::string& fragmentSrc)
 	{
-		switch (Renderer::GetAPI())
-		{
-			case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
-			case RendererAPI::API::OpenGL: return CreateRef<OpenGLShader>(name, vertexSrc, fragmentSrc);
-		}
+		return CreateRef<OpenGLShader>(name, vertexSrc, fragmentSrc);
+	}
 
-		HMN_CORE_ASSERT(false, "Unknown RendererAPI!");
-		return nullptr;
+	void Shader::UnbindAll()
+	{
+		OpenGLShader::UnbindAll();
 	}
 
 	void ShaderLibrary::Add(const std::string& name, const Ref<Shader>& shader)
 	{
-		//supports adding a custom shader name instead of default filename
 		HMN_CORE_ASSERT(!Exists(name), "Shader already exists in Shader Library!");
 		m_Shaders[name] = shader;
 	}
@@ -89,7 +50,6 @@ namespace Hominem {
 			shader->Reload();
 		}
 	}
-
 
 	void ShaderLibrary::Add(const Ref<Shader>& shader)
 	{
@@ -124,11 +84,7 @@ namespace Hominem {
 
 	Ref<ComputeShader> ComputeShader::Create(const std::string& filepath)
 	{
-		switch (Renderer::GetAPI())
-		{
-			case RendererAPI::API::OpenGL: return CreateRef<OpenGLComputeShader>(filepath);
-			default: HMN_CORE_ASSERT(false, "ComputeShader: unsupported API"); return nullptr;
-		}
+		return CreateRef<OpenGLComputeShader>(filepath);
 	}
 
 }

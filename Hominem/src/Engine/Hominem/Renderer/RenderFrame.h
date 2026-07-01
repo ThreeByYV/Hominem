@@ -14,6 +14,7 @@
 #include "Hominem/Renderer/Frustum.h"
 #include "Hominem/Renderer/FrameArena.h"
 #include "Hominem/Renderer/Skybox.h"
+#include "Hominem/Renderer/CommandList.h"
 
 namespace Hominem {
 
@@ -121,6 +122,30 @@ namespace Hominem {
 		float     seed        = 0.f;
 	};
 
+	using VulkanHandle = uint32_t;
+	static constexpr VulkanHandle kInvalidVulkanHandle = ~0u;
+
+	struct VulkanBufferData
+	{
+		uint32_t             binding;
+		VulkanHandle         handle;
+		std::vector<uint8_t> data;
+	};
+
+	struct VulkanStorageImageRef
+	{
+		uint32_t     binding;
+		VulkanHandle handle;
+	};
+
+	struct VulkanComputePass
+	{
+		std::string shaderSource;
+		std::string debugName;
+		std::vector<VulkanBufferData>      storageBuffers;
+		std::vector<VulkanStorageImageRef> storageImages;
+	};
+
 	/**
 	 * Plain-data snapshot of everything one frame needs to render.
 	 * Built on the main thread, consumed by the render thread.
@@ -173,8 +198,9 @@ namespace Hominem {
 		std::vector<MeshDraw>       meshes;
 		std::vector<StaticMeshDraw> staticMeshes;
 		std::vector<FireQuadDraw>   fireQuads;
-	std::vector<SmokeQuadDraw>  smokeQuads;
+		std::vector<SmokeQuadDraw>  smokeQuads;
 		std::vector<Light>          lights;
+		std::vector<VulkanComputePass> vulkanPasses;
 
 		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
 		FrameArena* arena = nullptr;
@@ -186,6 +212,15 @@ namespace Hominem {
 			auto* ptr = arena->Alloc<glm::mat4>(count);
 			return { ptr, count };
 		}
+	};
+
+	struct RecordedFrame
+	{
+		std::vector<CommandList>    passCmds;
+		std::vector<VulkanComputePass> vulkanPasses;
+		uint32_t                       viewportWidth  = 0;
+		uint32_t                    viewportHeight = 0;
+		float                       renderScale    = 1.0f;
 	};
 
 }

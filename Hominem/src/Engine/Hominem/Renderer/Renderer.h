@@ -1,34 +1,41 @@
 #pragma once
 
-#include "RenderCommand.h"
-#include "Camera.h"
-#include "Shader.h"
+#include "SceneRenderer.h"
+#include "RenderFrame.h"
+#include <array>
+#include <cstdint>
+#include <memory>
 
 namespace Hominem {
 
-	class Renderer 
-	{
-	public:
-		static void Init();
-		static void Shutdown();
-		static void OnWindowResize(uint32_t width, uint32_t height);
+class VulkanRaytracer;
+class OpenGLSharedResources;
 
-		static void BeginScene(OrthographicCamera& camera); // todo take in scene params here
-		static void EndScene();
+class Renderer
+{
+public:
+    Renderer();
+    ~Renderer();
 
-		static void Submit(const Ref<VertexArray>& vertexArray, const Ref<Shader>& shader, const glm::mat4& transform = glm::mat4(1.0f));
+    Renderer(const Renderer&)            = delete;
+    Renderer& operator=(const Renderer&) = delete;
 
-		inline static RendererAPI::API GetAPI() { return RendererAPI::GetAPI(); }
+    void Init(uint32_t w, uint32_t h);
+    void Shutdown();
+    void ExecuteFrame(RecordedFrame& frame);
 
-	private:
-		struct SceneData
-		{
-			glm::mat4 ViewProjectionMatrix;
-		};
+    void RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h);
+    void RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity);
 
-		static SceneData* m_SceneData;
+    SceneRenderer& GetSceneRenderer() { return m_SceneRenderer; }
 
-	};
+private:
+    void SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID);
 
+    SceneRenderer                    m_SceneRenderer;
+    std::unique_ptr<VulkanRaytracer>       m_VulkanRaytracer;
+    std::unique_ptr<OpenGLSharedResources> m_SharedResources;
+    uint32_t                               m_VkFrameIdx = 0;
+};
 
 }

@@ -1,13 +1,13 @@
 #include "hmnpch.h"
 #include "StaticMesh.h"
-#include "Renderer.h"
+#include "RendererAPI.h"
 #include "Platform/OpenGL/OpenGLStaticMesh.h"
 
 namespace Hominem {
 
     Ref<StaticMesh> StaticMesh::Create()
     {
-        switch (Renderer::GetAPI())
+        switch (RendererAPI::GetAPI())
         {
             case RendererAPI::API::None: HMN_CORE_ASSERT(false, "RendererAPI::None is currently not supported") return nullptr;
             case RendererAPI::API::OpenGL: return CreateRef<OpenGLStaticMesh>();

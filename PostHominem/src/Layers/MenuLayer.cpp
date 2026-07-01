@@ -1,6 +1,8 @@
 #include "hmnpch.h"
 #include "MenuLayer.h"
 #include "LoadingLayer.h"
+#include "VulkanTriangleLayer.h"
+
 
 #include "Hominem/Core/Application.h"
 #include "Hominem/Core/Input.h"
@@ -101,8 +103,10 @@ void MenuLayer::FireMenuAction(int index)
 	switch (index)
 	{
 		case 0: // Continue
-		case 1: // New Game
 			TransitionTo<LoadingLayer>();
+			break;
+		case 1: // New Game
+			TransitionTo<VulkanTriangleLayer>();
 			break;
 		case 4: // Quit
 			Application::Get().Close();

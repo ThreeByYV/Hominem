@@ -186,6 +186,7 @@ void CommandList::Invoke(std::function<void()> fn)
 
 void CommandList::Submit()
 {
+    //todo: this should be completely refactored, RendererAPI not even needed anymore vk doesnt go through that only GL we can hardcode
     for (const auto& cmd : m_Cmds)
     {
         std::visit([&]<typename T0>(const T0& c)
