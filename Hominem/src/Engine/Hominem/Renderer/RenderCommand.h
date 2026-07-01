@@ -7,10 +7,8 @@ namespace Hominem {
 class RenderCommand
 {
 public:
-    inline static void Init()
-    {
-        s_RendererAPI->Init();
-    }
+    inline static void Init()     { s_RendererAPI->Init(); }
+    inline static void Shutdown() { s_RendererAPI->Shutdown(); }
 
     /// Sets all rasterizer/blend/depth state and returns a CommandList token to issue draws.
     /// Every draw call must go through the returned CommandList, you cannot draw without one.

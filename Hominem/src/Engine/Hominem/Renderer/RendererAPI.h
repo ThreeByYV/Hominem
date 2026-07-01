@@ -30,8 +30,8 @@ namespace Hominem {
 	public:
 		enum class API { None = 0, OpenGL };
 
-		/// Initialises the API and creates persistent GL objects (e.g. empty VAO).
-		virtual void Init() = 0;
+		virtual void Init()      = 0;
+		virtual void Shutdown() {}
 
 		/// Sets all rasterizer/blend/depth state at once. Call at the start of every pass.
 		virtual void ApplyState(const PipelineState& s) = 0;

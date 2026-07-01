@@ -9,7 +9,6 @@
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
-#include "Hominem/Renderer/Renderer.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include <GLFW/glfw3.h>
@@ -50,7 +49,9 @@ namespace Hominem {
 		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
-		Renderer::Init();
+		RenderCommand::Init();
+		Renderer2D::Init();
+		Renderer3D::Init();
 		AssetManager::Init();
 
 		// Default gameplay action bindings. Games can rebind via InputMap::Bind.
@@ -172,6 +173,7 @@ namespace Hominem {
 			// Record every pass into CommandLists; the render thread only replays them.
 			RecordedFrame recorded;
 			recorded.passCmds       = m_RenderThread.GetSceneRenderer().Record(frame);
+			recorded.vulkanPasses   = std::move(frame.vulkanPasses);
 			recorded.viewportWidth  = frame.viewportWidth;
 			recorded.viewportHeight = frame.viewportHeight;
 			recorded.renderScale    = frame.renderScale;
@@ -196,7 +198,8 @@ namespace Hominem {
 			layer->OnDetach();
 		m_LayerStack.Clear();
 
-		Renderer::Shutdown();
+		Renderer3D::Shutdown();
+		Renderer2D::Shutdown();
 	}
 
 	bool Application::OnWindowClose(WindowCloseEvent& e)
@@ -215,7 +218,9 @@ namespace Hominem {
 
 		m_Minimized = false;
 
-		Renderer::OnWindowResize(e.GetWidth(), e.GetHeight());
+		RenderThread::QueueUpload([w = e.GetWidth(), h = e.GetHeight()] {
+			RenderCommand::SetViewport(0, 0, w, h);
+		});
 			
 		return false; //all layers will know about this event
 	}

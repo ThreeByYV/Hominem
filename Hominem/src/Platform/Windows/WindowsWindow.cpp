@@ -1,4 +1,4 @@
-#include "hmnpch.h"
+﻿#include "hmnpch.h"
 #include "WindowsWindow.h"
 
 #include "Hominem/Events/ApplicationEvent.h"
@@ -6,7 +6,6 @@
 #include "Hominem/Events/KeyEvent.h"
 
 #include "Platform/OpenGL/OpenGLContext.h"
-
 
 namespace Hominem {
 
@@ -47,7 +46,7 @@ namespace Hominem {
 		}
 
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-		
+
 		m_Context = new OpenGLContext(m_Window);
 		m_Context->Init();
 		
@@ -162,15 +161,7 @@ namespace Hominem {
 
 	void WindowsWindow::SetVSync(bool enabled)
 	{
-		if (enabled)
-		{
-			glfwSwapInterval(1); //waits one frame for it to be called / rendered
-		}
-		else
-		{
-			glfwSwapInterval(0);
-		}
-
+		glfwSwapInterval(enabled ? 1 : 0);
 		m_Data.VSync = enabled;
 	}
 

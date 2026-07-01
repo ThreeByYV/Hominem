@@ -1,6 +1,4 @@
 #pragma once
-// Specializations of AssetLoader<T> for all engine asset types.
-// Include this wherever you call AssetManager::Load<T> or LoadAsync<T>.
 
 #include "AssetManager.h"
 #include "Hominem/Renderer/Texture.h"
@@ -8,7 +6,10 @@
 #include "Hominem/Renderer/SkinnedMesh.h"
 #include "Hominem/Renderer/Font.h"
 #include "Hominem/Renderer/Skybox.h"
+#include "Hominem/Renderer/ShaderSource.h"
 #include "Hominem/Audio/SoundBuffer.h"
+
+#include <fstream>
 
 namespace Hominem {
 
@@ -42,6 +43,15 @@ template<> struct AssetLoader<Skybox> {
 
 template<> struct AssetLoader<SoundBuffer> {
     static Ref<SoundBuffer> Load(const std::string& path) { return SoundBuffer::CreateFromFile(path); }
+};
+
+template<> struct AssetLoader<ShaderSource> {
+    static Ref<ShaderSource> Load(const std::string& path)
+    {
+        std::ifstream f(path);
+        if (!f.is_open()) return nullptr;
+        return CreateRef<ShaderSource>(std::string{ std::istreambuf_iterator<char>(f), {} });
+    }
 };
 
 } // namespace Hominem

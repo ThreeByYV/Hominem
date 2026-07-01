@@ -1,84 +1,56 @@
 #include "hmnpch.h"
 #include "VulkanRaytracer.h"
-
-#include <unordered_map>
-#include <vector>
-
-#include "VulkanRenderer.h"
-#include "VulkanComputeShader.h"
-#include "VulkanStorageBuffer.h"
-#include "VulkanRenderTarget.h"
 #include "VulkanImage.h"
 
 namespace Hominem {
 
-struct VulkanRaytracer::Impl
-{
-    std::unique_ptr<VulkanRenderer>                      renderer;
-    std::unordered_map<std::string, VulkanComputeShader> shaders;
-
-    struct RTSlot { VulkanRenderTarget rt; bool needsTransition = true; bool valid = false; };
-    struct BufSlot { VulkanStorageBuffer buf; bool valid = false; };
-
-    std::vector<RTSlot>  renderTargets;
-    std::vector<BufSlot> buffers;
-};
-
-VulkanRaytracer::VulkanRaytracer()
-{
-    m_Impl = std::make_unique<Impl>();
-}
-
-VulkanRaytracer::~VulkanRaytracer() = default;
-
 void VulkanRaytracer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferredLUID, std::string preferredName)
 {
-    m_Impl->renderer = std::make_unique<VulkanRenderer>();
-    m_Impl->renderer->Init(w, h, preferredLUID, std::move(preferredName));
+    m_Renderer = std::make_unique<VulkanRenderer>();
+    m_Renderer->Init(w, h, preferredLUID, std::move(preferredName));
 }
 
 void VulkanRaytracer::Shutdown()
 {
-    auto device    = m_Impl->renderer->GetDevice();
-    auto allocator = m_Impl->renderer->GetAllocator();
+    auto device    = m_Renderer->GetDevice();
+    auto allocator = m_Renderer->GetAllocator();
 
-    for (auto& [_, shader] : m_Impl->shaders)
+    for (auto& [_, shader] : m_Shaders)
         shader.Destroy();
-    for (auto& slot : m_Impl->renderTargets)
+    for (auto& slot : m_RenderTargets)
         if (slot.valid) slot.rt.Destroy(device, allocator);
-    for (auto& slot : m_Impl->buffers)
+    for (auto& slot : m_Buffers)
         if (slot.valid) slot.buf.Destroy(allocator);
 
-    m_Impl->renderer->Shutdown();
-    m_Impl->renderer.reset();
+    m_Renderer->Shutdown();
+    m_Renderer.reset();
 }
 
 void VulkanRaytracer::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
 {
-    auto device    = m_Impl->renderer->GetDevice();
-    auto allocator = m_Impl->renderer->GetAllocator();
+    auto device    = m_Renderer->GetDevice();
+    auto allocator = m_Renderer->GetAllocator();
 
-    if (handle >= m_Impl->renderTargets.size())
-        m_Impl->renderTargets.resize(handle + 1);
+    if (handle >= m_RenderTargets.size())
+        m_RenderTargets.resize(handle + 1);
 
-    auto& slot = m_Impl->renderTargets[handle];
+    auto& slot = m_RenderTargets[handle];
     if (slot.valid)
         slot.rt.Destroy(device, allocator);
 
-    slot.rt              = VulkanRenderTarget::Create(device, allocator, w, h,
-                                                      VK_FORMAT_R16G16B16A16_SFLOAT);
+    slot.rt              = VulkanRenderTarget::Create(device, allocator, w, h, VK_FORMAT_R16G16B16A16_SFLOAT);
     slot.needsTransition = true;
     slot.valid           = true;
 }
 
 void VulkanRaytracer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity)
 {
-    auto allocator = m_Impl->renderer->GetAllocator();
+    auto allocator = m_Renderer->GetAllocator();
 
-    if (handle >= m_Impl->buffers.size())
-        m_Impl->buffers.resize(handle + 1);
+    if (handle >= m_Buffers.size())
+        m_Buffers.resize(handle + 1);
 
-    auto& slot = m_Impl->buffers[handle];
+    auto& slot = m_Buffers[handle];
     if (slot.valid)
         slot.buf.Destroy(allocator);
 
@@ -88,30 +60,27 @@ void VulkanRaytracer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capaci
 
 void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
 {
-    VkCommandBuffer cmd = m_Impl->renderer->BeginFrame();
+    VkCommandBuffer cmd = m_Renderer->BeginFrame();
+    m_Renderer->PrepareComputeOnDrawImage();
 
-    m_Impl->renderer->PrepareComputeOnDrawImage();
-
-    auto           device   = m_Impl->renderer->GetDevice();
-    const uint32_t frameIdx = m_Impl->renderer->GetCurrentFrameIndex();
-    auto [w, h]             = m_Impl->renderer->GetDrawExtent();
+    auto           device   = m_Renderer->GetDevice();
+    const uint32_t frameIdx = m_Renderer->GetCurrentFrameIndex();
+    auto [w, h]             = m_Renderer->GetDrawExtent();
 
     for (auto& pass : passes)
     {
-        auto sit = m_Impl->shaders.find(pass.debugName);
-        if (sit == m_Impl->shaders.end())
+        auto sit = m_Shaders.find(pass.debugName);
+        if (sit == m_Shaders.end())
         {
             std::vector<ComputeBindingSpec> specs = {
                 { .binding = 0, .type = ComputeBindingSpec::Type::StorageImage }
             };
             for (auto& buf : pass.storageBuffers)
-                specs.push_back({ .binding = buf.binding,
-                                  .type    = ComputeBindingSpec::Type::StorageBuffer });
+                specs.push_back({ .binding = buf.binding, .type = ComputeBindingSpec::Type::StorageBuffer });
             for (auto& img : pass.storageImages)
-                specs.push_back({ .binding = img.binding,
-                                  .type    = ComputeBindingSpec::Type::StorageImage });
+                specs.push_back({ .binding = img.binding, .type = ComputeBindingSpec::Type::StorageImage });
 
-            sit = m_Impl->shaders.emplace(
+            sit = m_Shaders.emplace(
                 pass.debugName,
                 VulkanComputeShader::Create(device, pass.shaderSource, pass.debugName, specs)
             ).first;
@@ -120,26 +89,20 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
 
         for (auto& bufData : pass.storageBuffers)
         {
-            HMN_CORE_ASSERT(bufData.handle < m_Impl->buffers.size() &&
-                            m_Impl->buffers[bufData.handle].valid,
-                "VulkanHandle {} used in pass '{}' was never registered",
-                bufData.handle, pass.debugName);
+            HMN_CORE_ASSERT(bufData.handle < m_Buffers.size() && m_Buffers[bufData.handle].valid,
+                "VulkanHandle {} used in pass '{}' was never registered", bufData.handle, pass.debugName);
 
-            auto& slot = m_Impl->buffers[bufData.handle];
-            slot.buf.Upload(bufData.data.data(),
-                            static_cast<VkDeviceSize>(bufData.data.size()));
-            shader.WriteStorageBuffer(frameIdx, bufData.binding,
-                                      slot.buf.GetBuffer(), slot.buf.GetCapacity());
+            auto& slot = m_Buffers[bufData.handle];
+            slot.buf.Upload(bufData.data.data(), static_cast<VkDeviceSize>(bufData.data.size()));
+            shader.WriteStorageBuffer(frameIdx, bufData.binding, slot.buf.GetBuffer(), slot.buf.GetCapacity());
         }
 
         for (auto& img : pass.storageImages)
         {
-            HMN_CORE_ASSERT(img.handle < m_Impl->renderTargets.size() &&
-                            m_Impl->renderTargets[img.handle].valid,
-                "VulkanHandle {} used in pass '{}' was never registered",
-                img.handle, pass.debugName);
+            HMN_CORE_ASSERT(img.handle < m_RenderTargets.size() && m_RenderTargets[img.handle].valid,
+                "VulkanHandle {} used in pass '{}' was never registered", img.handle, pass.debugName);
 
-            auto& slot = m_Impl->renderTargets[img.handle];
+            auto& slot = m_RenderTargets[img.handle];
             if (slot.needsTransition)
             {
                 VulkanImage::TransitionUndefinedToGeneral(cmd, slot.rt.GetImage());
@@ -148,41 +111,11 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
             shader.WriteStorageImage(frameIdx, img.binding, slot.rt.GetImageView());
         }
 
-        shader.WriteStorageImage(frameIdx, 0, m_Impl->renderer->GetDrawImageView());
+        shader.WriteStorageImage(frameIdx, 0, m_Renderer->GetDrawImageView());
         shader.Dispatch(cmd, frameIdx, (w + 15) / 16, (h + 15) / 16);
     }
 
-    m_Impl->renderer->EndFrame();
-}
-
-HANDLE VulkanRaytracer::GetDrawImageWin32Handle()
-{
-    return m_Impl->renderer->GetDrawImageWin32Handle();
-}
-
-HANDLE VulkanRaytracer::GetComputeDoneSemaphoreWin32Handle(uint32_t frameIdx)
-{
-    return m_Impl->renderer->GetComputeDoneSemaphoreWin32Handle(frameIdx);
-}
-
-VkDeviceSize VulkanRaytracer::GetDrawImageMemorySize() const
-{
-    return m_Impl->renderer->GetDrawImageMemorySize();
-}
-
-VkExtent2D VulkanRaytracer::GetDrawExtent() const
-{
-    return m_Impl->renderer->GetDrawExtent();
-}
-
-uint32_t VulkanRaytracer::GetCurrentFrameIndex() const
-{
-    return m_Impl->renderer->GetCurrentFrameIndex();
-}
-
-std::array<uint8_t, 8> VulkanRaytracer::GetDeviceLUID() const
-{
-    return m_Impl->renderer->GetDeviceLUID();
+    m_Renderer->EndFrame();
 }
 
 }
