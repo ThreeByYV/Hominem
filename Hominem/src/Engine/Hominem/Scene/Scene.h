@@ -2,7 +2,7 @@
 
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Scene/Actor.h"
-#include "Hominem/Scene/SceneCamera.h"
+#include "Hominem/Renderer/Camera.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Renderer/Texture.h"
@@ -55,8 +55,8 @@ namespace Hominem {
 		void OnRuntimeStart() {}
 		void OnRuntimeStop()  {}
 
-		SceneCamera&       GetCamera()         { return m_Camera; }
-		const SceneCamera& GetCamera() const   { return m_Camera; }
+		Camera&       GetCamera()         { return m_Camera; }
+		const Camera& GetCamera() const   { return m_Camera; }
 		glm::vec3&         GetCameraPosition() { return m_CameraPosition; }
 		glm::vec3&         GetCameraFront()    { return m_CameraFront; }
 
@@ -127,7 +127,7 @@ namespace Hominem {
 	private:
 		std::vector<Scope<Actor>> m_Actors;
 
-		SceneCamera m_Camera;
+		Camera m_Camera;
 		glm::vec3   m_CameraPosition{ 0.f };
 		glm::vec3   m_CameraFront{ 0.f, 0.f, -1.f }; // default: looking down -Z
 		uint32_t    m_ViewportWidth  = 0;

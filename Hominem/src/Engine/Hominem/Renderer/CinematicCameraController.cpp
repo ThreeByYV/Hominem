@@ -14,6 +14,25 @@ namespace Hominem {
         RecalculateProjection();
     }
 
+    void CinematicCameraController::Init(Camera& camera, glm::vec3& cameraPos, glm::vec3& cameraFront,
+                                          uint32_t viewportW, uint32_t viewportH, const glm::vec3& initialPos,
+                                          float visibleHeight, float leadStrength, float yDeadZone, float smoothing,
+                                          float yBias)
+    {
+        SetCameraTarget(&camera, &cameraPos);
+        SetDefaultFraming({ 0.f, yBias, initialPos.z }, visibleHeight);
+        LeadStrength = leadStrength;
+        YDeadZone    = yDeadZone;
+        SetSmoothingFactor(smoothing);
+
+        // Wide near/far range: near=0 would clip anything level with the camera, and the
+        // player/level can sit tens of units in front of camera's Z placement (k_CameraZOffset).
+        camera.SetOrthographic(visibleHeight, 0.1f, 1000.f);
+        camera.SetViewportSize(viewportW, viewportH);
+        cameraFront = { 0.f, 0.f, -1.f };
+        cameraPos   = initialPos;
+    }
+
     void CinematicCameraController::OnUpdate(Timestep ts)
     {
         if (!m_InCinematic)
@@ -44,9 +63,30 @@ namespace Hominem {
                 m_SmoothingFactor = 0.05f;
         }
 
-        // Write smoothed position directly into the Scene's camera position.
-        if (m_CameraPosition)
+        if (!m_CameraPosition) return;
+
+        if (m_InCinematic)
+        {
+            // Cinematic paths already computed a specific target above — no dead zone.
             *m_CameraPosition = glm::mix(*m_CameraPosition, m_TargetPosition, m_SmoothingFactor);
+            return;
+        }
+
+        m_CameraPosition->x = glm::mix(m_CameraPosition->x, m_TargetPosition.x, m_SmoothingFactor);
+
+        const float deltaY    = m_TargetPosition.y - m_CameraPosition->y;
+        const float absDeltaY = glm::abs(deltaY);
+        if (absDeltaY > YDeadZone)
+            m_CameraPosition->y = glm::mix(m_CameraPosition->y,
+                m_TargetPosition.y - glm::sign(deltaY) * YDeadZone, m_SmoothingFactor);
+
+        m_CameraPosition->z = m_TargetPosition.z;
+    }
+
+    void CinematicCameraController::Snap()
+    {
+        if (m_CameraPosition)
+            *m_CameraPosition = m_TargetPosition;
     }
 
     void CinematicCameraController::OnEvent(Event& e)
@@ -200,23 +240,25 @@ namespace Hominem {
         }
     }
 
-    void CinematicCameraController::UpdateCameraForPlayer(glm::vec2 playerPos)
+    void CinematicCameraController::UpdateCameraForPlayer(glm::vec2 playerPos, glm::vec2 velocity)
     {
-        if (m_CameraPoints.size() < 2)
-            return;
-
         m_CurrentPlayerPos = playerPos;
 
-        if (!m_InCinematic)
-        {
-            CameraPoint point = InterpolateCameraPoint(playerPos.x);
-            m_TargetPosition  = glm::vec3(playerPos.x, playerPos.y, 0.f) + point.CameraOffset;
+        if (m_InCinematic)
+            return;
 
-            if (std::abs(m_ZoomLevel - point.CameraZoom) > 0.01f)
-            {
-                m_ZoomLevel = point.CameraZoom;
-                RecalculateProjection();
-            }
+        CameraPoint point = (m_CameraPoints.size() >= 2)
+            ? InterpolateCameraPoint(playerPos.x)
+            : CameraPoint{ playerPos.x, m_DefaultOffset, m_DefaultZoom };
+
+        // Projected-focus: lead the camera in the direction of travel.
+        const float leadX = playerPos.x + velocity.x * LeadStrength;
+        m_TargetPosition  = glm::vec3(leadX, playerPos.y, 0.f) + point.CameraOffset;
+
+        if (std::abs(m_ZoomLevel - point.CameraZoom) > 0.01f)
+        {
+            m_ZoomLevel = point.CameraZoom;
+            RecalculateProjection();
         }
     }
 
