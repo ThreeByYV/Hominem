@@ -1,8 +1,16 @@
 cmake_minimum_required(VERSION 3.22)
+
+# Forced /MD + IDL=0 everywhere: shaderc/assimp only ship as Release libs here.
+# TODO: build them from source in matching Debug config, then remove this.
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+
 project(HominemWorkspace CXX C)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 
 # ── Block msys64/MinGW header contamination ───────────────────────────────────
 # When msys64 is on the system PATH, CMake's find_package() resolves ZLIB/PNG/
@@ -103,7 +111,7 @@ endif()
 add_library(assimp_lib STATIC IMPORTED GLOBAL)
 if(MSVC)
     set_target_properties(assimp_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Debug/assimpd.lib"
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
         IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
         IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
         IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
@@ -122,7 +130,7 @@ endif()
 add_library(zlib_lib STATIC IMPORTED GLOBAL)
 if(MSVC)
     set_target_properties(zlib_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Debug/zlibstaticd.lib"
+        IMPORTED_LOCATION_DEBUG          "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
         IMPORTED_LOCATION_RELEASE        "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
         IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
         IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
@@ -155,7 +163,7 @@ if(WIN32)
         message(STATUS "Vulkan SDK: ${_VK_SDK_ROOT}")
         add_library(shaderc_lib STATIC IMPORTED GLOBAL)
         set_target_properties(shaderc_lib PROPERTIES
-            IMPORTED_LOCATION_DEBUG          "${_VK_SDK_ROOT}/Lib/shaderc_combinedd.lib"
+            IMPORTED_LOCATION_DEBUG          "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
             IMPORTED_LOCATION_RELEASE        "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
             IMPORTED_LOCATION_RELWITHDEBINFO "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
             IMPORTED_LOCATION_MINSIZEREL     "${_VK_SDK_ROOT}/Lib/shaderc_combined.lib"
@@ -232,7 +240,7 @@ set(COMMON_DEFINES
     _CRT_SECURE_NO_WARNINGS
     GLM_ENABLE_EXPERIMENTAL
     HMN_PLATFORM_WINDOWS
-    $<$<CONFIG:Debug>:HMN_DEBUG;HMN_ENABLE_ASSERTS;_DEBUG;TRACY_ENABLE;TRACY_NO_SYSTEM_TRACING>
+    $<$<CONFIG:Debug>:HMN_DEBUG;HMN_ENABLE_ASSERTS;TRACY_ENABLE;TRACY_NO_SYSTEM_TRACING>
     $<$<CONFIG:Release>:HMN_RELEASE;NDEBUG;TRACY_ENABLE;TRACY_NO_SYSTEM_TRACING>
     $<$<CONFIG:Dist>:HMN_DIST;NDEBUG>
 )
@@ -253,7 +261,7 @@ endif()
 
 add_library(stb_image STATIC Hominem/vendor/stb_image/stb_image.cpp)
 target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
-set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 target_compile_options(stb_image PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
 # tinyexr — HDR/EXR loader (stb_image-style single header). Uses the project's
@@ -265,7 +273,7 @@ target_include_directories(tinyexr PRIVATE
     ${_ASSIMP_ZLIB_INC}
 )
 target_link_libraries(tinyexr PRIVATE zlib_lib)
-set_target_properties(tinyexr PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+set_target_properties(tinyexr PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 target_compile_options(tinyexr PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
 file(GLOB_RECURSE ENGINE_SOURCES
