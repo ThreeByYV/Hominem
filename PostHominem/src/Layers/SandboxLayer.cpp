@@ -30,7 +30,7 @@ SceneDesc SandboxLayer::Describe()
 				ctx.SpawnActor<InfiniteFloorActor>(FloorConfig{});
 				m_Player        = &ctx.SpawnActor<Player>(PlayerConfig{});
 				m_NarrativeText = &ctx.SpawnActor<NarrativeTextActor>();
-				m_NarrativeText->Show("Any victory against death will always be temporary");
+				m_NarrativeText->Show("The only way to get away from loneliness is to love it.");
 			}
 		}
 	};
