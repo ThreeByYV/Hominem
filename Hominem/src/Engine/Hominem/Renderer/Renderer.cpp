@@ -1,7 +1,6 @@
 #include "hmnpch.h"
 #include "Renderer.h"
 #include "Platform/Vulkan/VulkanRaytracer.h"
-#include "Platform/OpenGL/OpenGLSharedResources.h"
 
 namespace Hominem {
 
@@ -10,9 +9,8 @@ Renderer::~Renderer() = default;
 
 void Renderer::Init(uint32_t w, uint32_t h)
 {
-    //todo: platform specific code prob shouldn't be here, but whatever for now
-    auto glLUID = OpenGLSharedResources::GetDeviceLUID();
-    auto glName = OpenGLSharedResources::GetDeviceName();
+    auto glLUID = SharedResources::GetDeviceLUID();
+    auto glName = SharedResources::GetDeviceName();
 
     m_VulkanRaytracer = std::make_unique<VulkanRaytracer>();
     m_VulkanRaytracer->Init(w, h, glLUID, glName);
@@ -37,7 +35,7 @@ void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>
         return;
     }
 
-    m_SharedResources = std::make_unique<OpenGLSharedResources>();
+    m_SharedResources = SharedResources::Create();
 
     HANDLE memHandle = m_VulkanRaytracer->GetDrawImageWin32Handle();
     m_SharedResources->ImportSharedTexture(memHandle, m_VulkanRaytracer->GetDrawImageMemorySize(), w, h);

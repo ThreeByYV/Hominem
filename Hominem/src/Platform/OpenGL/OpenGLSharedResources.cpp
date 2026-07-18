@@ -66,8 +66,7 @@ std::array<uint8_t, 8> OpenGLSharedResources::GetDeviceLUID()
     }
 
     std::array<uint8_t, 8> luid{};
-    for (GLuint i = 0; i < 8; ++i)
-        pfn(k_DeviceLUIDEXT, i, &luid[i]);
+    pfn(k_DeviceLUIDEXT, 0, luid.data());
     return luid;
 }
 
@@ -77,7 +76,7 @@ std::string OpenGLSharedResources::GetDeviceName()
     return renderer ? renderer : "";
 }
 
-void OpenGLSharedResources::ImportSharedTexture(HANDLE memHandle, VkDeviceSize memSize,
+void OpenGLSharedResources::ImportSharedTexture(HANDLE memHandle, uint64_t memSize,
                                                 uint32_t w, uint32_t h)
 {
     LoadProcs();
