@@ -100,17 +100,6 @@ namespace Hominem {
 		delete s_Data;
 	}
 
-	void Renderer2D::BeginScene(OrthographicCamera& camera)
-	{
-		s_Data->Cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
-		s_Data->ViewProjectionMatrix = camera.GetViewProjectionMatrix();
-		s_Data->QuadBatch.clear();
-		s_Data->TextureGroups.clear();
-
-		s_Data->TextureShader->Bind();
-		s_Data->TextureShader->SetMat4("u_ViewProjection", camera.GetViewProjectionMatrix());
-	}
-
 	void Renderer2D::BeginScene(Camera& camera, const glm::mat4& transform)
 	{
 		s_Data->Cmd = RenderCommand::SetPipelineState(PipelineState::AlphaBlendNoDepth());
