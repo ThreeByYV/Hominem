@@ -14,6 +14,14 @@ inline T Lerp(const T& a, const T& b, float t)
     return a + (b - a) * t;
 }
 
+/// How far elapsed is through duration, as a fraction clamped to [0,1].
+/// duration <= 0 is treated as "already complete" (returns 1), matching a disabled timer.
+inline float TimeProgress(float elapsed, float duration)
+{
+    if (duration <= 0.f) return 1.f;
+    return glm::clamp(elapsed / duration, 0.f, 1.f);
+}
+
 /// PCG-style integer hash. Use to derive deterministic pseudo-random values
 /// (e.g. per-instance shader seeds) from an index.
 static inline uint32_t PCG_Hash(int32_t input)

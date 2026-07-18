@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hominem/Cinematics/Cue.h"
+#include "Hominem/Utils/MathUtils.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -21,8 +22,8 @@ namespace Hominem {
 
 		void OnBuildRenderFrame(RenderFrame& frame, float localT) override
 		{
-			const float t     = (Duration > 0.f) ? glm::clamp(localT / Duration, 0.f, 1.f) : 1.f;
-			const float alpha = glm::mix(From, To, t);
+			const float t     = TimeProgress(localT, Duration);
+			const float alpha = Lerp(From, To, t);
 			if (alpha <= 0.001f)
 				return;
 

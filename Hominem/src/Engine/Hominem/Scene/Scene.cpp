@@ -61,7 +61,7 @@ namespace Hominem {
 
 		// Perspective matrices warp full-screen 2D quads into 3D space, so give
 		// perspective scenes a separate screen-space ortho projection for 2D content.
-		if (m_Camera.GetProjectionType() == SceneCamera::ProjectionType::Perspective)
+		if (m_Camera.GetProjectionType() == Camera::ProjectionType::Perspective)
 		{
 			const float aspect = (m_ViewportHeight > 0)
 				? (float)m_ViewportWidth / (float)m_ViewportHeight : 1.f;

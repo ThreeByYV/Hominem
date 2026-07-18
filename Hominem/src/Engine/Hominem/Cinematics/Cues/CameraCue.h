@@ -3,9 +3,9 @@
 #include "Hominem/Cinematics/Cue.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/SkinnedMesh.h"
+#include "Hominem/Utils/MathUtils.h"
 
 #include <glm/glm.hpp>
-#include <algorithm>
 #include <string>
 
 namespace Hominem {
@@ -54,12 +54,11 @@ namespace Hominem {
 			if (!ctx.scene)
 				return;
 
-			const float n = Duration > 0.f ? std::clamp(localT / Duration, 0.f, 1.f) : 1.f;
+			const float n = TimeProgress(localT, Duration);
 			const float t = n * n * (3.f - 2.f * n); // smoothstep
 
-			ctx.scene->GetCameraPosition() = glm::mix(m_ResolvedFrom, m_ResolvedTo, t);
-			ctx.scene->GetCamera().SetOrthographicSize(
-				FromOrthoSize + (ToOrthoSize - FromOrthoSize) * t);
+			ctx.scene->GetCameraPosition() = Lerp(m_ResolvedFrom, m_ResolvedTo, t);
+			ctx.scene->GetCamera().SetOrthographicSize(Lerp(FromOrthoSize, ToOrthoSize, t));
 		}
 
 		glm::vec3   FromPos      { 0.f };

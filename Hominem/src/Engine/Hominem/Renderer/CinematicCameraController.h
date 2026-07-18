@@ -5,7 +5,7 @@
 #include "Hominem/Events/Event.h"
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Events/ApplicationEvent.h"
-#include "Hominem/Scene/SceneCamera.h"
+#include "Hominem/Renderer/Camera.h"
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -37,17 +37,38 @@ namespace Hominem {
     public:
         explicit CinematicCameraController(float aspectRatio);
 
+        /// Ported from SideScrollerCamera — projected-focus lookahead (Keren, "Scroll Back").
+        float LeadStrength = 0.f;
+        /// Ported from SideScrollerCamera — camera-window dead zone on Y only (Keren, "Scroll Back").
+        float YDeadZone    = 0.f;
+
+        /// One-call setup: binds camera/position/front, sets ortho projection + viewport,
+        /// places the camera at initialPos, and applies feel parameters. Call once from
+        /// OnSceneReady — mirrors the old SideScrollerCamera::Init single-call shape.
+        void Init(Camera& camera, glm::vec3& cameraPos, glm::vec3& cameraFront,
+                  uint32_t viewportW, uint32_t viewportH, const glm::vec3& initialPos,
+                  float visibleHeight, float leadStrength, float yDeadZone, float smoothing,
+                  float yBias = 0.f);
+
         void OnUpdate(Timestep ts);
         void OnEvent(Event& e);
 
         void AddCameraPoint(float playerX, glm::vec3 offset, float zoom = 10.0f);
-        void UpdateCameraForPlayer(glm::vec2 playerPos);
+        /// velocity is used for the lead/lookahead offset — pass Player::GetVelocity().
+        void UpdateCameraForPlayer(glm::vec2 playerPos, glm::vec2 velocity = { 0.f, 0.f });
+
+        /// Used when fewer than 2 CameraPoints are authored, so continuous follow
+        /// still works with zero JSON content (region-based-anchors needs >=2 to interpolate).
+        void SetDefaultFraming(glm::vec3 offset, float zoom) { m_DefaultOffset = offset; m_DefaultZoom = zoom; }
+
+        /// Instant cut to the current target — no smoothing. For skip-intro / level-load snaps.
+        void Snap();
 
         void AddCinematicSequence(const std::string& name, float startX, float endX,
                                   float duration, bool autoMovePlayer = false, float playerSpeed = 1.0f);
 
         /// Bind the scene's camera and position so the controller writes to them each frame.
-        void SetCameraTarget(SceneCamera* camera, glm::vec3* position)
+        void SetCameraTarget(Camera* camera, glm::vec3* position)
         {
             m_SceneCamera    = camera;
             m_CameraPosition = position;
@@ -68,9 +89,15 @@ namespace Hominem {
         void  SetZoomLevel(float level);
         float GetZoomLevel() const { return m_ZoomLevel; }
 
+        /// Vertical offset applied to the default (region-less) camera target — shifts
+        /// framing so the player isn't dead-center. Negative moves the frame's focus down,
+        /// showing more headroom above the player.
+        void  SetYBias(float bias) { m_DefaultOffset.y = bias; }
+        float GetYBias() const { return m_DefaultOffset.y; }
+
     private:
         // Non-owning pointers into the Scene's camera state.
-        SceneCamera* m_SceneCamera    = nullptr;
+        Camera*      m_SceneCamera    = nullptr;
         glm::vec3*   m_CameraPosition = nullptr;
 
         std::vector<CameraPoint>      m_CameraPoints;
@@ -88,6 +115,9 @@ namespace Hominem {
 
         glm::vec3 m_TargetPosition    = { 0.0f, 0.0f, 0.0f };
         glm::vec2 m_CurrentPlayerPos  = { 0.0f, 0.0f };
+
+        glm::vec3 m_DefaultOffset = { 0.f, 0.f, -30.f };
+        float     m_DefaultZoom   = 10.0f;
 
         CameraPoint InterpolateCameraPoint(float playerX) const;
         void RecalculateProjection();
