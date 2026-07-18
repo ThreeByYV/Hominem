@@ -11,6 +11,7 @@
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Core/Task.h"
 #include <GLFW/glfw3.h>
 #include <thread>
 #include <chrono>
@@ -151,6 +152,7 @@ namespace Hominem {
 			m_LastFrameTime = time;
 
 			AssetManager::PumpCallbacks();
+			CoroutineScheduler::Update(timestep);
 
 			// Debug-only for any layer
 			const bool muteKeyDown = Input::IsKeyPressed(HMN_KEY_M);

@@ -3,6 +3,7 @@
 #include "AssetHandle.h"
 #include "Hominem/Core/Core.h"
 
+#include <coroutine>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -59,11 +60,14 @@ public:
     /// Call once per frame from the main thread (Application::Run).
     static void PumpCallbacks();
 
+    // Public because co_await on an AssetHandle (below) uses this too, not just
+    // the LoadAsync(path, onLoaded) overload above.
+    static void RegisterPendingCallback(std::shared_ptr<AssetSlot> slot, std::function<void()> fn);
+
 private:
     static std::shared_ptr<AssetSlot> GetOrCreateSlot(AssetID id, std::string_view resolvedPath);
     static void                       LoadSync(std::shared_ptr<AssetSlot> slot, const AssetLoaderFn& loader);
     static void                       EnqueueAsync(std::shared_ptr<AssetSlot> slot, AssetLoaderFn loader);
-    static void                       RegisterPendingCallback(std::shared_ptr<AssetSlot> slot, std::function<void()> fn);
 };
 
 template<Loadable T>
@@ -121,6 +125,33 @@ AssetHandle<T> AssetManager::LoadAsync(std::string_view virtualPath, std::functi
         RegisterPendingCallback(slot, [handle, cb = std::move(onLoaded)] { cb(handle); });
     }
     return handle;
+}
+
+// Lets you write "co_await AssetManager::LoadAsync<T>(path)" instead of passing a
+// callback. It waits for the same Loaded/Failed state and resumes from the same
+// place (PumpCallbacks on the main thread) as the callback overload does.
+template<typename T>
+struct AssetAwaiter
+{
+    AssetHandle<T> handle;
+
+    bool await_ready() const noexcept
+    {
+        return !handle.IsValid() || handle.IsLoaded() || handle.IsFailed();
+    }
+
+    void await_suspend(std::coroutine_handle<> coro) const
+    {
+        AssetManager::RegisterPendingCallback(handle.GetSlot(), [coro] { coro.resume(); });
+    }
+
+    AssetHandle<T> await_resume() const noexcept { return handle; }
+};
+
+template<typename T>
+AssetAwaiter<T> operator co_await(AssetHandle<T> handle)
+{
+    return AssetAwaiter<T>{ std::move(handle) };
 }
 
 }

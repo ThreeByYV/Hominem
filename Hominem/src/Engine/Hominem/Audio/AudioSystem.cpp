@@ -103,23 +103,24 @@ AssetHandle<SoundBuffer> AudioSystem::LoadSound(std::string_view virtualPath)
 
 void AudioSystem::UnloadSound(AssetHandle<SoundBuffer>& handle) { handle = {}; }
 
-SoundHandle AudioSystem::Play(AssetHandle<SoundBuffer> handle, float volume, bool loop)
+SoundHandle AudioSystem::Play(AssetHandle<SoundBuffer> handle, float volume, bool loop, float startOffsetSeconds)
 {
-    return PlayEx(std::move(handle), volume, 1.0f, 0.0f, loop);
+    return PlayEx(std::move(handle), volume, 1.0f, 0.0f, loop, startOffsetSeconds);
 }
 
-SoundHandle AudioSystem::PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop)
+SoundHandle AudioSystem::PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop, float startOffsetSeconds)
 {
     if (!handle.IsLoaded())
         return InvalidSound;
 
     PlaySoundCmd cmd;
-    cmd.Handle = AllocateSoundHandle();
-    cmd.Buffer = handle.Get();
-    cmd.Volume = volume;
-    cmd.Pitch  = pitch;
-    cmd.Pan    = pan;
-    cmd.Loop   = loop;
+    cmd.Handle      = AllocateSoundHandle();
+    cmd.Buffer      = handle.Get();
+    cmd.Volume      = volume;
+    cmd.Pitch       = pitch;
+    cmd.Pan         = pan;
+    cmd.Loop        = loop;
+    cmd.StartOffset = startOffsetSeconds;
 
     SoundHandle sh = cmd.Handle;
     m_CommandQueue.Push(std::move(cmd));
@@ -215,6 +216,13 @@ void AudioSystem::ProcessCommand(const AudioCommand& cmd)
                 ma_sound_set_pitch(&data->Sound, instance.Pitch);
                 ma_sound_set_pan(&data->Sound, instance.Pan);
                 ma_sound_set_looping(&data->Sound, instance.IsLooping ? MA_TRUE : MA_FALSE);
+
+                if (command.StartOffset > 0.0f)
+                {
+                    const ma_uint64 frame = std::min<ma_uint64>(
+                        static_cast<ma_uint64>(command.StartOffset * buf.SampleRate), buf.FrameCount);
+                    ma_sound_seek_to_pcm_frame(&data->Sound, frame);
+                }
 
                 if (ma_sound_start(&data->Sound) != MA_SUCCESS)
                 {

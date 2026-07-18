@@ -11,10 +11,11 @@ struct PlaySoundCmd
 {
     SoundHandle      Handle;
     Ref<SoundBuffer> Buffer;
-    float Volume = 1.0f;
-    float Pitch  = 1.0f;
-    float Pan    = 0.0f;
-    bool  Loop   = false;
+    float Volume      = 1.0f;
+    float Pitch       = 1.0f;
+    float Pan         = 0.0f;
+    bool  Loop        = false;
+    float StartOffset = 0.0f; // seconds into the sound to start playback from
 };
 
 struct StopSoundCmd       { SoundHandle Handle; };

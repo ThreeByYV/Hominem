@@ -65,6 +65,8 @@ public:
 
     AssetID GetID() const { return m_ID; }
 
+    std::shared_ptr<AssetSlot> GetSlot() const { return m_Slot; }
+
     bool operator==(const AssetHandle& o) const { return m_ID == o.m_ID; }
     auto operator<=>(const AssetHandle& o) const { return m_ID <=> o.m_ID; }
 

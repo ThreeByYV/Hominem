@@ -41,8 +41,8 @@ public:
     AssetHandle<SoundBuffer> LoadSound(std::string_view virtualPath);
     void UnloadSound(AssetHandle<SoundBuffer>& handle);
 
-    SoundHandle Play(AssetHandle<SoundBuffer> handle, float volume = 1.0f, bool loop = false);
-    SoundHandle PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop);
+    SoundHandle Play(AssetHandle<SoundBuffer> handle, float volume = 1.0f, bool loop = false, float startOffsetSeconds = 0.0f);
+    SoundHandle PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop, float startOffsetSeconds = 0.0f);
 
     void Stop(SoundHandle handle);
     void Pause(SoundHandle handle);
