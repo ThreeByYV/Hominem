@@ -58,6 +58,11 @@ namespace Hominem {
         bool m_Running = true;
         bool m_Minimized = false;
 
+        // Debug-only global mute (M key), works regardless of active layer. Not for release.
+        bool m_MuteKeyHeld = false;
+        bool m_Muted       = false;
+        float m_VolumeBeforeMute = 1.0f;
+
 
         Timestep m_Timestep;
         float m_LastFrameTime = 0.0f;

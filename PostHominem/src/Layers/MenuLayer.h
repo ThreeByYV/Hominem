@@ -62,7 +62,6 @@ private:
 
 	Hominem::AssetHandle<Hominem::SoundBuffer> m_Music;
 	Hominem::SoundHandle                       m_MusicHandle = Hominem::InvalidSound;
-	bool                                       m_MusicPaused = false;
 
 	int      m_HoveredIndex = -1;
 	float    m_ArrowY       = 0.18f;

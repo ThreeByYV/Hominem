@@ -135,7 +135,7 @@ void GameLayer::OnUpdate(Timestep ts)
 		const bool wasInVista = m_Camera.IsInVista();
 		m_Camera.OnUpdate(ts);
 		if (wasInVista && !m_Camera.IsInVista())
-			m_NarrativeText->Show("Any victory against death will always be temporary");
+			m_NarrativeText->Show("The only way to hide the loneliness is to love it");
 	}
 
 	m_Intro->OnUpdate(ts);

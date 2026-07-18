@@ -11,7 +11,6 @@
 #include "Hominem/Scene/Actors/SpriteActor.h"
 #include "Hominem/Utils/MathUtils.h"
 #include "Hominem/Utils/Transform.h"
-#include "Hominem/Core/KeyCodes.h"
 
 using namespace Hominem;
 
@@ -33,8 +32,7 @@ void MenuLayer::OnAttach()
 	m_Scene->SetClearColor({ 0.05f, 0.05f, 0.05f, 1.f });
 
 	float aspect = (float)m_ViewportW / (float)m_ViewportH;
-	if (const auto result=
-			AssetManager::Load<Texture2D>("game://Textures/menu2.png"))
+	if (const auto result = AssetManager::Load<Texture2D>("game://Textures/menu2.png"))
 		m_BackgroundHandle = *result;
 
 	m_Background = &m_Scene->SpawnActor<SpriteActor>(
@@ -45,12 +43,11 @@ void MenuLayer::OnAttach()
 	m_Font   = Font::GetDefaultFont();
 	m_ArrowY = k_Items[0].y;
 
-	AssetManager::LoadAsync<SoundBuffer>("game://Sounds/menu_music.mp3",
-		[this](const AssetHandle<SoundBuffer> &music) {
-			m_Music = music;
-			if (!m_MusicPaused)
-				m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
-		});
+	if (const auto result = AssetManager::Load<SoundBuffer>("game://Sounds/menu_music.mp3"))
+	{
+		m_Music       = *result;
+		m_MusicHandle = AudioSystem::Get().Play(m_Music, 0.9f, /*loop=*/true);
+	}
 }
 
 void MenuLayer::OnDetach()
@@ -65,20 +62,6 @@ void MenuLayer::OnDetach()
 
 void MenuLayer::OnUpdate(Timestep ts)
 {
-	if (Input::IsKeyPressed(HMN_KEY_M))
-	{
-		if (m_MusicPaused)
-		{
-			AudioSystem::Get().Resume(m_MusicHandle);
-			m_MusicPaused = false;
-		}
-		else
-		{
-			AudioSystem::Get().Pause(m_MusicHandle);
-			m_MusicPaused = true;
-		}
-	}
-
 	const glm::vec2 worldPos = m_Scene->ScreenToWorld(Input::GetMouseX(), Input::GetMouseY());
 
 	m_HoveredIndex = -1;

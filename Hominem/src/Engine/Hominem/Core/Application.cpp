@@ -152,6 +152,25 @@ namespace Hominem {
 
 			AssetManager::PumpCallbacks();
 
+			// Debug-only for any layer
+			const bool muteKeyDown = Input::IsKeyPressed(HMN_KEY_M);
+			if (muteKeyDown && !m_MuteKeyHeld)
+			{
+				m_Muted = !m_Muted;
+				if (m_Muted)
+				{
+					m_VolumeBeforeMute = AudioSystem::Get().GetMasterVolume();
+					AudioSystem::Get().SetMasterVolume(0.f);
+					HMN_CORE_INFO("Audio: muted");
+				}
+				else
+				{
+					AudioSystem::Get().SetMasterVolume(m_VolumeBeforeMute);
+					HMN_CORE_INFO("Audio: unmuted (volume {0})", m_VolumeBeforeMute);
+				}
+			}
+			m_MuteKeyHeld = muteKeyDown;
+
 			for (auto& layer : m_LayerStack)
 				layer->OnUpdate(timestep);
 
