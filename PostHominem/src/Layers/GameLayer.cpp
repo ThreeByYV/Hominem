@@ -10,9 +10,6 @@
 #include "Hominem/Renderer/DebugCommands.h"
 #include "Hominem/Utils/MathUtils.h"
 #include "Hominem/Assets/AssetLoaders.h"
-#include "Hominem/Cinematics/Cues/CameraCue.h"
-#include "Hominem/Cinematics/Cues/FadeCue.h"
-#include "Hominem/Cinematics/Cues/EventCue.h"
 #include "Cinematics/IntroCutscene.h"
 #include "Game/Actors/InfiniteFloorActor.h"
 #include "Game/Actors/SceneActor.h"
@@ -46,19 +43,28 @@ SceneDesc GameLayer::Describe()
 				m_Config.Scene.ApplyTo(*m_Scene3D);
 				m_InitCameraX = m_Config.CameraX;
 				m_InitCameraZ = m_Config.CameraZ;
-				if (m_InitCameraX == 0.f || m_InitCameraZ == 0.f ||
+				if (!m_InitCameraX || !m_InitCameraZ ||
 				    m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
 					BootstrapFromAABB();
 			},
 			[this](SceneContext& ctx) {
 				Ref<SkinnedMesh> mesh;
-				if (auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath)) mesh = r->Get();
+				if (const auto r = ctx.Load<SkinnedMesh>(Player::k_MeshPath)) mesh = r->Get();
 				PlayerConfig cfg;
 				cfg.Spawn.Position = m_Config.PlayerSpawnPos;
 				m_Player = &ctx.SpawnActor<Player>(cfg, mesh);
 			},
 			[this](SceneContext& ctx) { ctx.SpawnActor<InfiniteFloorActor>(m_Config.Floor); },
 			[this](SceneContext& ctx) { ctx.BakeEnvironment({ 0.1f, 1.5f, 27.0f }); },
+			[this](SceneContext& ctx) {
+				m_NarrativeText = &ctx.SpawnActor<NarrativeTextActor>();
+				m_NarrativeText->ScreenSpace  = true;
+				m_NarrativeText->ScreenOffset = { 0.f, 0.75f, 0.f };
+				m_NarrativeText->PanelSize    = { 1.7f, 0.3f };
+				m_NarrativeText->TextScale    = 0.06f;
+				m_NarrativeText->PanelAlpha   = 0.65f;
+				m_NarrativeText->FadeDuration = 0.25f;
+			},
 			[this](SceneContext& ctx) {
 				if (auto r = ctx.Load<SoundBuffer>(k_MusicPath)) {
 					m_Music       = *r;
@@ -72,32 +78,18 @@ SceneDesc GameLayer::Describe()
 void GameLayer::OnSceneReady(SceneContext& ctx)
 {
 	m_Aspect = ctx.aspect;
-	m_Camera.Init(ctx.scene.GetCamera(),
-	              ctx.scene.GetCameraPosition(),
-	              ctx.scene.GetCameraFront(),
-	              ctx.aspect, m_InitCameraZ, PlayerConfig{}.RestY,
+	m_Camera.Init(ctx.scene.GetCamera(), ctx.scene.GetCameraPosition(), ctx.scene.GetCameraFront(),
+	              ctx.aspect, m_InitCameraZ.value_or(0.f), PlayerConfig{}.RestY,
 	              SideScrollerCamera::Config::From(CameraConfig{}));
 	m_Camera.SetTarget(m_Player);
-	ctx.scene.GetCameraPosition().x = m_InitCameraX;
+	ctx.scene.GetCameraPosition().x = m_InitCameraX.value_or(0.f);
 
-	// --- intro cutscene ---
-	m_IntroCtx.scene = &ctx.scene;
+	m_Camera.AddVistaTrigger(1.f, { 1.f, 3.f, m_Camera.GetCameraZ() }, 1.5f);
 
-	if (s_SkipIntro)
-	{
-		m_Camera.Snap();
-
-		s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
-		s_EyeTarget.z = k_EyeTarget.z;
-
-		const auto [position, orthoSize] = m_Scene->GetCameraSnapshot();
-		m_Scene->ApplyCameraSnapshot({ s_EyeTarget, k_EyeZoom });
-
-		m_IntroCutscene.Add<CameraCue>(s_EyeTarget, position, k_EyeZoom, orthoSize).For(k_ZoomDur);
-		m_IntroCutscene.Play();
-	}
-	m_IntroTimer = 0.f;
-	s_SkipIntro  = false;
+	m_Intro = std::make_unique<IntroSequence>(*m_Player, m_Camera);
+	m_Intro->SetOnFinished([this] { TransitionTo<CutsceneLayer>(IntroCutscene::Make()); });
+	m_Intro->Start(ctx.scene, s_SkipIntro);
+	s_SkipIntro = false;
 }
 
 void GameLayer::OnSceneDetach()
@@ -107,6 +99,8 @@ void GameLayer::OnSceneDetach()
 	m_MusicHandle = InvalidSound;
 	m_Player  = nullptr;
 	m_Scene3D = nullptr;
+	m_NarrativeText = nullptr;
+	m_Intro.reset();
 }
 
 void GameLayer::OnWindowResized(uint32_t w, uint32_t h)
@@ -120,7 +114,7 @@ void GameLayer::OnWindowResized(uint32_t w, uint32_t h)
 
 void GameLayer::OnUpdate(Timestep ts)
 {
-	if (!m_IntroCutscene.IsPlaying())
+	if (!m_Intro->IsPlaying())
 	{
 		m_Scene->OnUpdate(ts);
 
@@ -138,47 +132,23 @@ void GameLayer::OnUpdate(Timestep ts)
 			RenderSettings::RequestShaderReload();
 		}
 
+		const bool wasInVista = m_Camera.IsInVista();
 		m_Camera.OnUpdate(ts);
+		if (wasInVista && !m_Camera.IsInVista())
+			m_NarrativeText->Show("Any victory against death will always be temporary");
+	}
 
-		// Still waiting to kick off the zoom-in (normal, non-skip path only --
-		// the skip path's zoom-out cue is already playing by the time we get here).
-		if (!m_IntroCutscene.IsFinished())
-		{
-			m_IntroTimer += ts;
-			if (m_IntroTimer >= k_WaitDur)
-				StartIntroZoomIn();
-		}
-	}
-	else
-	{
-		m_IntroCutscene.OnUpdate(ts, m_IntroCtx);
-	}
+	m_Intro->OnUpdate(ts);
 
 	m_FrameTimeMs = ts.GetMilliseconds();
 	m_FPS         = ts > 0.f ? 1.f / ts : 0.f;
-}
-
-void GameLayer::StartIntroZoomIn()
-{
-	s_EyeTarget   = ResolveEyeTarget(k_EyeTarget);
-	s_EyeTarget.z = k_EyeTarget.z;
-
-	const auto from = m_Scene->GetCameraSnapshot();
-	m_IntroCutscene.Add<CameraCue>(from.position, s_EyeTarget, from.orthoSize, k_EyeZoom).For(k_ZoomDur);
-
-	// Hard cut to white (From == To == 1), not a fade.
-	m_IntroCutscene.Add<FadeCue>(glm::vec3(1.f), 1.f, 1.f).At(k_ZoomDur).For(k_FlashDur);
-	m_IntroCutscene.Add<EventCue>([this] { TransitionTo<CutsceneLayer>(IntroCutscene::Make()); })
-		.At(k_ZoomDur + k_FlashDur);
-
-	m_IntroCutscene.Play();
 }
 
 void GameLayer::OnBuildRenderFrame(RenderFrame& frame)
 {
 	m_Scene->SetEnvMapIntensity(m_EnvMapEnabled ? m_EnvMapIntensity : 0.f);
 	Layer::OnBuildRenderFrame(frame);
-	m_IntroCutscene.BuildRenderFrame(frame);
+	m_Intro->OnBuildRenderFrame(frame);
 }
 
 void GameLayer::OnImGuiRender()
@@ -222,6 +192,19 @@ void GameLayer::OnImGuiRender()
 		if (ImGui::CollapsingHeader("Camera"))
 			ImGui::DragFloat("Y Bias", &m_Camera.GetConfig().YBias, 0.01f);
 
+		if (ImGui::CollapsingHeader("Narrative Text"))
+		{
+			if (ImGui::Button("Show Test Line"))
+				m_NarrativeText->Show("Any victory against death will always be temporary");
+			ImGui::SameLine();
+			if (ImGui::Button("Hide")) m_NarrativeText->Hide();
+
+			ImGui::DragFloat3("Screen Offset", &m_NarrativeText->ScreenOffset.x, 0.01f);
+			ImGui::DragFloat2("Panel Size",    &m_NarrativeText->PanelSize.x,    0.01f, 0.f, 4.f);
+			ImGui::DragFloat ("Text Scale",    &m_NarrativeText->TextScale,      0.005f, 0.f, 1.f);
+			ImGui::DragFloat ("Panel Alpha",   &m_NarrativeText->PanelAlpha,     0.01f, 0.f, 1.f);
+		}
+
 		if (ImGui::CollapsingHeader("Scene Transform")) {
 			ImGui::PushID("SceneTx");
 			UI::EditTransform(*m_Scene3D, 0.1f);
@@ -231,7 +214,7 @@ void GameLayer::OnImGuiRender()
 					cfg.Scene.Rotation = m_Scene3D->GetRotationDeg();
 					cfg.Scene.Scale    = m_Scene3D->Scale;
 					cfg.CameraX = m_InitCameraX;
-					cfg.CameraZ = m_Camera.GetCameraZ();
+					cfg.CameraZ = m_InitCameraZ;
 					m_Config = cfg;
 				});
 			ImGui::PopID();
@@ -269,12 +252,12 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 		return true;
 	}
 
-	if (e.GetKeyCode() == InputMap::GetKeyCode("SkipIntro"))
-	{
-		s_SkipIntro = false;
-		TransitionTo<CutsceneLayer>(IntroCutscene::Make());
-		return true;
-	}
+	// if (e.GetKeyCode() == InputMap::GetKeyCode("SkipIntro"))
+	// {
+	// 	s_SkipIntro = false;
+	// 	TransitionTo<CutsceneLayer>(IntroCutscene::Make());
+	// 	return true;
+	// }
 
 	if (ImGui::GetIO().WantCaptureKeyboard)
 		return false;
@@ -286,15 +269,6 @@ bool GameLayer::OnKeyPressed(KeyPressedEvent& e)
 
 bool GameLayer::OnMouseMoved(MouseMovedEvent& e) { return false; }
 
-glm::vec3 GameLayer::ResolveEyeTarget(const glm::vec3& fallback) const
-{
-	auto* mesh = m_Player->GetMesh();
-	if (!mesh)    return fallback;
-	auto mat = mesh->GetBoneWorldTransform("mixamorig:Head");
-	if (!mat)     return fallback;
-	return glm::vec3(m_Player->GetTransform() * glm::vec4(glm::vec3((*mat)[3]), 1.0f));
-}
-
 void GameLayer::BootstrapFromAABB()
 {
 	if (!m_Scene3D->GetMesh()) return;
@@ -304,12 +278,12 @@ void GameLayer::BootstrapFromAABB()
 	              m_Scene3D->GetTransform(), wMin, wMax);
 
 	glm::vec3 size = wMax - wMin;
-	if (m_InitCameraX == 0.f) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
-	if (m_InitCameraZ == 0.f) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);
+	if (!m_InitCameraX) m_InitCameraX = (wMin.x + wMax.x) * 0.5f;
+	if (!m_InitCameraZ) m_InitCameraZ = m_Camera.ComputeCameraZ(wMax.z);
 	if (m_Config.PlayerSpawnPos == glm::vec3(0.f, 1.f, 0.f))
 	{
 		m_Config.PlayerSpawnPos = {
-			m_InitCameraX,
+			*m_InitCameraX,
 			PlayerConfig{}.RestY,
 			wMin.z + size.z * 0.9f
 		};

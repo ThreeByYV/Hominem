@@ -5,6 +5,7 @@
 
 #include <glm/glm.hpp>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -85,8 +86,8 @@ struct WorldConfig
 	SceneConfig                  Scene;
 	std::vector<Hominem::Light>  Lights;
 	FloorConfig                  Floor;
-	float                        CameraX        = 0.f;
-	float                        CameraZ        = 0.f;
+	std::optional<float>         CameraX;
+	std::optional<float>         CameraZ;
 	glm::vec3                    PlayerSpawnPos = { 0.f, 1.f, 0.f };
 	float                        RenderScale    = 0.f; // 0 = let renderer decide via RecommendedRenderScale
 

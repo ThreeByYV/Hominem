@@ -4,14 +4,17 @@
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Renderer/RenderFrame.h"
-#include "Hominem/Cinematics/Cutscene.h"
 #include "Game/Player.h"
 #include "Game/SideScrollerCamera.h"
 #include "Game/WorldConfig.h"
+#include "Game/Actors/NarrativeTextActor.h"
+#include "Cinematics/IntroSequence.h"
 #include "Hominem/Assets/AssetLoaders.h"
 #include "Hominem/Audio/AudioSystem.h"
 
 #include <glm/glm.hpp>
+#include <memory>
+#include <optional>
 
 class SceneActor;
 
@@ -25,8 +28,7 @@ public:
 	void OnImGuiRender()                             override;
 	void OnEvent(Hominem::Event& e)                  override;
 
-	static inline bool      s_SkipIntro = false;
-	static inline glm::vec3 s_EyeTarget = { 0.084f, 0.8f, 40.0f };
+	static inline bool s_SkipIntro = false;
 
 	/// Virtual asset path for the in-game music — published so LoadingLayer can preload it.
 	static constexpr const char* k_MusicPath = "game://Sounds/menu_music_2.mp3";
@@ -41,31 +43,20 @@ private:
 	bool OnKeyPressed(Hominem::KeyPressedEvent& e);
 	bool OnMouseMoved(Hominem::MouseMovedEvent& e);
 
-	glm::vec3 ResolveEyeTarget(const glm::vec3& fallback) const;
-	void      BootstrapFromAABB();
-
-	/// Builds and plays the zoom-in/flash/transition cues once the wait timer expires.
-	void StartIntroZoomIn();
+	void BootstrapFromAABB();
 
 	// --- intro cutscene ---
-	float                    m_IntroTimer = 0.f;
-	Hominem::Cutscene        m_IntroCutscene;
-	Hominem::CutsceneContext m_IntroCtx;
-
-	static constexpr glm::vec3 k_EyeTarget = { 0.084f, 0.8f, 29.0f };
-	static constexpr float     k_EyeZoom   = 0.08f;
-	static constexpr float     k_WaitDur   = 2.5f;
-	static constexpr float     k_ZoomDur   = 0.7f;
-	static constexpr float     k_FlashDur  = 0.15f;
+	std::unique_ptr<IntroSequence> m_Intro;
 
 	// --- game world ---
-	WorldConfig        m_Config;
-	float              m_Aspect      = 1.f;
-	float              m_InitCameraX = 0.f;
-	float              m_InitCameraZ = 0.f;
-	SideScrollerCamera m_Camera;
-	Player*            m_Player  = nullptr;
-	SceneActor*        m_Scene3D = nullptr;
+	WorldConfig  m_Config;
+	float        m_Aspect = 1.f;
+	std::optional<float> m_InitCameraX;
+	std::optional<float> m_InitCameraZ;
+	SideScrollerCamera   m_Camera;
+	Player*      m_Player  = nullptr;
+	SceneActor*  m_Scene3D = nullptr;
+	NarrativeTextActor* m_NarrativeText  = nullptr;
 
 	// --- audio ---
 	Hominem::AssetHandle<Hominem::SoundBuffer> m_Music;

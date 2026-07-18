@@ -125,10 +125,10 @@ bool WorldConfig::SaveToFile(const std::string& path, const WorldConfig& cfg)
 
 		root["floor"] = { { "position", vec3_to_json(cfg.Floor.Position) } };
 
-		root["camera"] = {
-			{ "camera_x", cfg.CameraX },
-			{ "camera_z", cfg.CameraZ }
-		};
+		json cameraJson = json::object();
+		if (cfg.CameraX) cameraJson["camera_x"] = *cfg.CameraX;
+		if (cfg.CameraZ) cameraJson["camera_z"] = *cfg.CameraZ;
+		root["camera"] = cameraJson;
 
 		root["player"] = {
 			{ "spawn", { { "position", vec3_to_json(cfg.PlayerSpawnPos) } } }
