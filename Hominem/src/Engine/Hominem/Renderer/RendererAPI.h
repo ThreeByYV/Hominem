@@ -25,11 +25,12 @@ namespace Hominem {
 		static constexpr PipelineState AlphaBlendNoDepth()     { return { true,  BlendMode::Alpha,    false, false, true,  false }; }
 	};
 
+	// Base/OpenGL* split (here and across Shader/Texture/Buffer/etc.) exists to keep Platform/OpenGL
+	// headers out of Renderer/ headers, not to prepare for a swappable Vulkan backend, Vulkan is a
+	// fixed-role compute/RT coprocessor in this engine, never an alternative to these classes.
 	class RendererAPI
 	{
 	public:
-		enum class API { None = 0, OpenGL };
-
 		virtual void Init()      = 0;
 		virtual void Shutdown() {}
 
@@ -130,10 +131,6 @@ namespace Hominem {
 		virtual void     AttachRenderbuffer(uint32_t rboID)                  = 0;
 		virtual void     DeleteRenderbuffer(uint32_t id)                     = 0;
 
-		inline static API GetAPI() { return s_API; }
-
-	private:
-		static API s_API;
 	};
 
 }

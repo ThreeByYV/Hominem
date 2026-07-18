@@ -78,7 +78,6 @@ namespace Hominem {
 		static void Init();
 		static void Shutdown();
 
-		static void BeginScene(OrthographicCamera& camera);
 		static void BeginScene(Camera& camera, const glm::mat4& transform);
 		/// Used by RenderThread — takes a pre-computed view-projection matrix.
 		static void BeginScene(const glm::mat4& viewProjection);
