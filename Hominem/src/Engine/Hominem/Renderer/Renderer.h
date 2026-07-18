@@ -2,6 +2,7 @@
 
 #include "SceneRenderer.h"
 #include "RenderFrame.h"
+#include "SharedResources.h"
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -9,7 +10,6 @@
 namespace Hominem {
 
 class VulkanRaytracer;
-class OpenGLSharedResources;
 
 class Renderer
 {
@@ -32,10 +32,10 @@ public:
 private:
     void SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID);
 
-    SceneRenderer                    m_SceneRenderer;
-    std::unique_ptr<VulkanRaytracer>       m_VulkanRaytracer;
-    std::unique_ptr<OpenGLSharedResources> m_SharedResources;
-    uint32_t                               m_VkFrameIdx = 0;
+    SceneRenderer                     m_SceneRenderer;
+    std::unique_ptr<VulkanRaytracer>  m_VulkanRaytracer;
+    std::unique_ptr<SharedResources>  m_SharedResources;
+    uint32_t                          m_VkFrameIdx = 0;
 };
 
 }
