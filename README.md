@@ -58,4 +58,4 @@ A lot has come together on the `feature/create-core-systems` branch. The rendere
 
 Moving forward the goal is a fixed-camera 3D game using the engine's rendering capabilities to their fullest.
 
-![Image](https://github.com/user-attachments/assets/ee12823c-ab68-4a95-9f54-bacc58228d14)
+![Image](https://github.com/user-attachments/assets/1158a6c1-e56c-4ce1-9adc-8a48825e49e7)
