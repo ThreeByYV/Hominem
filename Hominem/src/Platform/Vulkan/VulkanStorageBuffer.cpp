@@ -29,8 +29,8 @@ VulkanStorageBuffer VulkanStorageBuffer::Create(VmaAllocator allocator, VkDevice
 
 void VulkanStorageBuffer::Upload(const void* data, VkDeviceSize size, VkDeviceSize offset)
 {
-    HMN_CORE_ASSERT(m_MappedData);
-    HMN_CORE_ASSERT(offset + size <= m_Capacity);
+    HMN_CORE_ASSERT(m_MappedData, "VulkanStorageBuffer: not mapped");
+    HMN_CORE_ASSERT(offset + size <= m_Capacity, "VulkanStorageBuffer: upload out of bounds");
     std::memcpy(static_cast<char*>(m_MappedData) + offset, data, static_cast<size_t>(size));
 }
 

@@ -58,9 +58,17 @@ VkCommandBuffer VulkanRenderer::BeginFrame()
     HMN_CORE_ASSERT(!m_FrameStarted, "BeginFrame called while a frame is already in progress");
 
     FrameData& frame = m_Frames[m_CurrentFrame];
-    vkWaitForFences(m_Device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX);
+
+    const VkSemaphoreWaitInfo waitInfo
+    {
+        .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .semaphoreCount = 1,
+        .pSemaphores    = &m_TimelineSemaphore,
+        .pValues        = &frame.timelineValue,
+    };
+    VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX));
+
     frame.deletionQueue.flush();
-    vkResetFences(m_Device, 1, &frame.inFlight);
     vkResetCommandPool(m_Device, frame.cmdPool, 0);
 
     const VkCommandBufferBeginInfo beginInfo
@@ -94,15 +102,28 @@ void VulkanRenderer::EndFrame()
 
     VK_CHECK(vkEndCommandBuffer(frame.cmdBuffer));
 
+    ++m_TimelineValue;
+    frame.timelineValue = m_TimelineValue;
+
+    const VkSemaphore signalSemaphores[] = { frame.computeDone, m_TimelineSemaphore };
+    const uint64_t    signalValues[]     = { 0, m_TimelineValue }; // ignored for the binary computeDone semaphore
+
+    const VkTimelineSemaphoreSubmitInfo timelineInfo
+    {
+        .sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .signalSemaphoreValueCount = 2,
+        .pSignalSemaphoreValues    = signalValues,
+    };
     const VkSubmitInfo submitInfo
     {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext                = &timelineInfo,
         .commandBufferCount   = 1,
         .pCommandBuffers      = &frame.cmdBuffer,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &frame.computeDone,
+        .signalSemaphoreCount = 2,
+        .pSignalSemaphores    = signalSemaphores,
     };
-    VK_CHECK(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, frame.inFlight));
+    VK_CHECK(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
 
     m_FrameStarted = false;
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -295,7 +316,7 @@ void VulkanRenderer::PickPhysicalDevice(std::array<uint8_t, 8> preferredLUID, co
 
     if (!preferredName.empty())
     {
-        for (auto dev : devices)
+        for (const auto dev : devices)
         {
             if (!IsDeviceSuitable(dev)) continue;
             VkPhysicalDeviceProperties props;
@@ -304,7 +325,7 @@ void VulkanRenderer::PickPhysicalDevice(std::array<uint8_t, 8> preferredLUID, co
                 std::string(props.deviceName).find(preferredName) != std::string::npos)
             {
                 m_PhysicalDevice = dev;
-                HMN_CORE_INFO("Vulkan: matched GL adapter by name — {0}", props.deviceName);
+                HMN_CORE_INFO("Vulkan: matched GL adapter by name {0}", props.deviceName);
                 return;
             }
         }
@@ -350,10 +371,17 @@ void VulkanRenderer::CreateLogicalDevice()
         .dynamicRendering = VK_TRUE,
     };
 
+    VkPhysicalDeviceTimelineSemaphoreFeatures timelineSem
+    {
+        .sType             = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
+        .pNext             = &dynRendering,
+        .timelineSemaphore = VK_TRUE,
+    };
+
     VkPhysicalDeviceSynchronization2Features sync2
     {
         .sType            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-        .pNext            = &dynRendering,
+        .pNext            = &timelineSem,
         .synchronization2 = VK_TRUE,
     };
 
@@ -520,20 +548,30 @@ void VulkanRenderer::CreateSyncObjects()
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         .pNext = &exportSemInfo,
     };
-    const VkFenceCreateInfo fenceInfo
+
+    const VkSemaphoreTypeCreateInfo timelineTypeInfo
     {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        .sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+        .initialValue  = 0,
     };
+    const VkSemaphoreCreateInfo timelineSemInfo
+    {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &timelineTypeInfo,
+    };
+    VK_CHECK(vkCreateSemaphore(m_Device, &timelineSemInfo, nullptr, &m_TimelineSemaphore));
+    m_MainDeletionQueue.push_function([this]()
+    {
+        vkDestroySemaphore(m_Device, m_TimelineSemaphore, nullptr);
+    });
 
     for (auto& f : m_Frames)
     {
-        VK_CHECK(vkCreateSemaphore(m_Device, &semInfo,   nullptr, &f.computeDone));
-        VK_CHECK(vkCreateFence    (m_Device, &fenceInfo, nullptr, &f.inFlight));
+        VK_CHECK(vkCreateSemaphore(m_Device, &semInfo, nullptr, &f.computeDone));
 
         m_MainDeletionQueue.push_function([this, &f]()
         {
-            vkDestroyFence    (m_Device, f.inFlight,    nullptr);
             vkDestroySemaphore(m_Device, f.computeDone, nullptr);
         });
     }

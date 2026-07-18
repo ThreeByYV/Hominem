@@ -9,8 +9,8 @@ VulkanTexture VulkanTexture::Create(VkDevice device, VmaAllocator allocator,
                                     bool withSampler)
 {
     VulkanTexture tex;
-    tex.m_Image = VulkanImage::CreateImage(device, allocator,
-                                           { width, height, 1 }, format, usage);
+    tex.m_Image = VulkanImage::Create(device, allocator,
+                                      { width, height, 1 }, format, usage);
     if (withSampler)
     {
         const VkSamplerCreateInfo samplerInfo {
@@ -34,7 +34,7 @@ void VulkanTexture::Destroy(VkDevice device, VmaAllocator allocator)
         vkDestroySampler(device, m_Sampler, nullptr);
         m_Sampler = VK_NULL_HANDLE;
     }
-    VulkanImage::DestroyImage(device, allocator, m_Image);
+    VulkanImage::Destroy(device, allocator, m_Image);
 }
 
 }

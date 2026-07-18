@@ -49,6 +49,7 @@ public:
     std::array<uint8_t, 8> GetDeviceLUID() const;
 
     DeletionQueue& GetFrameDeletionQueue() { return m_Frames[m_CurrentFrame].deletionQueue; }
+    DeletionQueue& GetMainDeletionQueue()  { return m_MainDeletionQueue; }
 
 private:
     void CreateInstance();
@@ -76,10 +77,10 @@ private:
 
     struct FrameData
     {
-        VkCommandPool   cmdPool     = VK_NULL_HANDLE;
-        VkCommandBuffer cmdBuffer   = VK_NULL_HANDLE;
-        VkSemaphore     computeDone = VK_NULL_HANDLE;
-        VkFence         inFlight    = VK_NULL_HANDLE;
+        VkCommandPool   cmdPool       = VK_NULL_HANDLE;
+        VkCommandBuffer cmdBuffer     = VK_NULL_HANDLE;
+        VkSemaphore     computeDone   = VK_NULL_HANDLE;
+        uint64_t        timelineValue = 0;
         DeletionQueue   deletionQueue;
     };
 
@@ -99,6 +100,9 @@ private:
     VkExtent2D     m_DrawExtent        = {};
 
     std::array<FrameData, MAX_FRAMES_IN_FLIGHT> m_Frames;
+
+    VkSemaphore m_TimelineSemaphore = VK_NULL_HANDLE;
+    uint64_t    m_TimelineValue     = 0;
 
     uint32_t m_CurrentFrame          = 0;
     bool     m_FrameStarted          = false;

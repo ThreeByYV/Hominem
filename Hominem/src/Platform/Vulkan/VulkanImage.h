@@ -16,12 +16,12 @@ struct VulkanAllocatedImage
 
 namespace VulkanImage {
 
-VulkanAllocatedImage CreateImage(VkDevice device, VmaAllocator allocator,
-                                 VkExtent3D extent, VkFormat format,
-                                 VkImageUsageFlags usage,
-                                 bool mipmapped = false);
+VulkanAllocatedImage Create(VkDevice device, VmaAllocator allocator,
+                            VkExtent3D extent, VkFormat format,
+                            VkImageUsageFlags usage,
+                            bool mipmapped = false);
 
-void DestroyImage(VkDevice device, VmaAllocator allocator, const VulkanAllocatedImage& img);
+void Destroy(VkDevice device, VmaAllocator allocator, const VulkanAllocatedImage& img);
 
 void TransitionUndefinedToGeneral        (VkCommandBuffer cmd, VkImage image);
 

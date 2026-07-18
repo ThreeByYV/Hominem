@@ -12,15 +12,21 @@ void VulkanRaytracer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> prefer
 
 void VulkanRaytracer::Shutdown()
 {
-    auto device    = m_Renderer->GetDevice();
-    auto allocator = m_Renderer->GetAllocator();
+    auto  device        = m_Renderer->GetDevice();
+    auto  allocator     = m_Renderer->GetAllocator();
+    auto& deletionQueue = m_Renderer->GetMainDeletionQueue();
 
+    // Deferred, not called directly: VulkanRenderer::Shutdown() only flushes this
+    // queue after its own vkDeviceWaitIdle, so these are guaranteed safe to destroy
+    // by the time they actually run — never call Destroy() on these directly here.
     for (auto& [_, shader] : m_Shaders)
-        shader.Destroy();
+        deletionQueue.push_function([&shader]() { shader.Destroy(); });
     for (auto& slot : m_RenderTargets)
-        if (slot.valid) slot.rt.Destroy(device, allocator);
+        if (slot.valid)
+            deletionQueue.push_function([&slot, device, allocator]() { slot.rt.Destroy(device, allocator); });
     for (auto& slot : m_Buffers)
-        if (slot.valid) slot.buf.Destroy(allocator);
+        if (slot.valid)
+            deletionQueue.push_function([&slot, allocator]() { slot.buf.Destroy(allocator); });
 
     m_Renderer->Shutdown();
     m_Renderer.reset();
@@ -77,8 +83,8 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
             };
             for (auto& buf : pass.storageBuffers)
                 specs.push_back({ .binding = buf.binding, .type = ComputeBindingSpec::Type::StorageBuffer });
-            for (auto& img : pass.storageImages)
-                specs.push_back({ .binding = img.binding, .type = ComputeBindingSpec::Type::StorageImage });
+            for (const auto&[binding, handle] : pass.storageImages)
+                specs.push_back({ .binding = binding, .type = ComputeBindingSpec::Type::StorageImage });
 
             sit = m_Shaders.emplace(
                 pass.debugName,
