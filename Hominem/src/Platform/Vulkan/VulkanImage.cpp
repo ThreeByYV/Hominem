@@ -6,9 +6,9 @@
 
 namespace Hominem {
 
-VulkanAllocatedImage VulkanImage::CreateImage(VkDevice device, VmaAllocator allocator,
-                                                    VkExtent3D extent, VkFormat format,
-                                                    VkImageUsageFlags usage, bool mipmapped)
+VulkanAllocatedImage VulkanImage::Create(VkDevice device, VmaAllocator allocator,
+                                         VkExtent3D extent, VkFormat format,
+                                         VkImageUsageFlags usage, bool mipmapped)
 {
     VulkanAllocatedImage img;
     img.extent = extent;
@@ -65,8 +65,8 @@ VulkanAllocatedImage VulkanImage::CreateImage(VkDevice device, VmaAllocator allo
     return img;
 }
 
-void VulkanImage::DestroyImage(VkDevice device, VmaAllocator allocator,
-                                     const VulkanAllocatedImage& img)
+void VulkanImage::Destroy(VkDevice device, VmaAllocator allocator,
+                          const VulkanAllocatedImage& img)
 {
     vkDestroyImageView(device, img.imageView, nullptr);
     vmaDestroyImage(allocator, img.image, img.allocation);
