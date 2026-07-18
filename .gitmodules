@@ -16,24 +16,30 @@
 [submodule "Hominem/vendor/imgui"]
 	path = Hominem/vendor/imgui
 	url = https://github.com/ThreeByYV/imgui.git
+	ignore = untracked
 [submodule "Hominem/vendor/Box2D"]
 	path = Hominem/vendor/Box2D
 	url = https://github.com/ThreeByYV/box2d.git
+	ignore = untracked
 [submodule "Hominem/vendor/assimp"]
 	path = Hominem/vendor/assimp
 	url = https://github.com/ThreeByYV/assimp.git
+	ignore = untracked
 [submodule "Hominem/vendor/msdf-atlas-gen"]
 	path = Hominem/vendor/msdf-atlas-gen
 	url = https://github.com/ThreeByYV/msdf-atlas-gen.git
+	ignore = untracked
 [submodule "Hominem/vendor/miniaudio"]
 	path = Hominem/vendor/miniaudio
 	url = https://github.com/mackron/miniaudio.git
 [submodule "Hominem/vendor/tracy"]
 	path = Hominem/vendor/tracy
 	url = https://github.com/wolfpld/tracy
+	ignore = untracked
 [submodule "Hominem/vendor/meshoptimizer"]
 	path = Hominem/vendor/meshoptimizer
 	url = https://github.com/zeux/meshoptimizer.git
+	ignore = untracked
 [submodule "Hominem/vendor/volk"]
 	path = Hominem/vendor/volk
 	url = https://github.com/zeux/volk.git
