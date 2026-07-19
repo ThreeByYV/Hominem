@@ -2,9 +2,12 @@
 
 #include "Hominem/Renderer/RenderFrame.h"
 #include "VulkanRenderer.h"
-#include "VulkanComputeShader.h"
+#include "VulkanComputePipeline.h"
 #include "VulkanStorageBuffer.h"
 #include "VulkanRenderTarget.h"
+#include "VulkanMeshBuffer.h"
+#include "VulkanGraphicsPipeline.h"
+#include "VulkanShaderLibrary.h"
 
 #include <array>
 #include <cstdint>
@@ -33,10 +36,13 @@ public:
     void RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h);
     void RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity);
 
-    void RunPasses(const std::vector<VulkanComputePass>& passes);
+    void RunFrame(const std::vector<VulkanMeshUpload>& uploads,
+                  const std::vector<VulkanComputePass>& computePasses,
+                  const std::vector<VulkanScenePass>& scenePasses);
 
     HANDLE       GetDrawImageWin32Handle()                        { return m_Renderer->GetDrawImageWin32Handle(); }
     HANDLE       GetComputeDoneSemaphoreWin32Handle(uint32_t i)  { return m_Renderer->GetComputeDoneSemaphoreWin32Handle(i); }
+    HANDLE       GetGLDoneSemaphoreWin32Handle()                 { return m_Renderer->GetGLDoneSemaphoreWin32Handle(); }
     VkDeviceSize GetDrawImageMemorySize()                  const { return m_Renderer->GetDrawImageMemorySize(); }
     VkExtent2D   GetDrawExtent()                           const { return m_Renderer->GetDrawExtent(); }
     uint32_t     GetCurrentFrameIndex()                    const { return m_Renderer->GetCurrentFrameIndex(); }
@@ -46,10 +52,22 @@ private:
     struct RTSlot { VulkanRenderTarget rt; bool needsTransition = true; bool valid = false; };
     struct BufSlot { VulkanStorageBuffer buf; bool valid = false; };
 
-    std::unique_ptr<VulkanRenderer>                      m_Renderer;
-    std::unordered_map<std::string, VulkanComputeShader> m_Shaders;
-    std::vector<RTSlot>                                  m_RenderTargets;
-    std::vector<BufSlot>                                 m_Buffers;
+    void UploadMeshes(VkCommandBuffer cmd, const std::vector<VulkanMeshUpload>& uploads);
+    void RunComputePasses(VkCommandBuffer cmd, const std::vector<VulkanComputePass>& passes);
+    void RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& pass);
+
+    VulkanGraphicsPipeline& GetOrCreateScenePipeline(const VulkanScenePass& pass);
+
+    std::unique_ptr<VulkanRenderer>                         m_Renderer;
+    std::unordered_map<std::string, VulkanComputePipeline>  m_ComputePipelines;
+    std::vector<RTSlot>                                     m_RenderTargets;
+    std::vector<BufSlot>                                    m_Buffers;
+
+    std::unordered_map<VulkanHandle, VulkanMeshBuffer>      m_Meshes;
+    std::unordered_map<std::string, VulkanGraphicsPipeline> m_GraphicsPipelines;
+    VulkanShaderLibrary                                     m_ShaderLibrary;
+    std::array<VulkanStorageBuffer, 2>                      m_SceneBuffers;
+    bool                                                    m_SceneBuffersCreated = false;
 };
 
 }

@@ -21,6 +21,7 @@ using PFN_glGenSemaphoresEXT             = void (APIENTRY*)(GLsizei, GLuint*);
 using PFN_glDeleteSemaphoresEXT          = void (APIENTRY*)(GLsizei, const GLuint*);
 using PFN_glImportSemaphoreWin32HandleEXT = void (APIENTRY*)(GLuint, GLenum, void*);
 using PFN_glWaitSemaphoreEXT             = void (APIENTRY*)(GLuint, GLuint, const GLuint*, GLuint, const GLuint*, const GLenum*);
+using PFN_glSignalSemaphoreEXT           = void (APIENTRY*)(GLuint, GLuint, const GLuint*, GLuint, const GLuint*, const GLenum*);
 
 static PFN_glGetUnsignedBytei_vEXT        pfn_GetUnsignedBytei_v   = nullptr;
 static PFN_glCreateMemoryObjectsEXT        pfn_CreateMemoryObjects  = nullptr;
@@ -31,6 +32,7 @@ static PFN_glGenSemaphoresEXT              pfn_GenSemaphores        = nullptr;
 static PFN_glDeleteSemaphoresEXT           pfn_DeleteSemaphores     = nullptr;
 static PFN_glImportSemaphoreWin32HandleEXT pfn_ImportSemaphoreWin32 = nullptr;
 static PFN_glWaitSemaphoreEXT              pfn_WaitSemaphore        = nullptr;
+static PFN_glSignalSemaphoreEXT            pfn_SignalSemaphore      = nullptr;
 
 static void LoadProcs()
 {
@@ -54,6 +56,7 @@ static void LoadProcs()
     pfn_DeleteSemaphores     = (PFN_glDeleteSemaphoresEXT)           get("glDeleteSemaphoresEXT");
     pfn_ImportSemaphoreWin32 = (PFN_glImportSemaphoreWin32HandleEXT) get("glImportSemaphoreWin32HandleEXT");
     pfn_WaitSemaphore        = (PFN_glWaitSemaphoreEXT)              get("glWaitSemaphoreEXT");
+    pfn_SignalSemaphore      = (PFN_glSignalSemaphoreEXT)            get("glSignalSemaphoreEXT");
 }
 
 std::array<uint8_t, 8> OpenGLSharedResources::GetDeviceLUID()
@@ -100,18 +103,33 @@ void OpenGLSharedResources::ImportSemaphore(uint32_t frameIdx, HANDLE semHandle)
     pfn_ImportSemaphoreWin32(m_Semaphores[frameIdx], k_HandleTypeOpaqueWin32, semHandle);
 }
 
+void OpenGLSharedResources::ImportGLDoneSemaphore(HANDLE semHandle)
+{
+    LoadProcs();
+
+    pfn_GenSemaphores(1, &m_GLDoneSemaphore);
+    pfn_ImportSemaphoreWin32(m_GLDoneSemaphore, k_HandleTypeOpaqueWin32, semHandle);
+}
+
 void OpenGLSharedResources::WaitSemaphore(uint32_t frameIdx)
 {
     const GLenum layout = k_LayoutShaderReadOnly;
     pfn_WaitSemaphore(m_Semaphores[frameIdx], 0, nullptr, 1, &m_Texture, &layout);
 }
 
+void OpenGLSharedResources::SignalGLDone()
+{
+    const GLenum layout = k_LayoutShaderReadOnly;
+    pfn_SignalSemaphore(m_GLDoneSemaphore, 0, nullptr, 1, &m_Texture, &layout);
+}
+
 void OpenGLSharedResources::Destroy()
 {
-    if (m_Texture)   { glDeleteTextures(1, &m_Texture);            m_Texture = 0; }
-    if (m_MemObject) { pfn_DeleteMemoryObjects(1, &m_MemObject);   m_MemObject = 0; }
+    if (m_Texture)   { glDeleteTextures(1, &m_Texture);          m_Texture   = 0; }
+    if (m_MemObject) { pfn_DeleteMemoryObjects(1, &m_MemObject); m_MemObject = 0; }
     for (auto& sem : m_Semaphores)
         if (sem) { pfn_DeleteSemaphores(1, &sem); sem = 0; }
+    if (m_GLDoneSemaphore) { pfn_DeleteSemaphores(1, &m_GLDoneSemaphore); m_GLDoneSemaphore = 0; }
 }
 
 }

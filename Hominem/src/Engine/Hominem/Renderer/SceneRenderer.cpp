@@ -309,7 +309,7 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
 
 void SceneRenderer::VulkanBlitPass(const RenderFrame& frame, CommandList& cmd)
 {
-    if (!m_SharedVkTexture || frame.vulkanPasses.empty()) return;
+    if (!m_SharedVkTexture || (frame.vulkanPasses.empty() && frame.vulkanScenePasses.empty())) return;
 
     cmd.BindShader (m_VkBlitShader);
     cmd.SetInt     (m_VkBlitShader, "u_VkTexture", 0);

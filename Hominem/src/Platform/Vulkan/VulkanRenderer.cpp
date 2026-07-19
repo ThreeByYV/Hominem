@@ -31,6 +31,7 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
     CreateLogicalDevice();
     InitVMA();
     CreateDrawImage(w, h);
+    CreateDepthImage(w, h);
     CreateCommandStructures();
     CreateSyncObjects();
 
@@ -46,9 +47,11 @@ void VulkanRenderer::Shutdown()
     for (auto& f : m_Frames)
         f.deletionQueue.flush();
 
-    vkDestroyImageView(m_Device, m_DrawImageView, nullptr);
-    vkDestroyImage    (m_Device, m_DrawImageRaw,  nullptr);
-    vkFreeMemory      (m_Device, m_DrawImageMemory, nullptr);
+    vkDestroyImageView(m_Device, m_DrawImage.view,   nullptr);
+    vkDestroyImage    (m_Device, m_DrawImage.image,  nullptr);
+    vkFreeMemory      (m_Device, m_DrawImage.memory, nullptr);
+
+    VulkanImage::Destroy(m_Device, m_Allocator, m_DepthImage);
 
     m_MainDeletionQueue.flush();
 }
@@ -86,10 +89,45 @@ void VulkanRenderer::PrepareComputeOnDrawImage()
 {
     HMN_CORE_ASSERT(m_FrameStarted, "PrepareComputeOnDrawImage called outside a frame");
     VkCommandBuffer cmd = m_Frames[m_CurrentFrame].cmdBuffer;
-    if (m_DrawImageInShaderRead)
-        VulkanImage::TransitionShaderReadToGeneral(cmd, m_DrawImageRaw);
-    else
-        VulkanImage::TransitionUndefinedToGeneral(cmd, m_DrawImageRaw);
+    DrawImage&      img = m_DrawImage;
+
+    switch (img.layout)
+    {
+        case DrawImageLayout::ShaderRead:
+            VulkanImage::TransitionShaderReadToGeneral(cmd, img.image);
+            break;
+        case DrawImageLayout::General:
+            break;
+        default:
+            VulkanImage::TransitionUndefinedToGeneral(cmd, img.image);
+            break;
+    }
+    img.layout = DrawImageLayout::General;
+}
+
+void VulkanRenderer::PrepareGraphicsOnDrawImage()
+{
+    HMN_CORE_ASSERT(m_FrameStarted, "PrepareGraphicsOnDrawImage called outside a frame");
+    VkCommandBuffer cmd = m_Frames[m_CurrentFrame].cmdBuffer;
+    DrawImage&      img = m_DrawImage;
+
+    switch (img.layout)
+    {
+        case DrawImageLayout::ShaderRead:
+            VulkanImage::TransitionShaderReadToColorAttachment(cmd, img.image);
+            break;
+        case DrawImageLayout::General:
+            VulkanImage::TransitionGeneralToColorAttachment(cmd, img.image);
+            break;
+        case DrawImageLayout::ColorAttachment:
+            break;
+        default:
+            VulkanImage::TransitionUndefinedToColorAttachment(cmd, img.image);
+            break;
+    }
+    img.layout = DrawImageLayout::ColorAttachment;
+
+    VulkanImage::TransitionUndefinedToDepthAttachment(cmd, m_DepthImage.image);
 }
 
 void VulkanRenderer::EndFrame()
@@ -97,8 +135,13 @@ void VulkanRenderer::EndFrame()
     HMN_CORE_ASSERT(m_FrameStarted, "EndFrame called without a matching BeginFrame");
 
     FrameData& frame = m_Frames[m_CurrentFrame];
-    VulkanImage::TransitionGeneralToShaderRead(frame.cmdBuffer, m_DrawImageRaw);
-    m_DrawImageInShaderRead = true;
+    DrawImage& img   = m_DrawImage;
+
+    if (img.layout == DrawImageLayout::ColorAttachment)
+        VulkanImage::TransitionColorAttachmentToShaderRead(frame.cmdBuffer, img.image);
+    else
+        VulkanImage::TransitionGeneralToShaderRead(frame.cmdBuffer, img.image);
+    img.layout = DrawImageLayout::ShaderRead;
 
     VK_CHECK(vkEndCommandBuffer(frame.cmdBuffer));
 
@@ -108,9 +151,17 @@ void VulkanRenderer::EndFrame()
     const VkSemaphore signalSemaphores[] = { frame.computeDone, m_TimelineSemaphore };
     const uint64_t    signalValues[]     = { 0, m_TimelineValue }; // ignored for the binary computeDone semaphore
 
+    const uint64_t             waitValues[]     = { 0 };
+    const VkSemaphore          waitSemaphores[] = { m_GLDoneSemaphore };
+    const VkPipelineStageFlags waitStages[]     = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+    const uint32_t             waitCount        = m_GLDonePending ? 1u : 0u;
+
     const VkTimelineSemaphoreSubmitInfo timelineInfo
     {
         .sType                     = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .waitSemaphoreValueCount   = waitCount,
+        .pWaitSemaphoreValues      = waitCount ? waitValues : nullptr,
         .signalSemaphoreValueCount = 2,
         .pSignalSemaphoreValues    = signalValues,
     };
@@ -118,12 +169,17 @@ void VulkanRenderer::EndFrame()
     {
         .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .pNext                = &timelineInfo,
+        .waitSemaphoreCount   = waitCount,
+        .pWaitSemaphores      = waitCount ? waitSemaphores : nullptr,
+        .pWaitDstStageMask    = waitCount ? waitStages : nullptr,
         .commandBufferCount   = 1,
         .pCommandBuffers      = &frame.cmdBuffer,
         .signalSemaphoreCount = 2,
         .pSignalSemaphores    = signalSemaphores,
     };
     VK_CHECK(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
+
+    m_GLDonePending = true;
 
     m_FrameStarted = false;
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -139,7 +195,7 @@ HANDLE VulkanRenderer::GetDrawImageWin32Handle()
     const VkMemoryGetWin32HandleInfoKHR info
     {
         .sType      = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR,
-        .memory     = m_DrawImageMemory,
+        .memory     = m_DrawImage.memory,
         .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
     };
     HANDLE handle = nullptr;
@@ -153,6 +209,19 @@ HANDLE VulkanRenderer::GetComputeDoneSemaphoreWin32Handle(uint32_t frameIdx)
     {
         .sType      = VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR,
         .semaphore  = m_Frames[frameIdx].computeDone,
+        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+    };
+    HANDLE handle = nullptr;
+    VK_CHECK(vkGetSemaphoreWin32HandleKHR(m_Device, &info, &handle));
+    return handle;
+}
+
+HANDLE VulkanRenderer::GetGLDoneSemaphoreWin32Handle()
+{
+    const VkSemaphoreGetWin32HandleInfoKHR info
+    {
+        .sType      = VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR,
+        .semaphore  = m_GLDoneSemaphore,
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT,
     };
     HANDLE handle = nullptr;
@@ -446,67 +515,78 @@ void VulkanRenderer::CreateDrawImage(uint32_t w, uint32_t h)
 {
     m_DrawExtent = { w, h };
 
-    const VkExternalMemoryImageCreateInfo extMemInfo
     {
-        .sType       = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
-    };
-    const VkImageCreateInfo imageInfo
-    {
-        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext         = &extMemInfo,
-        .imageType     = VK_IMAGE_TYPE_2D,
-        .format        = VK_FORMAT_R16G16B16A16_SFLOAT,
-        .extent        = { w, h, 1 },
-        .mipLevels     = 1,
-        .arrayLayers   = 1,
-        .samples       = VK_SAMPLE_COUNT_1_BIT,
-        .tiling        = VK_IMAGE_TILING_OPTIMAL,
-        .usage         = VK_IMAGE_USAGE_STORAGE_BIT          |
-                         VK_IMAGE_USAGE_SAMPLED_BIT          |
-                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT     |
-                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    VK_CHECK(vkCreateImage(m_Device, &imageInfo, nullptr, &m_DrawImageRaw));
+        DrawImage& drawImage = m_DrawImage;
 
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(m_Device, m_DrawImageRaw, &memReqs);
-    m_DrawImageMemorySize = memReqs.size;
-
-    const VkExportMemoryAllocateInfo exportInfo
-    {
-        .sType       = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
-    };
-    const VkMemoryAllocateInfo allocInfo
-    {
-        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext           = &exportInfo,
-        .allocationSize  = memReqs.size,
-        .memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits,
-                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
-    VK_CHECK(vkAllocateMemory(m_Device, &allocInfo, nullptr, &m_DrawImageMemory));
-    VK_CHECK(vkBindImageMemory(m_Device, m_DrawImageRaw, m_DrawImageMemory, 0));
-
-    const VkImageViewCreateInfo viewInfo
-    {
-        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image    = m_DrawImageRaw,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format   = VK_FORMAT_R16G16B16A16_SFLOAT,
-        .subresourceRange =
+        const VkExternalMemoryImageCreateInfo extMemInfo
         {
-            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel   = 0,
-            .levelCount     = 1,
-            .baseArrayLayer = 0,
-            .layerCount     = 1,
-        },
-    };
-    VK_CHECK(vkCreateImageView(m_Device, &viewInfo, nullptr, &m_DrawImageView));
+            .sType       = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+            .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+        };
+        const VkImageCreateInfo imageInfo
+        {
+            .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext         = &extMemInfo,
+            .imageType     = VK_IMAGE_TYPE_2D,
+            .format        = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .extent        = { w, h, 1 },
+            .mipLevels     = 1,
+            .arrayLayers   = 1,
+            .samples       = VK_SAMPLE_COUNT_1_BIT,
+            .tiling        = VK_IMAGE_TILING_OPTIMAL,
+            .usage         = VK_IMAGE_USAGE_STORAGE_BIT          |
+                             VK_IMAGE_USAGE_SAMPLED_BIT          |
+                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT     |
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+        VK_CHECK(vkCreateImage(m_Device, &imageInfo, nullptr, &drawImage.image));
+
+        VkMemoryRequirements memReqs;
+        vkGetImageMemoryRequirements(m_Device, drawImage.image, &memReqs);
+        m_DrawImageMemorySize = memReqs.size;
+
+        const VkExportMemoryAllocateInfo exportInfo
+        {
+            .sType       = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+            .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+        };
+        const VkMemoryAllocateInfo allocInfo
+        {
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext           = &exportInfo,
+            .allocationSize  = memReqs.size,
+            .memoryTypeIndex = FindMemoryType(memReqs.memoryTypeBits,
+                                              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+        };
+        VK_CHECK(vkAllocateMemory(m_Device, &allocInfo, nullptr, &drawImage.memory));
+        VK_CHECK(vkBindImageMemory(m_Device, drawImage.image, drawImage.memory, 0));
+
+        const VkImageViewCreateInfo viewInfo
+        {
+            .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image    = drawImage.image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format   = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .subresourceRange =
+            {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            },
+        };
+        VK_CHECK(vkCreateImageView(m_Device, &viewInfo, nullptr, &drawImage.view));
+    }
+}
+
+void VulkanRenderer::CreateDepthImage(uint32_t w, uint32_t h)
+{
+    m_DepthImage = VulkanImage::Create(m_Device, m_Allocator,
+                                       { w, h, 1 }, VK_FORMAT_D32_SFLOAT,
+                                       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
 void VulkanRenderer::CreateCommandStructures()
@@ -564,6 +644,12 @@ void VulkanRenderer::CreateSyncObjects()
     m_MainDeletionQueue.push_function([this]()
     {
         vkDestroySemaphore(m_Device, m_TimelineSemaphore, nullptr);
+    });
+
+    VK_CHECK(vkCreateSemaphore(m_Device, &semInfo, nullptr, &m_GLDoneSemaphore));
+    m_MainDeletionQueue.push_function([this]()
+    {
+        vkDestroySemaphore(m_Device, m_GLDoneSemaphore, nullptr);
     });
 
     for (auto& f : m_Frames)

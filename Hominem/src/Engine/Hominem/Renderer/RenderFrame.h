@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <array>
 #include <glm/glm.hpp>
 
 #include "Hominem/Renderer/Texture.h"
@@ -146,6 +147,39 @@ namespace Hominem {
 		std::vector<VulkanStorageImageRef> storageImages;
 	};
 
+	struct VulkanMeshUpload
+	{
+		VulkanHandle          handle;
+		std::vector<uint8_t>  vertexData;
+		std::vector<uint32_t> indices;
+	};
+
+	struct VulkanMeshDraw
+	{
+		VulkanHandle mesh;
+		glm::mat4    transform { 1.f };
+		glm::vec4    baseColor { 1.f };
+		bool         unlit     = false;
+	};
+
+	inline constexpr uint32_t kVulkanSceneLightCount = 1;
+
+	struct VulkanScenePass
+	{
+		std::string shaderName = "vk_mesh";
+		std::string debugName;
+
+		glm::mat4 view {};
+		glm::mat4 proj {};
+		glm::vec3 cameraPos {};
+
+		std::array<Light, kVulkanSceneLightCount> lights;
+		glm::vec3                                 ambientColor     { 1.f };
+		float                                     ambientIntensity = 0.f;
+
+		std::vector<VulkanMeshDraw>               draws;
+	};
+
 	/**
 	 * Plain-data snapshot of everything one frame needs to render.
 	 * Built on the main thread, consumed by the render thread.
@@ -201,6 +235,8 @@ namespace Hominem {
 		std::vector<SmokeQuadDraw>  smokeQuads;
 		std::vector<Light>          lights;
 		std::vector<VulkanComputePass> vulkanPasses;
+		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
+		std::vector<VulkanScenePass>   vulkanScenePasses;
 
 		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
 		FrameArena* arena = nullptr;
@@ -218,6 +254,8 @@ namespace Hominem {
 	{
 		std::vector<CommandList>    passCmds;
 		std::vector<VulkanComputePass> vulkanPasses;
+		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
+		std::vector<VulkanScenePass>   vulkanScenePasses;
 		uint32_t                       viewportWidth  = 0;
 		uint32_t                    viewportHeight = 0;
 		float                       renderScale    = 1.0f;

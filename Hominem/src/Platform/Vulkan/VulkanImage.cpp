@@ -220,4 +220,42 @@ void VulkanImage::TransitionGeneralToTransferSrc(VkCommandBuffer cmd, VkImage im
         VK_IMAGE_LAYOUT_GENERAL,                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL));
 }
 
+void VulkanImage::TransitionShaderReadToColorAttachment(VkCommandBuffer cmd, VkImage image)
+{
+    SubmitBarrier(cmd, ColorBarrier(image,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,          VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+}
+
+void VulkanImage::TransitionGeneralToColorAttachment(VkCommandBuffer cmd, VkImage image)
+{
+    SubmitBarrier(cmd, ColorBarrier(image,
+        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,           VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+                                                          VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
+        VK_IMAGE_LAYOUT_GENERAL,                          VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+}
+
+void VulkanImage::TransitionColorAttachmentToShaderRead(VkCommandBuffer cmd, VkImage image)
+{
+    SubmitBarrier(cmd, ColorBarrier(image,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,         VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+}
+
+void VulkanImage::TransitionUndefinedToDepthAttachment(VkCommandBuffer cmd, VkImage image)
+{
+    VkImageMemoryBarrier2 barrier = ColorBarrier(image,
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,     VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                                         VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,                       VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    SubmitBarrier(cmd, barrier);
+}
+
 }

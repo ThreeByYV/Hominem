@@ -5,12 +5,13 @@
 
 namespace Hominem {
 
-VulkanStorageBuffer VulkanStorageBuffer::Create(VmaAllocator allocator, VkDeviceSize capacity)
+VulkanStorageBuffer VulkanStorageBuffer::Create(VmaAllocator allocator, VkDeviceSize capacity,
+                                                VkBufferUsageFlags usage)
 {
     const VkBufferCreateInfo bufferInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size  = capacity,
-        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        .usage = usage,
     };
     const VmaAllocationCreateInfo allocInfo {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
@@ -32,6 +33,15 @@ void VulkanStorageBuffer::Upload(const void* data, VkDeviceSize size, VkDeviceSi
     HMN_CORE_ASSERT(m_MappedData, "VulkanStorageBuffer: not mapped");
     HMN_CORE_ASSERT(offset + size <= m_Capacity, "VulkanStorageBuffer: upload out of bounds");
     std::memcpy(static_cast<char*>(m_MappedData) + offset, data, static_cast<size_t>(size));
+}
+
+VkDeviceAddress VulkanStorageBuffer::GetDeviceAddress(VkDevice device) const
+{
+    const VkBufferDeviceAddressInfo info {
+        .sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = m_Buffer,
+    };
+    return vkGetBufferDeviceAddress(device, &info);
 }
 
 void VulkanStorageBuffer::Destroy(VmaAllocator allocator)

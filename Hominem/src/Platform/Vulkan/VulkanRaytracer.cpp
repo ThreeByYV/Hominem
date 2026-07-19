@@ -2,7 +2,31 @@
 #include "VulkanRaytracer.h"
 #include "VulkanImage.h"
 
+#include <glm/glm.hpp>
+
 namespace Hominem {
+
+namespace {
+
+struct GPUSceneData
+{
+    glm::mat4 viewProj;
+    glm::vec4 cameraPos;
+    glm::vec4 lightPos[kVulkanSceneLightCount];
+    glm::vec4 lightColor[kVulkanSceneLightCount];
+    glm::vec4 ambient;
+};
+
+struct MeshPushConstants
+{
+    glm::mat4       model;
+    glm::vec4       baseColor;
+    VkDeviceAddress vertexBuffer;
+    VkDeviceAddress sceneBuffer;
+    float           unlit;
+};
+
+}
 
 void VulkanRaytracer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferredLUID, std::string preferredName)
 {
@@ -19,14 +43,21 @@ void VulkanRaytracer::Shutdown()
     // Deferred, not called directly: VulkanRenderer::Shutdown() only flushes this
     // queue after its own vkDeviceWaitIdle, so these are guaranteed safe to destroy
     // by the time they actually run — never call Destroy() on these directly here.
-    for (auto& [_, shader] : m_Shaders)
-        deletionQueue.push_function([&shader]() { shader.Destroy(); });
+    for (auto& [_, pipeline] : m_ComputePipelines)
+        deletionQueue.push_function([&pipeline]() { pipeline.Destroy(); });
     for (auto& slot : m_RenderTargets)
         if (slot.valid)
             deletionQueue.push_function([&slot, device, allocator]() { slot.rt.Destroy(device, allocator); });
     for (auto& slot : m_Buffers)
         if (slot.valid)
             deletionQueue.push_function([&slot, allocator]() { slot.buf.Destroy(allocator); });
+    for (auto& [_, mesh] : m_Meshes)
+        deletionQueue.push_function([&mesh, allocator]() { mesh.Destroy(allocator); });
+    for (auto& [_, pipeline] : m_GraphicsPipelines)
+        deletionQueue.push_function([&pipeline]() { pipeline.Destroy(); });
+    if (m_SceneBuffersCreated)
+        for (auto& buf : m_SceneBuffers)
+            deletionQueue.push_function([&buf, allocator]() { buf.Destroy(allocator); });
 
     m_Renderer->Shutdown();
     m_Renderer.reset();
@@ -64,9 +95,44 @@ void VulkanRaytracer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capaci
     slot.valid = true;
 }
 
-void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
+void VulkanRaytracer::RunFrame(const std::vector<VulkanMeshUpload>& uploads,
+                               const std::vector<VulkanComputePass>& computePasses,
+                               const std::vector<VulkanScenePass>& scenePasses)
 {
     VkCommandBuffer cmd = m_Renderer->BeginFrame();
+
+    UploadMeshes(cmd, uploads);
+
+    if (!computePasses.empty())
+        RunComputePasses(cmd, computePasses);
+
+    for (const auto& pass : scenePasses)
+        RunScenePass(cmd, pass);
+
+    m_Renderer->EndFrame();
+}
+
+void VulkanRaytracer::UploadMeshes(VkCommandBuffer cmd, const std::vector<VulkanMeshUpload>& uploads)
+{
+    auto  device     = m_Renderer->GetDevice();
+    auto  allocator  = m_Renderer->GetAllocator();
+    auto& frameQueue = m_Renderer->GetFrameDeletionQueue();
+
+    for (const auto& upload : uploads)
+    {
+        if (auto it = m_Meshes.find(upload.handle); it != m_Meshes.end())
+        {
+            frameQueue.push_function([old = it->second, allocator]() mutable { old.Destroy(allocator); });
+            m_Meshes.erase(it);
+        }
+        m_Meshes.emplace(upload.handle,
+            VulkanMeshBuffer::Create(device, allocator, cmd, frameQueue,
+                                     upload.vertexData, upload.indices));
+    }
+}
+
+void VulkanRaytracer::RunComputePasses(VkCommandBuffer cmd, const std::vector<VulkanComputePass>& passes)
+{
     m_Renderer->PrepareComputeOnDrawImage();
 
     auto           device   = m_Renderer->GetDevice();
@@ -75,8 +141,8 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
 
     for (auto& pass : passes)
     {
-        auto sit = m_Shaders.find(pass.debugName);
-        if (sit == m_Shaders.end())
+        auto sit = m_ComputePipelines.find(pass.debugName);
+        if (sit == m_ComputePipelines.end())
         {
             std::vector<ComputeBindingSpec> specs = {
                 { .binding = 0, .type = ComputeBindingSpec::Type::StorageImage }
@@ -86,9 +152,10 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
             for (const auto&[binding, handle] : pass.storageImages)
                 specs.push_back({ .binding = binding, .type = ComputeBindingSpec::Type::StorageImage });
 
-            sit = m_Shaders.emplace(
+            const VulkanShader& computeShader = m_ShaderLibrary.LoadCompute(pass.debugName, pass.shaderSource);
+            sit = m_ComputePipelines.emplace(
                 pass.debugName,
-                VulkanComputeShader::Create(device, pass.shaderSource, pass.debugName, specs)
+                VulkanComputePipeline::Create(device, computeShader.computeSpirv, specs)
             ).first;
         }
         auto& shader = sit->second;
@@ -120,8 +187,126 @@ void VulkanRaytracer::RunPasses(const std::vector<VulkanComputePass>& passes)
         shader.WriteStorageImage(frameIdx, 0, m_Renderer->GetDrawImageView());
         shader.Dispatch(cmd, frameIdx, (w + 15) / 16, (h + 15) / 16);
     }
+}
 
-    m_Renderer->EndFrame();
+VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateScenePipeline(const VulkanScenePass& pass)
+{
+    auto it = m_GraphicsPipelines.find(pass.shaderName);
+    if (it != m_GraphicsPipelines.end())
+        return it->second;
+
+    const VulkanShader& shader = m_ShaderLibrary.Load(pass.shaderName);
+
+    const GraphicsPipelineSpec spec
+    {
+        .vertexSpirv       = shader.vertexSpirv,
+        .fragmentSpirv     = shader.fragmentSpirv,
+        .colorFormats      = { m_Renderer->GetDrawImageFormat() },
+        .depthFormat       = m_Renderer->GetDepthImageFormat(),
+        .cullMode          = VK_CULL_MODE_NONE,
+        .pushConstantBytes = sizeof(MeshPushConstants),
+    };
+
+    return m_GraphicsPipelines.emplace(pass.shaderName,
+        VulkanGraphicsPipeline::Create(m_Renderer->GetDevice(), spec)).first->second;
+}
+
+void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& pass)
+{
+    auto           device   = m_Renderer->GetDevice();
+    auto           allocator = m_Renderer->GetAllocator();
+    const uint32_t frameIdx = m_Renderer->GetCurrentFrameIndex();
+    auto [w, h]             = m_Renderer->GetDrawExtent();
+
+    const bool preserveContents = m_Renderer->DrawImageHasComputeOutput();
+    m_Renderer->PrepareGraphicsOnDrawImage();
+
+    if (!m_SceneBuffersCreated)
+    {
+        for (auto& buf : m_SceneBuffers)
+            buf = VulkanStorageBuffer::Create(allocator, sizeof(GPUSceneData),
+                                              VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        m_SceneBuffersCreated = true;
+    }
+
+    GPUSceneData scene {};
+    scene.viewProj  = pass.proj * pass.view;
+    scene.cameraPos = glm::vec4(pass.cameraPos, 1.f);
+    for (uint32_t i = 0; i < kVulkanSceneLightCount; i++)
+    {
+        const auto& light = pass.lights[i];
+        scene.lightPos[i]   = glm::vec4(light.Position, light.Radius);
+        scene.lightColor[i] = glm::vec4(light.Color, light.Intensity);
+    }
+    scene.ambient = glm::vec4(pass.ambientColor * pass.ambientIntensity, 1.f);
+    m_SceneBuffers[frameIdx].Upload(&scene, sizeof(scene));
+
+    auto& pipeline = GetOrCreateScenePipeline(pass);
+
+    const VkRenderingAttachmentInfo colorAttachment {
+        .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView   = m_Renderer->GetDrawImageView(),
+        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .loadOp      = preserveContents ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue  = { .color = { { 0.f, 0.f, 0.f, 1.f } } },
+    };
+    const VkRenderingAttachmentInfo depthAttachment {
+        .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView   = m_Renderer->GetDepthImageView(),
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp     = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .clearValue  = { .depthStencil = { 1.f, 0 } },
+    };
+    const VkRenderingInfo renderingInfo {
+        .sType                = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea           = { .offset = { 0, 0 }, .extent = { w, h } },
+        .layerCount           = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments    = &colorAttachment,
+        .pDepthAttachment     = &depthAttachment,
+    };
+    vkCmdBeginRendering(cmd, &renderingInfo);
+
+    pipeline.Bind(cmd);
+
+    const VkViewport viewport {
+        .x        = 0.f,
+        .y        = 0.f,
+        .width    = (float)w,
+        .height   = (float)h,
+        .minDepth = 0.f,
+        .maxDepth = 1.f,
+    };
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    const VkRect2D scissor { .offset = { 0, 0 }, .extent = { w, h } };
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    const VkDeviceAddress sceneAddress = m_SceneBuffers[frameIdx].GetDeviceAddress(device);
+
+    for (const auto& draw : pass.draws)
+    {
+        auto it = m_Meshes.find(draw.mesh);
+        if (it == m_Meshes.end()) continue;
+        auto& mesh = it->second;
+
+        const MeshPushConstants pc {
+            .model        = draw.transform,
+            .baseColor    = draw.baseColor,
+            .vertexBuffer = mesh.GetVertexBufferAddress(),
+            .sceneBuffer  = sceneAddress,
+            .unlit        = draw.unlit ? 1.f : 0.f,
+        };
+        pipeline.PushConstants(cmd, &pc, sizeof(pc));
+
+        vkCmdBindIndexBuffer(cmd, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, mesh.GetIndexCount(), 1, 0, 0, 0);
+    }
+
+    vkCmdEndRendering(cmd);
 }
 
 }

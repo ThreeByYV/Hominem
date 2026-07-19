@@ -194,7 +194,9 @@ namespace Hominem {
 			// Record every pass into CommandLists; the render thread only replays them.
 			RecordedFrame recorded;
 			recorded.passCmds       = m_RenderThread.GetSceneRenderer().Record(frame);
-			recorded.vulkanPasses   = std::move(frame.vulkanPasses);
+			recorded.vulkanPasses      = std::move(frame.vulkanPasses);
+			recorded.vulkanMeshUploads = std::move(frame.vulkanMeshUploads);
+			recorded.vulkanScenePasses = std::move(frame.vulkanScenePasses);
 			recorded.viewportWidth  = frame.viewportWidth;
 			recorded.viewportHeight = frame.viewportHeight;
 			recorded.renderScale    = frame.renderScale;

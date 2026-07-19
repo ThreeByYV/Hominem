@@ -37,6 +37,11 @@ void TransitionTransferDstToPresent        (VkCommandBuffer cmd, VkImage image);
 void TransitionUndefinedToColorAttachment(VkCommandBuffer cmd, VkImage image);
 void TransitionGeneralToTransferSrc      (VkCommandBuffer cmd, VkImage image);
 
+void TransitionShaderReadToColorAttachment(VkCommandBuffer cmd, VkImage image);
+void TransitionGeneralToColorAttachment   (VkCommandBuffer cmd, VkImage image);
+void TransitionColorAttachmentToShaderRead(VkCommandBuffer cmd, VkImage image);
+void TransitionUndefinedToDepthAttachment (VkCommandBuffer cmd, VkImage image);
+
 void CopyImageToImage(VkCommandBuffer cmd,
                       VkImage src, VkExtent2D srcSize,
                       VkImage dst, VkExtent2D dstSize);

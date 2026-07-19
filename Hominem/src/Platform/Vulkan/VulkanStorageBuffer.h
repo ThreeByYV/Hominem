@@ -8,9 +8,12 @@ namespace Hominem {
 class VulkanStorageBuffer
 {
 public:
-    static VulkanStorageBuffer Create(VmaAllocator allocator, VkDeviceSize capacity);
+    static VulkanStorageBuffer Create(VmaAllocator allocator, VkDeviceSize capacity,
+                                      VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     void Upload(const void* data, VkDeviceSize size, VkDeviceSize offset = 0);
     void Destroy(VmaAllocator allocator);
+
+    VkDeviceAddress GetDeviceAddress(VkDevice device) const;
 
     VkBuffer     GetBuffer()   const { return m_Buffer; }
     VkDeviceSize GetCapacity() const { return m_Capacity; }

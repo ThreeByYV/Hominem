@@ -47,6 +47,8 @@ void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>
         m_SharedResources->ImportSemaphore(i, semHandle);
     }
 
+    m_SharedResources->ImportGLDoneSemaphore(m_VulkanRaytracer->GetGLDoneSemaphoreWin32Handle());
+
     m_SceneRenderer.SetSharedVulkanTexture(m_SharedResources->GetTextureID());
 }
 
@@ -69,11 +71,18 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
     graph.SetRenderScale(frame.renderScale);
     graph.Resize(frame.viewportWidth, frame.viewportHeight);
 
-    if (!frame.vulkanPasses.empty())
+    const bool hasVulkanWork = !frame.vulkanPasses.empty()
+                            || !frame.vulkanScenePasses.empty()
+                            || !frame.vulkanMeshUploads.empty();
+
+    bool sharedTextureInUse = false;
+
+    if (hasVulkanWork)
     {
-        m_VulkanRaytracer->RunPasses(frame.vulkanPasses);
+        m_VulkanRaytracer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses, frame.vulkanScenePasses);
         if (m_SharedResources)
         {
+            sharedTextureInUse = true;
             m_SharedResources->WaitSemaphore(m_VkFrameIdx);
             m_VkFrameIdx = (m_VkFrameIdx + 1) % 2;
         }
@@ -81,6 +90,9 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
 
     for (auto& cmd : frame.passCmds)
         cmd.Submit();
+
+    if (sharedTextureInUse)
+        m_SharedResources->SignalGLDone();
 }
 
 void Renderer::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
