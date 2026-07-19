@@ -44,4 +44,12 @@ struct MeshData
     glm::vec3 AABBMax { 0.f };
 };
 
+class StaticMeshData : public RefCounted
+{
+public:
+    explicit StaticMeshData(MeshData meshData) : data(std::move(meshData)) {}
+
+    MeshData data;
+};
+
 }

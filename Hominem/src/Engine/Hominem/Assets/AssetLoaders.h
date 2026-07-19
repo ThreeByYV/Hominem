@@ -1,6 +1,8 @@
 #pragma once
 
 #include "AssetManager.h"
+#include "MeshData.h"
+#include "StaticMeshImporter.h"
 #include "Hominem/Renderer/Texture.h"
 #include "Hominem/Renderer/StaticMesh.h"
 #include "Hominem/Renderer/SkinnedMesh.h"
@@ -43,6 +45,17 @@ template<> struct AssetLoader<Skybox> {
 
 template<> struct AssetLoader<SoundBuffer> {
     static Ref<SoundBuffer> Load(const std::string& path) { return SoundBuffer::CreateFromFile(path); }
+};
+
+template<> struct AssetLoader<StaticMeshData> {
+    static Ref<StaticMeshData> Load(const std::string& path) {
+        auto result = ImportStaticMesh(path);
+        if (!result) {
+            HMN_CORE_ERROR("AssetLoader<StaticMeshData>: {}", result.error());
+            return nullptr;
+        }
+        return CreateRef<StaticMeshData>(std::move(*result));
+    }
 };
 
 template<> struct AssetLoader<ShaderSource> {
