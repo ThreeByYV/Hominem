@@ -73,14 +73,15 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
 
     const bool hasVulkanWork = !frame.vulkanPasses.empty()
                             || !frame.vulkanMeshDraws.empty()
-                            || !frame.vulkanMeshUploads.empty();
+                            || !frame.vulkanMeshUploads.empty()
+                            || !frame.vulkanDebugSpheres.empty();
 
     bool sharedTextureInUse = false;
 
     if (hasVulkanWork)
     {
         m_VulkanRaytracer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses,
-                                    frame.vulkanMeshDraws, frame.vulkanView);
+                                    frame.vulkanMeshDraws, frame.vulkanDebugSpheres, frame.vulkanView);
         if (m_SharedResources)
         {
             sharedTextureInUse = true;

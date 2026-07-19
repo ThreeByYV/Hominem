@@ -1,6 +1,7 @@
 #include "hmnpch.h"
 #include "VulkanRaytracer.h"
 #include "VulkanImage.h"
+#include "Hominem/Renderer/UvSphere.h"
 
 #include <glm/glm.hpp>
 
@@ -17,7 +18,8 @@ struct GPUSceneData
     glm::vec4 ambient;
 };
 
-constexpr const char* k_SceneShaderName = "vk_mesh";
+constexpr const char* k_SceneShaderName       = "vk_mesh";
+constexpr const char* k_DebugSphereShaderName = "vk_debug_sphere";
 
 struct MeshPushConstants
 {
@@ -26,6 +28,13 @@ struct MeshPushConstants
     VkDeviceAddress vertexBuffer;
     VkDeviceAddress sceneBuffer;
     float           unlit;
+};
+
+struct DebugSpherePushConstants
+{
+    VkDeviceAddress vertexBuffer;
+    VkDeviceAddress instanceBuffer;
+    VkDeviceAddress sceneBuffer;
 };
 
 }
@@ -59,6 +68,11 @@ void VulkanRaytracer::Shutdown()
         deletionQueue.push_function([&pipeline]() { pipeline.Destroy(); });
     if (m_SceneBuffersCreated)
         for (auto& buf : m_SceneBuffers)
+            deletionQueue.push_function([&buf, allocator]() { buf.Destroy(allocator); });
+    if (m_DebugSphereMeshReady)
+        deletionQueue.push_function([this, allocator]() { m_DebugSphereMesh.Destroy(allocator); });
+    if (m_DebugSphereBuffersCreated)
+        for (auto& buf : m_DebugSphereBuffers)
             deletionQueue.push_function([&buf, allocator]() { buf.Destroy(allocator); });
 
     m_Renderer->Shutdown();
@@ -100,6 +114,7 @@ void VulkanRaytracer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capaci
 void VulkanRaytracer::RunFrame(const std::vector<VulkanMeshUpload>& uploads,
                                const std::vector<VulkanComputePass>& computePasses,
                                const std::vector<VulkanMeshDraw>& draws,
+                               const std::vector<VulkanSphereInstance>& debugSpheres,
                                const VulkanSceneView& view)
 {
     VkCommandBuffer cmd = m_Renderer->BeginFrame();
@@ -109,8 +124,8 @@ void VulkanRaytracer::RunFrame(const std::vector<VulkanMeshUpload>& uploads,
     if (!computePasses.empty())
         RunComputePasses(cmd, computePasses);
 
-    if (!draws.empty())
-        RunScenePass(cmd, draws, view);
+    if (!draws.empty() || !debugSpheres.empty())
+        RunScenePass(cmd, draws, debugSpheres, view);
 
     m_Renderer->EndFrame();
 }
@@ -214,13 +229,98 @@ VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateScenePipeline()
         VulkanGraphicsPipeline::Create(m_Renderer->GetDevice(), spec)).first->second;
 }
 
+VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateDebugSpherePipeline()
+{
+    auto it = m_GraphicsPipelines.find(k_DebugSphereShaderName);
+    if (it != m_GraphicsPipelines.end())
+        return it->second;
+
+    const VulkanShader& shader = m_ShaderLibrary.Load(k_DebugSphereShaderName);
+
+    const GraphicsPipelineSpec spec
+    {
+        .vertexSpirv       = shader.vertexSpirv,
+        .fragmentSpirv     = shader.fragmentSpirv,
+        .colorFormats      = { m_Renderer->GetDrawImageFormat() },
+        .depthFormat       = m_Renderer->GetDepthImageFormat(),
+        .cullMode          = VK_CULL_MODE_NONE,
+        .pushConstantBytes = sizeof(DebugSpherePushConstants),
+    };
+
+    return m_GraphicsPipelines.emplace(k_DebugSphereShaderName,
+        VulkanGraphicsPipeline::Create(m_Renderer->GetDevice(), spec)).first->second;
+}
+
+void VulkanRaytracer::EnsureDebugSphereMesh(VkCommandBuffer cmd)
+{
+    if (m_DebugSphereMeshReady) return;
+
+    const UvSphereMesh mesh = GenerateUvSphere();
+    const auto* bytes = reinterpret_cast<const uint8_t*>(mesh.vertices.data());
+
+    m_DebugSphereMesh = VulkanMeshBuffer::Create(
+        m_Renderer->GetDevice(), m_Renderer->GetAllocator(),
+        cmd, m_Renderer->GetFrameDeletionQueue(),
+        { bytes, bytes + mesh.vertices.size() * sizeof(StaticVertex) },
+        mesh.indices);
+    m_DebugSphereMeshReady = true;
+}
+
+void VulkanRaytracer::DrawDebugSpheres(VkCommandBuffer cmd,
+                                       const std::vector<VulkanSphereInstance>& spheres,
+                                       VkDeviceAddress sceneAddress)
+{
+    if (spheres.empty()) return;
+
+    auto           device    = m_Renderer->GetDevice();
+    auto           allocator = m_Renderer->GetAllocator();
+    const uint32_t frameIdx  = m_Renderer->GetCurrentFrameIndex();
+
+    const uint32_t needed = (uint32_t)(spheres.size() * sizeof(VulkanSphereInstance));
+    if (!m_DebugSphereBuffersCreated || needed > m_DebugSphereCapacity)
+    {
+        if (m_DebugSphereBuffersCreated)
+            for (auto& buf : m_DebugSphereBuffers)
+                m_Renderer->GetFrameDeletionQueue().push_function(
+                    [b = buf, allocator]() mutable { b.Destroy(allocator); });
+
+        m_DebugSphereCapacity = std::max(needed, 1u << 16);
+        for (auto& buf : m_DebugSphereBuffers)
+            buf = VulkanStorageBuffer::Create(allocator, m_DebugSphereCapacity,
+                                              VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        m_DebugSphereBuffersCreated = true;
+    }
+
+    m_DebugSphereBuffers[frameIdx].Upload(spheres.data(), needed);
+
+    auto& pipeline = GetOrCreateDebugSpherePipeline();
+    pipeline.Bind(cmd);
+
+    const DebugSpherePushConstants pc
+    {
+        .vertexBuffer   = m_DebugSphereMesh.GetVertexBufferAddress(),
+        .instanceBuffer = m_DebugSphereBuffers[frameIdx].GetDeviceAddress(device),
+        .sceneBuffer    = sceneAddress,
+    };
+
+    pipeline.PushConstants(cmd, &pc, sizeof(pc));
+
+    vkCmdBindIndexBuffer(cmd, m_DebugSphereMesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, m_DebugSphereMesh.GetIndexCount(), (uint32_t)spheres.size(), 0, 0, 0);
+}
+
 void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<VulkanMeshDraw>& draws,
+                                   const std::vector<VulkanSphereInstance>& debugSpheres,
                                    const VulkanSceneView& view)
 {
     auto           device   = m_Renderer->GetDevice();
     auto           allocator = m_Renderer->GetAllocator();
     const uint32_t frameIdx = m_Renderer->GetCurrentFrameIndex();
     auto [w, h]             = m_Renderer->GetDrawExtent();
+
+    if (!debugSpheres.empty())
+        EnsureDebugSphereMesh(cmd);
 
     const bool preserveContents = m_Renderer->DrawImageHasComputeOutput();
     m_Renderer->PrepareGraphicsOnDrawImage();
@@ -248,7 +348,8 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vulkan
 
     auto& pipeline = GetOrCreateScenePipeline();
 
-    const VkRenderingAttachmentInfo colorAttachment {
+    const VkRenderingAttachmentInfo colorAttachment
+    {
         .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView   = m_Renderer->GetDrawImageView(),
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -256,7 +357,8 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vulkan
         .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue  = { .color = { { 0.f, 0.f, 0.f, 1.f } } },
     };
-    const VkRenderingAttachmentInfo depthAttachment {
+    const VkRenderingAttachmentInfo depthAttachment
+    {
         .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView   = m_Renderer->GetDepthImageView(),
         .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
@@ -264,7 +366,8 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vulkan
         .storeOp     = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .clearValue  = { .depthStencil = { 1.f, 0 } },
     };
-    const VkRenderingInfo renderingInfo {
+    const VkRenderingInfo renderingInfo
+    {
         .sType                = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea           = { .offset = { 0, 0 }, .extent = { w, h } },
         .layerCount           = 1,
@@ -276,7 +379,8 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vulkan
 
     pipeline.Bind(cmd);
 
-    const VkViewport viewport {
+    const VkViewport viewport
+    {
         .x        = 0.f,
         .y        = 0.f,
         .width    = (float)w,
@@ -309,6 +413,9 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vulkan
         vkCmdBindIndexBuffer(cmd, mesh.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd, mesh.GetIndexCount(), 1, 0, 0, 0);
     }
+
+    if (m_DebugSphereMeshReady)
+        DrawDebugSpheres(cmd, debugSpheres, sceneAddress);
 
     vkCmdEndRendering(cmd);
 }

@@ -168,6 +168,13 @@ namespace Hominem {
 		bool         unlit     = false;
 	};
 
+	// One unlit sphere billboarded into the scene. xyz = world centre, w = radius.
+	struct VulkanSphereInstance
+	{
+		glm::vec4 positionRadius { 0.f, 0.f, 0.f, 1.f };
+		glm::vec4 color          { 1.f };
+	};
+
 	inline constexpr uint32_t kVulkanSceneLightCount = 1;
 
 	struct VulkanSceneView
@@ -239,6 +246,7 @@ namespace Hominem {
 		std::vector<VulkanComputePass> vulkanPasses;
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
 		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
+		std::vector<VulkanSphereInstance> vulkanDebugSpheres;
 
 		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
 		FrameArena* arena = nullptr;
@@ -258,6 +266,7 @@ namespace Hominem {
 		std::vector<VulkanComputePass> vulkanPasses;
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
 		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
+		std::vector<VulkanSphereInstance> vulkanDebugSpheres;
 		VulkanSceneView                vulkanView;
 		uint32_t                       viewportWidth  = 0;
 		uint32_t                    viewportHeight = 0;

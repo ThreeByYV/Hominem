@@ -39,6 +39,7 @@ public:
     void RunFrame(const std::vector<VulkanMeshUpload>& uploads,
                   const std::vector<VulkanComputePass>& computePasses,
                   const std::vector<VulkanMeshDraw>& draws,
+                  const std::vector<VulkanSphereInstance>& debugSpheres,
                   const VulkanSceneView& view);
 
     HANDLE       GetDrawImageWin32Handle()                        { return m_Renderer->GetDrawImageWin32Handle(); }
@@ -56,9 +57,15 @@ private:
     void UploadMeshes(VkCommandBuffer cmd, const std::vector<VulkanMeshUpload>& uploads);
     void RunComputePasses(VkCommandBuffer cmd, const std::vector<VulkanComputePass>& passes);
     void RunScenePass(VkCommandBuffer cmd, const std::vector<VulkanMeshDraw>& draws,
+                      const std::vector<VulkanSphereInstance>& debugSpheres,
                       const VulkanSceneView& view);
 
+    void DrawDebugSpheres(VkCommandBuffer cmd, const std::vector<VulkanSphereInstance>& spheres,
+                          VkDeviceAddress sceneAddress);
+
     VulkanGraphicsPipeline& GetOrCreateScenePipeline();
+    VulkanGraphicsPipeline& GetOrCreateDebugSpherePipeline();
+    void EnsureDebugSphereMesh(VkCommandBuffer cmd);
 
     std::unique_ptr<VulkanRenderer>                         m_Renderer;
     std::unordered_map<std::string, VulkanComputePipeline>  m_ComputePipelines;
@@ -70,6 +77,12 @@ private:
     VulkanShaderLibrary                                     m_ShaderLibrary;
     std::array<VulkanStorageBuffer, 2>                      m_SceneBuffers;
     bool                                                    m_SceneBuffersCreated = false;
+
+    VulkanMeshBuffer                   m_DebugSphereMesh;
+    bool                               m_DebugSphereMeshReady = false;
+    std::array<VulkanStorageBuffer, 2> m_DebugSphereBuffers;
+    bool                               m_DebugSphereBuffersCreated = false;
+    uint32_t                           m_DebugSphereCapacity = 0;
 };
 
 }

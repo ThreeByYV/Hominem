@@ -206,6 +206,7 @@ namespace Hominem {
 			recorded.vulkanPasses      = std::move(frame.vulkanPasses);
 			recorded.vulkanMeshUploads = std::move(frame.vulkanMeshUploads);
 			recorded.vulkanMeshDraws   = std::move(frame.vulkanMeshDraws);
+			recorded.vulkanDebugSpheres = std::move(frame.vulkanDebugSpheres);
 
 			recorded.vulkanView.view      = frame.view3D;
 			recorded.vulkanView.proj      = frame.proj3D;
