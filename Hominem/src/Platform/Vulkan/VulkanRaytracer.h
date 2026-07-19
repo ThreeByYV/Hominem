@@ -38,7 +38,8 @@ public:
 
     void RunFrame(const std::vector<VulkanMeshUpload>& uploads,
                   const std::vector<VulkanComputePass>& computePasses,
-                  const std::vector<VulkanScenePass>& scenePasses);
+                  const std::vector<VulkanMeshDraw>& draws,
+                  const VulkanSceneView& view);
 
     HANDLE       GetDrawImageWin32Handle()                        { return m_Renderer->GetDrawImageWin32Handle(); }
     HANDLE       GetComputeDoneSemaphoreWin32Handle(uint32_t i)  { return m_Renderer->GetComputeDoneSemaphoreWin32Handle(i); }
@@ -54,9 +55,10 @@ private:
 
     void UploadMeshes(VkCommandBuffer cmd, const std::vector<VulkanMeshUpload>& uploads);
     void RunComputePasses(VkCommandBuffer cmd, const std::vector<VulkanComputePass>& passes);
-    void RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& pass);
+    void RunScenePass(VkCommandBuffer cmd, const std::vector<VulkanMeshDraw>& draws,
+                      const VulkanSceneView& view);
 
-    VulkanGraphicsPipeline& GetOrCreateScenePipeline(const VulkanScenePass& pass);
+    VulkanGraphicsPipeline& GetOrCreateScenePipeline();
 
     std::unique_ptr<VulkanRenderer>                         m_Renderer;
     std::unordered_map<std::string, VulkanComputePipeline>  m_ComputePipelines;

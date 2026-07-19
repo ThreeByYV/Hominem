@@ -72,14 +72,15 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
     graph.Resize(frame.viewportWidth, frame.viewportHeight);
 
     const bool hasVulkanWork = !frame.vulkanPasses.empty()
-                            || !frame.vulkanScenePasses.empty()
+                            || !frame.vulkanMeshDraws.empty()
                             || !frame.vulkanMeshUploads.empty();
 
     bool sharedTextureInUse = false;
 
     if (hasVulkanWork)
     {
-        m_VulkanRaytracer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses, frame.vulkanScenePasses);
+        m_VulkanRaytracer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses,
+                                    frame.vulkanMeshDraws, frame.vulkanView);
         if (m_SharedResources)
         {
             sharedTextureInUse = true;

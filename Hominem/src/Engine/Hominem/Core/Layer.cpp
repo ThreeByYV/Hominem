@@ -10,17 +10,15 @@ namespace Hominem {
 	{
 	}
 
-	void Layer::OnBuildRenderFrame(RenderFrame& frame)
+	void Layer::SetViewportSize(uint32_t width, uint32_t height)
 	{
-		if (m_Scene) m_Scene->BuildRenderFrame(frame);
-	}
+		if (width == 0 || height == 0) return;
 
-	void Layer::SetFullscreenClear(RenderFrame& frame, const glm::vec4& clearColor)
-	{
-		auto& window = Application::Get().GetWindow();
-		frame.viewportWidth  = window.GetWidth();
-		frame.viewportHeight = window.GetHeight();
-		frame.clearColor     = clearColor;
+		m_ViewportWidth  = width;
+		m_ViewportHeight = height;
+
+		if (m_Scene) m_Scene->OnViewportResize(width, height);
+		if (m_UI)    m_UI->OnViewportResize(width, height);
 	}
 
 	void Layer::QueueTransition(std::unique_ptr<Layer> toLayer) const

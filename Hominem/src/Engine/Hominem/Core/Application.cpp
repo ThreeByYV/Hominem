@@ -174,7 +174,11 @@ namespace Hominem {
 			m_MuteKeyHeld = muteKeyDown;
 
 			for (auto& layer : m_LayerStack)
+			{
 				layer->OnUpdate(timestep);
+				if (UIRoot* ui = layer->GetUIRoot())
+					ui->OnUpdate(timestep);
+			}
 
 			m_RenderThread.WaitImGuiConsumed();
 
@@ -189,14 +193,26 @@ namespace Hominem {
 			RenderFrame frame;
 			frame.arena = &m_RenderThread.GetWriteArena();
 			for (auto& layer : m_LayerStack)
-				layer->OnBuildRenderFrame(frame);
+			{
+				if (Scene* scene = layer->GetScene())
+					scene->BuildRenderFrame(frame);
+				if (UIRoot* ui = layer->GetUIRoot())
+					ui->BuildRenderFrame(frame);
+			}
 
 			// Record every pass into CommandLists; the render thread only replays them.
 			RecordedFrame recorded;
 			recorded.passCmds       = m_RenderThread.GetSceneRenderer().Record(frame);
 			recorded.vulkanPasses      = std::move(frame.vulkanPasses);
 			recorded.vulkanMeshUploads = std::move(frame.vulkanMeshUploads);
-			recorded.vulkanScenePasses = std::move(frame.vulkanScenePasses);
+			recorded.vulkanMeshDraws   = std::move(frame.vulkanMeshDraws);
+
+			recorded.vulkanView.view      = frame.view3D;
+			recorded.vulkanView.proj      = frame.proj3D;
+			recorded.vulkanView.cameraPos = frame.cameraWorldPos;
+			recorded.vulkanView.ambient   = frame.light.AmbientColor * frame.light.AmbientIntensity;
+			for (uint32_t i = 0; i < kVulkanSceneLightCount && i < frame.lights.size(); ++i)
+				recorded.vulkanView.lights[i] = frame.lights[i];
 			recorded.viewportWidth  = frame.viewportWidth;
 			recorded.viewportHeight = frame.viewportHeight;
 			recorded.renderScale    = frame.renderScale;
@@ -244,20 +260,25 @@ namespace Hominem {
 		RenderThread::QueueUpload([w = e.GetWidth(), h = e.GetHeight()] {
 			RenderCommand::SetViewport(0, 0, w, h);
 		});
-			
+
+		for (auto& layer : m_LayerStack)
+			layer->SetViewportSize(e.GetWidth(), e.GetHeight());
+
 		return false; //all layers will know about this event
 	}
 
 	
 	void Application::PushLayer(std::unique_ptr<Layer> layer)
 	{
-		layer->OnAttach();  
+		layer->SetViewportSize(m_Window->GetWidth(), m_Window->GetHeight());
+		layer->OnAttach();
 		m_LayerStack.PushLayer(std::move(layer));
 	}
 
 	void Application::PushOverlay(std::unique_ptr<Layer> layer)
 	{
-		layer->OnAttach(); 
+		layer->SetViewportSize(m_Window->GetWidth(), m_Window->GetHeight());
+		layer->OnAttach();
 		m_LayerStack.PushOverlay(std::move(layer));
 	}
 
@@ -273,7 +294,13 @@ namespace Hominem {
 		// Wait for the render thread to finish the last submitted frame to avoid GL_INVALID_OPERATION
 		m_RenderThread.WaitIdle();
 
-		for (auto& transition : m_PendingTransitions)
+		// OnAttach can itself queue a transition (e.g. a loading screen whose assets are
+		// already cached transitions synchronously). Drain into a local so those re-entrant
+		// queues survive to the next frame instead of being cleared out from under us.
+		auto transitions = std::move(m_PendingTransitions);
+		m_PendingTransitions.clear();
+
+		for (auto& transition : transitions)
 		{
 			for (auto& layer : m_LayerStack)
 			{
@@ -281,13 +308,12 @@ namespace Hominem {
 				{
 					layer->OnDetach();  // Clean up old layer
 					layer = std::move(transition.newLayer);  // Replace with new layer
+					layer->SetViewportSize(m_Window->GetWidth(), m_Window->GetHeight());
 					layer->OnAttach();  // Initialize new layer
 					break;
 				}
 			}
 		}
-
-		m_PendingTransitions.clear();
 	}
 
 	Application::~Application()

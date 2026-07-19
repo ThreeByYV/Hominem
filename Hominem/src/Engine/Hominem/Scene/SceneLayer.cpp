@@ -1,7 +1,6 @@
 #include "hmnpch.h"
 #include "Hominem/Scene/SceneLayer.h"
 #include "Hominem/Scene/Scene.h"
-#include "Hominem/Core/Application.h"
 #include "Hominem/Physics/PhysicsWorld.h"
 #include "Hominem/Audio/AudioSystem.h"
 
@@ -23,10 +22,10 @@ void SceneLayer::OnAttach()
 
     m_Scene->SetPostProcess(desc.PostProcess);
 
-    auto& win = Application::Get().GetWindow();
-    m_Scene->OnViewportResize(win.GetWidth(), win.GetHeight());
+    m_UI = CreateRef<UIRoot>();
+    SetViewportSize(GetViewportWidth(), GetViewportHeight());
 
-    SceneContext ctx(*m_Scene, AudioSystem::Get(), win.GetWidth(), win.GetHeight());
+    SceneContext ctx(*m_Scene, AudioSystem::Get(), GetViewportWidth(), GetViewportHeight());
     for (auto& spawn : desc.Spawners)
         spawn(ctx);
     OnSceneReady(ctx);
@@ -35,6 +34,7 @@ void SceneLayer::OnAttach()
 void SceneLayer::OnDetach()
 {
     OnSceneDetach();
+    m_UI.reset();
     m_Scene.reset();
 }
 
@@ -46,7 +46,6 @@ void SceneLayer::OnEvent(Event& e)
 
 bool SceneLayer::HandleWindowResize(WindowResizeEvent& e)
 {
-    if (m_Scene) m_Scene->OnViewportResize(e.GetWidth(), e.GetHeight());
     OnWindowResized(e.GetWidth(), e.GetHeight());
     return false;
 }

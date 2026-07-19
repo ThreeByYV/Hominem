@@ -154,6 +154,12 @@ namespace Hominem {
 		std::vector<uint32_t> indices;
 	};
 
+	inline VulkanHandle AllocVulkanMeshHandle()
+	{
+		static std::atomic<VulkanHandle> s_Next { 0 };
+		return s_Next.fetch_add(1, std::memory_order_relaxed);
+	}
+
 	struct VulkanMeshDraw
 	{
 		VulkanHandle mesh;
@@ -164,20 +170,14 @@ namespace Hominem {
 
 	inline constexpr uint32_t kVulkanSceneLightCount = 1;
 
-	struct VulkanScenePass
+	struct VulkanSceneView
 	{
-		std::string shaderName = "vk_mesh";
-		std::string debugName;
-
-		glm::mat4 view {};
-		glm::mat4 proj {};
+		glm::mat4 view { 1.f };
+		glm::mat4 proj { 1.f };
 		glm::vec3 cameraPos {};
+		glm::vec3 ambient {};
 
 		std::array<Light, kVulkanSceneLightCount> lights;
-		glm::vec3                                 ambientColor     { 1.f };
-		float                                     ambientIntensity = 0.f;
-
-		std::vector<VulkanMeshDraw>               draws;
 	};
 
 	/**
@@ -208,6 +208,8 @@ namespace Hominem {
 		uint32_t  viewportWidth  = 0;
 		uint32_t  viewportHeight = 0;
 
+		float bottomBarFraction = 0.f;
+
 		bool debugLights = false;
 
 		// Skybox — HDR equirectangular background drawn behind the scene. Null = no skybox.
@@ -236,7 +238,7 @@ namespace Hominem {
 		std::vector<Light>          lights;
 		std::vector<VulkanComputePass> vulkanPasses;
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
-		std::vector<VulkanScenePass>   vulkanScenePasses;
+		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
 
 		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
 		FrameArena* arena = nullptr;
@@ -255,7 +257,8 @@ namespace Hominem {
 		std::vector<CommandList>    passCmds;
 		std::vector<VulkanComputePass> vulkanPasses;
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
-		std::vector<VulkanScenePass>   vulkanScenePasses;
+		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
+		VulkanSceneView                vulkanView;
 		uint32_t                       viewportWidth  = 0;
 		uint32_t                    viewportHeight = 0;
 		float                       renderScale    = 1.0f;

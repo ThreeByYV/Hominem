@@ -17,6 +17,8 @@ struct GPUSceneData
     glm::vec4 ambient;
 };
 
+constexpr const char* k_SceneShaderName = "vk_mesh";
+
 struct MeshPushConstants
 {
     glm::mat4       model;
@@ -97,7 +99,8 @@ void VulkanRaytracer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capaci
 
 void VulkanRaytracer::RunFrame(const std::vector<VulkanMeshUpload>& uploads,
                                const std::vector<VulkanComputePass>& computePasses,
-                               const std::vector<VulkanScenePass>& scenePasses)
+                               const std::vector<VulkanMeshDraw>& draws,
+                               const VulkanSceneView& view)
 {
     VkCommandBuffer cmd = m_Renderer->BeginFrame();
 
@@ -106,8 +109,8 @@ void VulkanRaytracer::RunFrame(const std::vector<VulkanMeshUpload>& uploads,
     if (!computePasses.empty())
         RunComputePasses(cmd, computePasses);
 
-    for (const auto& pass : scenePasses)
-        RunScenePass(cmd, pass);
+    if (!draws.empty())
+        RunScenePass(cmd, draws, view);
 
     m_Renderer->EndFrame();
 }
@@ -189,13 +192,13 @@ void VulkanRaytracer::RunComputePasses(VkCommandBuffer cmd, const std::vector<Vu
     }
 }
 
-VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateScenePipeline(const VulkanScenePass& pass)
+VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateScenePipeline()
 {
-    auto it = m_GraphicsPipelines.find(pass.shaderName);
+    auto it = m_GraphicsPipelines.find(k_SceneShaderName);
     if (it != m_GraphicsPipelines.end())
         return it->second;
 
-    const VulkanShader& shader = m_ShaderLibrary.Load(pass.shaderName);
+    const VulkanShader& shader = m_ShaderLibrary.Load(k_SceneShaderName);
 
     const GraphicsPipelineSpec spec
     {
@@ -207,11 +210,12 @@ VulkanGraphicsPipeline& VulkanRaytracer::GetOrCreateScenePipeline(const VulkanSc
         .pushConstantBytes = sizeof(MeshPushConstants),
     };
 
-    return m_GraphicsPipelines.emplace(pass.shaderName,
+    return m_GraphicsPipelines.emplace(k_SceneShaderName,
         VulkanGraphicsPipeline::Create(m_Renderer->GetDevice(), spec)).first->second;
 }
 
-void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& pass)
+void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const std::vector<VulkanMeshDraw>& draws,
+                                   const VulkanSceneView& view)
 {
     auto           device   = m_Renderer->GetDevice();
     auto           allocator = m_Renderer->GetAllocator();
@@ -231,18 +235,18 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& p
     }
 
     GPUSceneData scene {};
-    scene.viewProj  = pass.proj * pass.view;
-    scene.cameraPos = glm::vec4(pass.cameraPos, 1.f);
+    scene.viewProj  = view.proj * view.view;
+    scene.cameraPos = glm::vec4(view.cameraPos, 1.f);
     for (uint32_t i = 0; i < kVulkanSceneLightCount; i++)
     {
-        const auto& light = pass.lights[i];
+        const auto& light = view.lights[i];
         scene.lightPos[i]   = glm::vec4(light.Position, light.Radius);
         scene.lightColor[i] = glm::vec4(light.Color, light.Intensity);
     }
-    scene.ambient = glm::vec4(pass.ambientColor * pass.ambientIntensity, 1.f);
+    scene.ambient = glm::vec4(view.ambient, 1.f);
     m_SceneBuffers[frameIdx].Upload(&scene, sizeof(scene));
 
-    auto& pipeline = GetOrCreateScenePipeline(pass);
+    auto& pipeline = GetOrCreateScenePipeline();
 
     const VkRenderingAttachmentInfo colorAttachment {
         .sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -287,7 +291,7 @@ void VulkanRaytracer::RunScenePass(VkCommandBuffer cmd, const VulkanScenePass& p
 
     const VkDeviceAddress sceneAddress = m_SceneBuffers[frameIdx].GetDeviceAddress(device);
 
-    for (const auto& draw : pass.draws)
+    for (const auto& draw : draws)
     {
         auto it = m_Meshes.find(draw.mesh);
         if (it == m_Meshes.end()) continue;

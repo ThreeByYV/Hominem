@@ -131,6 +131,10 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
     cmd.SetClearColor(frame.clearColor);
     cmd.Clear();
 
+    const uint32_t barHeight = (uint32_t)(hdrSpec.Height * glm::clamp(frame.bottomBarFraction, 0.f, 1.f));
+    if (barHeight > 0)
+        cmd.SetViewport(0, barHeight, hdrSpec.Width, hdrSpec.Height - barHeight);
+
     // Paint the background before any content. Depth disabled so it fills
     // every pixel; the 3D pass later overwrites wherever geometry is drawn.
     if (m_SkyboxShader && frame.skybox && frame.skybox->GetRendererID() != 0)
@@ -201,6 +205,9 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
             cmd.DrawUnitQuad();
         }
     }
+
+    if (barHeight > 0)
+        cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
 
     // Captured by value: `frame` is only valid during recording, not at Submit() time.
     cmd.Invoke([this, vp = frame.viewProjection2D, quads = frame.quads, texts = frame.texts]()
@@ -309,7 +316,7 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
 
 void SceneRenderer::VulkanBlitPass(const RenderFrame& frame, CommandList& cmd)
 {
-    if (!m_SharedVkTexture || (frame.vulkanPasses.empty() && frame.vulkanScenePasses.empty())) return;
+    if (!m_SharedVkTexture || (frame.vulkanPasses.empty() && frame.vulkanMeshDraws.empty())) return;
 
     cmd.BindShader (m_VkBlitShader);
     cmd.SetInt     (m_VkBlitShader, "u_VkTexture", 0);

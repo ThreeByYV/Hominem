@@ -48,6 +48,7 @@ namespace Hominem {
 		frame.bloomThreshold     = m_PostProcess.bloomThreshold;
 		frame.renderScale        = m_PostProcess.renderScale;
 		frame.debugLights        = m_PostProcess.debugLights;
+		frame.bottomBarFraction  = m_PostProcess.bottomBarFraction;
 
 		frame.viewportWidth  = m_ViewportWidth;
 		frame.viewportHeight = m_ViewportHeight;
