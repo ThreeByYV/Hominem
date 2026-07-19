@@ -5,6 +5,7 @@
 #include "Hominem/Events/Event.h"
 #include "Hominem/Renderer/RenderFrame.h"
 #include "Hominem/Scene/Scene.h"
+#include "Hominem/Scene/FreeFlyCameraController.h"
 #include "Hominem/UI/UIRoot.h"
 
 namespace Hominem {
@@ -29,6 +30,9 @@ namespace Hominem {
 		Scene*  GetScene()  const { return m_Scene.get(); }
 		UIRoot* GetUIRoot() const { return m_UI.get(); }
 
+		// '9' debug free-fly, driven by Application for every layer that has a scene.
+		FreeFlyCameraController& GetDebugCamera() { return m_DebugCamera; }
+
 		/// Application pushes the window size in before OnAttach and on every resize,
 		/// so layers never reach for the Application singleton to find it.
 		void SetViewportSize(uint32_t width, uint32_t height);
@@ -52,8 +56,9 @@ namespace Hominem {
 		uint32_t m_ViewportWidth  = 0;
 		uint32_t m_ViewportHeight = 0;
 
-		std::string m_DebugName;
-		Ref<Scene>  m_Scene;
-		Ref<UIRoot> m_UI;
+		std::string             m_DebugName;
+		Ref<Scene>              m_Scene;
+		Ref<UIRoot>             m_UI;
+		FreeFlyCameraController m_DebugCamera;
 	};
 }

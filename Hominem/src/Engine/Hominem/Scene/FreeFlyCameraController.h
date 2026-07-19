@@ -13,11 +13,13 @@ namespace Hominem {
 	public:
 		bool Enabled = false;
 
-		/// Returns true (handled) if this consumed the key event.
-		bool OnKeyPressed(KeyPressedEvent& e);
+		void Toggle() { Enabled = !Enabled; if (!Enabled) m_Looking = false; }
 
 		/// No-op while disabled.
 		void OnUpdate(Timestep ts, Scene& scene);
+
+		/// Dolly the camera along its view direction. yOffset is scroll-wheel notches.
+		void OnScroll(float yOffset, Scene& scene);
 
 	private:
 		float     m_Yaw     = 0.f;

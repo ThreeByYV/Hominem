@@ -50,6 +50,9 @@ namespace Hominem {
         bool OnWindowClose(WindowCloseEvent& e);
         bool OnWindowResize(WindowResizeEvent& e);
 
+        /// Top-most layer that owns a Scene, or null. The debug free-fly acts on it.
+        Layer* TopSceneLayer();
+
         void ProcessPendingTransitions();
     private:
         std::unique_ptr<Window> m_Window;

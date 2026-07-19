@@ -7,6 +7,7 @@
 #include "InputMap.h"
 #include "glm/glm.hpp"
 #include "Hominem/Events/KeyEvent.h"
+#include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/Renderer2D.h"
@@ -101,6 +102,22 @@ namespace Hominem {
 				});
 				return true;
 			}
+			if (ke.GetKeyCode() == HMN_KEY_9)
+			{
+				if (Layer* layer = TopSceneLayer())
+					layer->GetDebugCamera().Toggle();
+				return true;
+			}
+			return false;
+		});
+
+		dispatcher.Dispatch<MouseScrolledEvent>([this](MouseScrolledEvent& se) {
+			Layer* layer = TopSceneLayer();
+			if (layer && layer->GetDebugCamera().Enabled)
+			{
+				layer->GetDebugCamera().OnScroll(se.GetYOffset(), *layer->GetScene());
+				return true;
+			}
 			return false;
 		});
 
@@ -176,6 +193,10 @@ namespace Hominem {
 			for (auto& layer : m_LayerStack)
 			{
 				layer->OnUpdate(timestep);
+				// Free-fly runs after the layer's own update so it authoritatively
+				// overrides whatever camera logic the layer applied this frame.
+				if (Scene* scene = layer->GetScene())
+					layer->GetDebugCamera().OnUpdate(timestep, *scene);
 				if (UIRoot* ui = layer->GetUIRoot())
 					ui->OnUpdate(timestep);
 			}
@@ -286,6 +307,14 @@ namespace Hominem {
 	void Application::QueueLayerTransition(const std::string& oldLayerName, std::unique_ptr<Layer> newLayer)
 	{
 		m_PendingTransitions.push_back({ oldLayerName, std::move(newLayer) });
+	}
+
+	Layer* Application::TopSceneLayer()
+	{
+		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin(); )
+			if ((*--it)->GetScene())
+				return it->get();
+		return nullptr;
 	}
 
 	void Application::ProcessPendingTransitions()

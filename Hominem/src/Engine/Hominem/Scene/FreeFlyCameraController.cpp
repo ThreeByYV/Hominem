@@ -9,14 +9,11 @@
 
 namespace Hominem {
 
-	bool FreeFlyCameraController::OnKeyPressed(KeyPressedEvent& e)
+	void FreeFlyCameraController::OnScroll(float yOffset, Scene& scene)
 	{
-		if (e.GetRepeatCount() > 0) return false;
-		if (e.GetKeyCode() != HMN_KEY_F6) return false;
-
-		Enabled = !Enabled;
-		if (!Enabled) m_Looking = false;
-		return true;
+		if (!Enabled) return;
+		constexpr float kZoomStep = 0.5f;
+		scene.GetCameraPosition() += scene.GetCameraFront() * (yOffset * kZoomStep);
 	}
 
 	void FreeFlyCameraController::OnUpdate(Timestep ts, Scene& scene)
