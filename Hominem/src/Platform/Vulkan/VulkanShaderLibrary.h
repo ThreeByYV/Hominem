@@ -21,6 +21,7 @@ class VulkanShaderLibrary
 public:
     const VulkanShader& Load(const std::string& name);
     const VulkanShader& LoadCompute(const std::string& name, const std::string& source);
+    const VulkanShader& LoadCompute(const std::string& name); // reads engine://Shaders/<name>.comp
     const VulkanShader& Get(const std::string& name);
 
     bool Exists(const std::string& name) const;

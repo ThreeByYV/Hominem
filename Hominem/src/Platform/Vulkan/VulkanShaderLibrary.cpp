@@ -2,18 +2,31 @@
 #include "VulkanShaderLibrary.h"
 #include "VulkanShaderCompiler.h"
 
-#include "Hominem/Core/VFS.h"
-#include "Hominem/Utils/FileUtils.h"
+#include "Hominem/Assets/AssetManager.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Renderer/ShaderSource.h"
 
 namespace Hominem {
+
+static std::string LoadShaderSource(const std::string& uri)
+{
+    auto result = AssetManager::Load<ShaderSource>(uri);
+    if (!result)
+    {
+        HMN_CORE_ERROR("VulkanShaderLibrary: {}", result.error().message);
+        HMN_CORE_ASSERT(false, "Shader source load failed");
+        return {};
+    }
+    return result->Get()->source;
+}
 
 const VulkanShader& VulkanShaderLibrary::Load(const std::string& name)
 {
     if (auto it = m_Shaders.find(name); it != m_Shaders.end())
         return it->second;
 
-    const std::string vertSource = FileUtils::ReadTextFile(VFS::Resolve("engine://Shaders/" + name + ".vert"));
-    const std::string fragSource = FileUtils::ReadTextFile(VFS::Resolve("engine://Shaders/" + name + ".frag"));
+    const std::string vertSource = LoadShaderSource("engine://Shaders/" + name + ".vert");
+    const std::string fragSource = LoadShaderSource("engine://Shaders/" + name + ".frag");
 
     VulkanShader shader;
     shader.vertexSpirv   = VulkanShaderCompiler::Compile(vertSource, VulkanShaderStage::Vertex,   name + ".vert");
@@ -31,6 +44,14 @@ const VulkanShader& VulkanShaderLibrary::LoadCompute(const std::string& name, co
     shader.computeSpirv = VulkanShaderCompiler::Compile(source, VulkanShaderStage::Compute, name + ".comp");
 
     return m_Shaders.emplace(name, std::move(shader)).first->second;
+}
+
+const VulkanShader& VulkanShaderLibrary::LoadCompute(const std::string& name)
+{
+    if (auto it = m_Shaders.find(name); it != m_Shaders.end())
+        return it->second;
+
+    return LoadCompute(name, LoadShaderSource("engine://Shaders/" + name + ".comp"));
 }
 
 const VulkanShader& VulkanShaderLibrary::Get(const std::string& name)

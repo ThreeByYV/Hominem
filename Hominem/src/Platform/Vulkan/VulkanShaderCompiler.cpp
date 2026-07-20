@@ -1,9 +1,50 @@
 #include "hmnpch.h"
 #include "VulkanShaderCompiler.h"
+#include "Hominem/Assets/AssetManager.h"
+#include "Hominem/Assets/AssetLoaders.h"
+#include "Hominem/Renderer/ShaderSource.h"
+#include "Hominem/Renderer/RenderFrame.h"
 
 #include <shaderc/shaderc.hpp>
 
 namespace Hominem {
+
+// Resolves `#include "engine://Shaders/foo.glsl"` (and bare relative names, which are
+// treated as engine://Shaders/) through the AssetManager so DDGI shaders can share one
+// common header, cached alongside every other shader source.
+class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface
+{
+public:
+    shaderc_include_result* GetInclude(const char* requested, shaderc_include_type,
+                                       const char*, size_t) override
+    {
+        std::string uri = requested;
+        if (uri.find("://") == std::string::npos)
+            uri = "engine://Shaders/" + uri;
+
+        auto* data = new IncludeData;
+        data->name = AssetManager::ResolvePath(uri);
+        if (auto result = AssetManager::Load<ShaderSource>(uri))
+            data->content = result->Get()->source;
+
+        auto* result = new shaderc_include_result;
+        result->source_name        = data->name.c_str();
+        result->source_name_length = data->name.size();
+        result->content            = data->content.c_str();
+        result->content_length     = data->content.size();
+        result->user_data          = data;
+        return result;
+    }
+
+    void ReleaseInclude(shaderc_include_result* result) override
+    {
+        delete static_cast<IncludeData*>(result->user_data);
+        delete result;
+    }
+
+private:
+    struct IncludeData { std::string name; std::string content; };
+};
 
 static shaderc_shader_kind ToShaderKind(VulkanShaderStage stage)
 {
@@ -26,6 +67,11 @@ std::vector<uint32_t> VulkanShaderCompiler::Compile(const std::string& source,
     shaderc::CompileOptions options;
     options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
     options.SetOptimizationLevel(shaderc_optimization_level_performance);
+    options.SetIncluder(std::make_unique<ShaderIncluder>());
+
+    // Single source of truth: scene_common.glsl derives its SceneBuffer light-array size
+    // from this so a shader can never fall out of sync with GPUSceneData.
+    options.AddMacroDefinition("SCENE_LIGHT_COUNT", std::to_string(kVulkanSceneLightCount));
 
     const auto result = compiler.CompileGlslToSpv(source, ToShaderKind(stage), debugName.c_str(), options);
 
