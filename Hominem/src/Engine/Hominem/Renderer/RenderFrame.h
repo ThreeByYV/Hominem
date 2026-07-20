@@ -175,7 +175,19 @@ namespace Hominem {
 		glm::vec4 color          { 1.f };
 	};
 
-	inline constexpr uint32_t kVulkanSceneLightCount = 1;
+	// DDGI irradiance-field parameters for the frame. probeNumRays == 0 means no volume
+	// this frame (DDGI off). Populated by the probe actor from its DDGIVolumeDesc.
+	struct VulkanDDGIParams
+	{
+		glm::vec3  origin           { 0.f };
+		glm::vec3  probeSpacing     { 1.f };
+		glm::ivec3 probeCounts      { 0 };
+		int        probeNumRays     = 0;
+		glm::quat  probeRayRotation { 1.f, 0.f, 0.f, 0.f };
+		bool       showSurfels      = false;
+	};
+
+	inline constexpr uint32_t kVulkanSceneLightCount = 2;
 
 	struct VulkanSceneView
 	{
@@ -247,6 +259,7 @@ namespace Hominem {
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
 		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
 		std::vector<VulkanSphereInstance> vulkanDebugSpheres;
+		VulkanDDGIParams               vulkanDDGI;
 
 		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
 		FrameArena* arena = nullptr;
@@ -267,6 +280,7 @@ namespace Hominem {
 		std::vector<VulkanMeshUpload>  vulkanMeshUploads;
 		std::vector<VulkanMeshDraw>    vulkanMeshDraws;
 		std::vector<VulkanSphereInstance> vulkanDebugSpheres;
+		VulkanDDGIParams               vulkanDDGI;
 		VulkanSceneView                vulkanView;
 		uint32_t                       viewportWidth  = 0;
 		uint32_t                    viewportHeight = 0;

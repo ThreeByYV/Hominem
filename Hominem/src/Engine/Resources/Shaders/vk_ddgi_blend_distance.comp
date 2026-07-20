@@ -1,0 +1,74 @@
+#version 460
+
+#include "include/ddgi_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 0, rgba16f) uniform image2D          u_Distance;
+layout(set = 0, binding = 1, rgba16f) uniform readonly image2D u_RayData;
+
+layout(push_constant) uniform PushConstants
+{
+    vec4  u_Origin;
+    vec4  u_Spacing;
+    ivec4 u_Counts;   // xyz = counts, w = numRays
+    vec4  u_Rotation;
+    ivec4 u_Tiles;    // x = irradiance interior, y = distance interior
+    float u_Hysteresis;
+    int   u_FirstFrame;
+    float u_DepthSharpness;
+    float u_MaxDistance;
+};
+
+void main()
+{
+    ivec2 texel    = ivec2(gl_GlobalInvocationID.xy);
+    int   interior = u_Tiles.y;
+    int   full     = interior + 2;
+
+    int   perSlice  = u_Counts.x * u_Counts.z;
+    ivec2 atlasSize = ivec2(perSlice, u_Counts.y) * full;
+    if (texel.x >= atlasSize.x || texel.y >= atlasSize.y) return;
+
+    ivec2 tile  = texel / full;
+    ivec2 local = texel - tile * full;
+    if (local.x == 0 || local.y == 0 || local.x == full - 1 || local.y == full - 1)
+        return; // border texels filled by the border pass
+
+    ivec2 interiorCoord = local - ivec2(1);
+    int   probeIndex    = tile.y * perSlice + tile.x;
+    int   numProbes     = u_Counts.x * u_Counts.y * u_Counts.z;
+    if (probeIndex >= numProbes) return;
+
+    vec2 octUV  = (vec2(interiorCoord) + 0.5) / float(interior) * 2.0 - 1.0;
+    vec3 octDir = ddgiOctDecode(octUV);
+
+    DDGIVolume v;
+    v.origin   = u_Origin;
+    v.spacing  = u_Spacing;
+    v.counts   = u_Counts;
+    v.rotation = u_Rotation;
+    v.tiles    = u_Tiles;
+
+    int   numRays = u_Counts.w;
+    vec2  accum   = vec2(0.0);
+    float sumW    = 0.0;
+    for (int r = 0; r < numRays; r++)
+    {
+        vec3  rd = ddgiProbeRayDirection(r, v);
+        float w  = pow(max(0.0, dot(octDir, rd)), u_DepthSharpness);
+        if (w > 1e-6)
+        {
+            float d = min(abs(imageLoad(u_RayData, ivec2(r, probeIndex)).a), u_MaxDistance);
+            accum += vec2(d, d * d) * w;
+            sumW  += w;
+        }
+    }
+
+    vec2 result  = (sumW > 0.0) ? accum / sumW : vec2(u_MaxDistance, u_MaxDistance * u_MaxDistance);
+    vec2 prev    = imageLoad(u_Distance, texel).rg;
+    float hyst   = (u_FirstFrame != 0) ? 0.0 : u_Hysteresis;
+    vec2 blended = mix(result, prev, hyst);
+
+    imageStore(u_Distance, texel, vec4(blended, 0.0, 0.0));
+}

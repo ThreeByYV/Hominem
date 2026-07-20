@@ -1,6 +1,8 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
 
+#include "include/scene_common.glsl"
+
 struct Vertex
 {
     float px, py, pz;
@@ -12,17 +14,6 @@ struct Vertex
 layout(buffer_reference, std430) readonly buffer VertexBuffer
 {
     Vertex vertices[];
-};
-
-#define LIGHT_COUNT 1
-
-layout(buffer_reference, std430) readonly buffer SceneBuffer
-{
-    mat4 viewProj;
-    vec4 cameraPos;
-    vec4 lightPos[LIGHT_COUNT];
-    vec4 lightColor[LIGHT_COUNT];
-    vec4 ambient;
 };
 
 layout(push_constant) uniform PushConstants

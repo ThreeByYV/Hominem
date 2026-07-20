@@ -1,5 +1,8 @@
-#version 450
+#version 460
 #extension GL_EXT_buffer_reference : require
+
+#include "include/ddgi_common.glsl"
+#include "include/scene_common.glsl"
 
 struct Vertex
 {
@@ -14,16 +17,8 @@ layout(buffer_reference, std430) readonly buffer VertexBuffer
     Vertex vertices[];
 };
 
-#define LIGHT_COUNT 1
-
-layout(buffer_reference, std430) readonly buffer SceneBuffer
-{
-    mat4 viewProj;
-    vec4 cameraPos;
-    vec4 lightPos[LIGHT_COUNT];
-    vec4 lightColor[LIGHT_COUNT];
-    vec4 ambient;
-};
+layout(set = 0, binding = 0) uniform sampler2D u_IrradianceAtlas;
+layout(set = 0, binding = 1) uniform sampler2D u_DistanceAtlas;
 
 layout(push_constant) uniform PushConstants
 {
@@ -49,9 +44,28 @@ void main()
 
     vec3 N = normalize(v_Normal);
 
-    vec3 color = u_Scene.ambient.rgb * u_BaseColor.rgb;
+    vec3 indirect = u_Scene.ambient.rgb;
+    if (u_Scene.ddgiCounts.w > 0)
+    {
+        DDGIVolume v;
+        v.origin   = u_Scene.ddgiOrigin;
+        v.spacing  = u_Scene.ddgiSpacing;
+        v.counts   = u_Scene.ddgiCounts;
+        v.rotation = u_Scene.ddgiRotation;
+        v.tiles    = u_Scene.ddgiTiles;
 
-    for (int i = 0; i < LIGHT_COUNT; i++)
+        float avgSpacing = (v.spacing.x + v.spacing.y + v.spacing.z) / 3.0;
+        vec3  viewDir    = normalize(u_Scene.cameraPos.xyz - v_WorldPos);
+        vec3  bias       = N * (0.25 * avgSpacing) + viewDir * (0.1 * avgSpacing);
+
+        indirect = ddgiSampleIrradiance(v_WorldPos, N, bias,
+                                        v.tiles.x, v.tiles.y, v,
+                                        u_IrradianceAtlas, u_DistanceAtlas);
+    }
+
+    vec3 color = indirect * u_BaseColor.rgb;
+
+    for (int i = 0; i < SCENE_LIGHT_COUNT; i++)
     {
         vec3  toLight = u_Scene.lightPos[i].xyz - v_WorldPos;
         float dist    = length(toLight);

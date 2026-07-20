@@ -1,0 +1,74 @@
+#version 460
+
+#include "include/ddgi_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 0, rgba16f) uniform image2D          u_Irradiance;
+layout(set = 0, binding = 1, rgba16f) uniform readonly image2D u_RayData;
+
+layout(push_constant) uniform PushConstants
+{
+    vec4  u_Origin;
+    vec4  u_Spacing;
+    ivec4 u_Counts;   // xyz = counts, w = numRays
+    vec4  u_Rotation; // quaternion (x,y,z,w)
+    ivec4 u_Tiles;    // x = irradiance interior size
+    float u_Hysteresis;
+    int   u_FirstFrame;
+};
+
+void main()
+{
+    ivec2 texel    = ivec2(gl_GlobalInvocationID.xy);
+    int   interior = u_Tiles.x;
+    int   full     = interior + 2;
+
+    int   perSlice  = u_Counts.x * u_Counts.z;
+    ivec2 atlasSize = ivec2(perSlice, u_Counts.y) * full;
+    if (texel.x >= atlasSize.x || texel.y >= atlasSize.y) return;
+
+    ivec2 tile  = texel / full;
+    ivec2 local = texel - tile * full;
+    if (local.x == 0 || local.y == 0 || local.x == full - 1 || local.y == full - 1)
+        return; // border texels are filled by the border pass
+
+    ivec2 interiorCoord = local - ivec2(1);
+    int   probeIndex    = tile.y * perSlice + tile.x;
+    int   numProbes     = u_Counts.x * u_Counts.y * u_Counts.z;
+    if (probeIndex >= numProbes) return;
+
+    vec2 octUV  = (vec2(interiorCoord) + 0.5) / float(interior) * 2.0 - 1.0;
+    vec3 octDir = ddgiOctDecode(octUV);
+
+    DDGIVolume v;
+    v.origin   = u_Origin;
+    v.spacing  = u_Spacing;
+    v.counts   = u_Counts;
+    v.rotation = u_Rotation;
+    v.tiles    = u_Tiles;
+
+    int  numRays = u_Counts.w;
+    vec3 sum     = vec3(0.0);
+    float sumW   = 0.0;
+    for (int r = 0; r < numRays; r++)
+    {
+        vec4  ray = imageLoad(u_RayData, ivec2(r, probeIndex));
+        if (ray.a < 0.0) continue; // backface hit, excluded from irradiance
+
+        vec3  rd = ddgiProbeRayDirection(r, v);
+        float w  = max(0.0, dot(octDir, rd));
+        if (w > 0.0)
+        {
+            sum  += ray.rgb * w;
+            sumW += w;
+        }
+    }
+
+    vec3 result = (sumW > 0.0) ? sum / sumW : vec3(0.0);
+    vec3 prev   = imageLoad(u_Irradiance, texel).rgb;
+    float hyst  = (u_FirstFrame != 0) ? 0.0 : u_Hysteresis;
+    vec3 blended = mix(result, prev, hyst);
+
+    imageStore(u_Irradiance, texel, vec4(blended, 1.0));
+}

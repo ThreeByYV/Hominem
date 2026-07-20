@@ -9,12 +9,9 @@
 
 namespace Hominem {
 
-// CPU mirror of RTXGI's DDGIVolumeDescGPU. Field names and the probe-index and
-// ray-direction math below match the RTXGI-DDGI SDK verbatim so the same values
-// carry over unchanged when this moves to a GPU descriptor and shaders.
 struct DDGIVolumeDesc
 {
-    glm::vec3  origin       { 0.f };          // volume centre in world space
+    glm::vec3  origin       { 0.f };          // volume center in world space
     glm::vec3  probeSpacing { 1.f };
     glm::ivec3 probeCounts  { 8, 4, 8 };
     int        probeNumRays = 64;
@@ -22,7 +19,6 @@ struct DDGIVolumeDesc
 
     int NumProbes() const { return probeCounts.x * probeCounts.y * probeCounts.z; }
 
-    // RTXGI DDGIGetProbeCoords: probe index -> 3D grid coordinate.
     glm::ivec3 ProbeCoords(int probeIndex) const
     {
         return {
@@ -32,7 +28,6 @@ struct DDGIVolumeDesc
         };
     }
 
-    // RTXGI DDGIGetProbeWorldPosition (volume rotation assumed identity).
     glm::vec3 ProbeWorldPosition(glm::ivec3 probeCoords) const
     {
         glm::vec3 local = glm::vec3(probeCoords) * probeSpacing;
@@ -40,11 +35,12 @@ struct DDGIVolumeDesc
         return origin + local;
     }
 
-    // DDGI best practice (RTXGI integration guide): the volume extends past the
-    // geometry by `paddingProbes` on every axis so at least one layer of probes sits
-    // outside each wall/floor/ceiling — the visibility term needs probes on both sides
-    // of a surface to reject light leaks. Density is chosen by world-space spacing, not
-    // by a fixed probe count; counts derive from the padded bounds.
+    /*
+     * The volume extends past the  geometry by `paddingProbes` on every axis so at least one layer of probes sits
+     * outside each wall/floor/ceiling, the visibility term needs probes on both sides
+     * of a surface to reject light leaks. Density is chosen by world-space spacing, not
+     * by a fixed probe count; counts derive from the padded bounds.
+     */
     static DDGIVolumeDesc FitToBounds(glm::vec3 aabbMin, glm::vec3 aabbMax,
                                       float targetSpacing, int paddingProbes = 1)
     {
@@ -61,7 +57,6 @@ struct DDGIVolumeDesc
     }
 };
 
-// RTXGI RTXGISphericalFibonacci, ported verbatim.
 inline glm::vec3 SphericalFibonacci(float sampleIndex, float numSamples)
 {
     constexpr float kTwoPi = 6.2831853071795864769f;
@@ -72,7 +67,6 @@ inline glm::vec3 SphericalFibonacci(float sampleIndex, float numSamples)
     return { std::cos(phi) * sinTheta, std::sin(phi) * sinTheta, cosTheta };
 }
 
-// RTXGI RTXGIQuaternionRotate / RTXGIQuaternionConjugate, ported verbatim.
 inline glm::vec3 QuaternionRotate(glm::vec3 v, glm::quat q)
 {
     const glm::vec3 b  = { q.x, q.y, q.z };
@@ -85,7 +79,7 @@ inline glm::quat QuaternionConjugate(glm::quat q)
     return { q.w, -q.x, -q.y, -q.z };
 }
 
-// RTXGI DDGIGetProbeRayDirection for the base case (no relocation/classification):
+// This is for the base case (no relocation/classification):
 // spherical-Fibonacci direction rotated by the volume's per-frame random rotation.
 inline glm::vec3 ProbeRayDirection(int rayIndex, const DDGIVolumeDesc& volume)
 {
