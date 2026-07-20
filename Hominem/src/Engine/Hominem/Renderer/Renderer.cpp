@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "Renderer.h"
-#include "Platform/Vulkan/VulkanRaytracer.h"
+#include "Platform/Vulkan/VulkanSceneRenderer.h"
 
 namespace Hominem {
 
@@ -12,8 +12,8 @@ void Renderer::Init(uint32_t w, uint32_t h)
     auto glLUID = SharedResources::GetDeviceLUID();
     auto glName = SharedResources::GetDeviceName();
 
-    m_VulkanRaytracer = std::make_unique<VulkanRaytracer>();
-    m_VulkanRaytracer->Init(w, h, glLUID, glName);
+    m_VulkanRenderer = std::make_unique<VulkanSceneRenderer>();
+    m_VulkanRenderer->Init(w, h, glLUID, glName);
 
     m_SceneRenderer.Init();
     m_SceneRenderer.GetRenderGraph().Resize(w, h);
@@ -23,7 +23,7 @@ void Renderer::Init(uint32_t w, uint32_t h)
 
 void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID)
 {
-    auto vkLUID = m_VulkanRaytracer->GetDeviceLUID();
+    auto vkLUID = m_VulkanRenderer->GetDeviceLUID();
 
     if (glLUID == std::array<uint8_t, 8>{})
     {
@@ -37,17 +37,17 @@ void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>
 
     m_SharedResources = SharedResources::Create();
 
-    HANDLE memHandle = m_VulkanRaytracer->GetDrawImageWin32Handle();
-    m_SharedResources->ImportSharedTexture(memHandle, m_VulkanRaytracer->GetDrawImageMemorySize(), w, h);
+    HANDLE memHandle = m_VulkanRenderer->GetDrawImageWin32Handle();
+    m_SharedResources->ImportSharedTexture(memHandle, m_VulkanRenderer->GetDrawImageMemorySize(), w, h);
 
     // one semaphore per frame-in-flight, prevents N+1 overwriting before GPU signals N
     for (uint32_t i = 0; i < 2; ++i)
     {
-        HANDLE semHandle = m_VulkanRaytracer->GetComputeDoneSemaphoreWin32Handle(i);
+        HANDLE semHandle = m_VulkanRenderer->GetComputeDoneSemaphoreWin32Handle(i);
         m_SharedResources->ImportSemaphore(i, semHandle);
     }
 
-    m_SharedResources->ImportGLDoneSemaphore(m_VulkanRaytracer->GetGLDoneSemaphoreWin32Handle());
+    m_SharedResources->ImportGLDoneSemaphore(m_VulkanRenderer->GetGLDoneSemaphoreWin32Handle());
 
     m_SceneRenderer.SetSharedVulkanTexture(m_SharedResources->GetTextureID());
 }
@@ -60,8 +60,8 @@ void Renderer::Shutdown()
         m_SharedResources->Destroy();
         m_SharedResources.reset();
     }
-    m_VulkanRaytracer->Shutdown();
-    m_VulkanRaytracer.reset();
+    m_VulkanRenderer->Shutdown();
+    m_VulkanRenderer.reset();
     m_SceneRenderer.Shutdown();
 }
 
@@ -80,8 +80,9 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
 
     if (hasVulkanWork)
     {
-        m_VulkanRaytracer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses,
-                                    frame.vulkanMeshDraws, frame.vulkanDebugSpheres, frame.vulkanView);
+        m_VulkanRenderer->RunFrame(frame.vulkanMeshUploads, frame.vulkanPasses,
+                                    frame.vulkanMeshDraws, frame.vulkanDebugSpheres,
+                                    frame.vulkanDDGI, frame.vulkanView);
         if (m_SharedResources)
         {
             sharedTextureInUse = true;
@@ -99,12 +100,12 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
 
 void Renderer::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
 {
-    m_VulkanRaytracer->RegisterRenderTarget(handle, w, h);
+    m_VulkanRenderer->RegisterRenderTarget(handle, w, h);
 }
 
 void Renderer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity)
 {
-    m_VulkanRaytracer->RegisterStorageBuffer(handle, capacity);
+    m_VulkanRenderer->RegisterStorageBuffer(handle, capacity);
 }
 
 }

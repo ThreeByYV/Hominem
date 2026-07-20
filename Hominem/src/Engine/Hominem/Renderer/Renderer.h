@@ -9,7 +9,7 @@
 
 namespace Hominem {
 
-class VulkanRaytracer;
+class VulkanSceneRenderer;
 
 class Renderer
 {
@@ -32,9 +32,9 @@ public:
 private:
     void SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID);
 
-    SceneRenderer                     m_SceneRenderer;
-    std::unique_ptr<VulkanRaytracer>  m_VulkanRaytracer;
-    std::unique_ptr<SharedResources>  m_SharedResources;
+    SceneRenderer                        m_SceneRenderer;
+    std::unique_ptr<VulkanSceneRenderer> m_VulkanRenderer;
+    std::unique_ptr<SharedResources>     m_SharedResources;
     uint32_t                          m_VkFrameIdx = 0;
 };
 
