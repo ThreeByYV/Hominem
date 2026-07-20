@@ -14,6 +14,9 @@ static const std::vector<const char*> k_DeviceExtensions =
 {
     VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
     VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
+    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+    VK_KHR_RAY_QUERY_EXTENSION_NAME,
+    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 };
 
 #ifdef HMN_DEBUG
@@ -461,10 +464,24 @@ void VulkanRenderer::CreateLogicalDevice()
         .bufferDeviceAddress = VK_TRUE,
     };
 
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelStruct
+    {
+        .sType                 = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+        .pNext                 = &bda,
+        .accelerationStructure = VK_TRUE,
+    };
+
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQuery
+    {
+        .sType    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+        .pNext    = &accelStruct,
+        .rayQuery = VK_TRUE,
+    };
+
     const VkDeviceCreateInfo createInfo
     {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext                   = &bda,
+        .pNext                   = &rayQuery,
         .queueCreateInfoCount    = 1,
         .pQueueCreateInfos       = &queueInfo,
         .enabledExtensionCount   = (uint32_t)k_DeviceExtensions.size(),

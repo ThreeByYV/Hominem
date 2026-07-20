@@ -9,7 +9,7 @@ namespace Hominem {
 
 struct ComputeBindingSpec
 {
-    enum class Type { StorageImage, StorageBuffer, SampledImage, UniformBuffer };
+    enum class Type { StorageImage, StorageBuffer, SampledImage, UniformBuffer, AccelerationStructure };
     uint32_t binding = 0;
     Type     type    = Type::StorageImage;
 };
@@ -29,6 +29,7 @@ public:
     void WriteSampledImage (uint32_t frame, uint32_t binding,
                             VkImageView view, VkSampler sampler,
                             VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    void WriteAccelerationStructure(uint32_t frame, uint32_t binding, VkAccelerationStructureKHR accel);
 
     void PushConstants(VkCommandBuffer cmd, const void* data, uint32_t size, uint32_t offset = 0);
     void Dispatch(VkCommandBuffer cmd, uint32_t frame,

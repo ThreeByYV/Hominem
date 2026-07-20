@@ -11,6 +11,7 @@ static VkDescriptorType ToVkType(ComputeBindingSpec::Type t)
         case ComputeBindingSpec::Type::StorageBuffer: return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         case ComputeBindingSpec::Type::SampledImage:  return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         case ComputeBindingSpec::Type::UniformBuffer: return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case ComputeBindingSpec::Type::AccelerationStructure: return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
     }
     HMN_CORE_ASSERT(false, "Unknown ComputeBindingSpec::Type");
     return VK_DESCRIPTOR_TYPE_MAX_ENUM;
@@ -174,6 +175,27 @@ void VulkanComputePipeline::WriteSampledImage(uint32_t frame, uint32_t binding,
         .descriptorCount = 1,
         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pImageInfo      = &imgInfo,
+    };
+    vkUpdateDescriptorSets(m_Device, 1, &write, 0, nullptr);
+}
+
+void VulkanComputePipeline::WriteAccelerationStructure(uint32_t frame, uint32_t binding,
+                                                        VkAccelerationStructureKHR accel)
+{
+    const VkWriteDescriptorSetAccelerationStructureKHR accelInfo
+    {
+        .sType                      = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+        .accelerationStructureCount = 1,
+        .pAccelerationStructures    = &accel,
+    };
+    const VkWriteDescriptorSet write
+    {
+        .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext           = &accelInfo,
+        .dstSet          = m_Sets[frame],
+        .dstBinding      = binding,
+        .descriptorCount = 1,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
     };
     vkUpdateDescriptorSets(m_Device, 1, &write, 0, nullptr);
 }
