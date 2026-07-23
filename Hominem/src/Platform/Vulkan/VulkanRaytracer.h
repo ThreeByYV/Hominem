@@ -36,8 +36,7 @@ public:
     RaytracingContext MakeContext(
         VulkanRenderer& renderer,
         VkCommandBuffer cmd, VkDeviceAddress scene,
-        VulkanShaderLibrary& shaders
-        ) const;
+        VulkanShaderLibrary& shaders) const;
 
 private:
     VulkanAccelerationStructure                                  m_Accel;

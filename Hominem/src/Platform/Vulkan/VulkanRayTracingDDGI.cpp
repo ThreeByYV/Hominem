@@ -3,6 +3,7 @@
 #include "VulkanRenderer.h"
 #include "VulkanShaderLibrary.h"
 #include "VulkanImage.h"
+#include "VulkanBarrier.h"
 
 #include <glm/glm.hpp>
 
@@ -48,30 +49,6 @@ constexpr float k_DepthSharpness = 50.f;
 constexpr float k_MaxRayDistance = 40.f;
 constexpr float k_SurfelRadius   = 0.03f;
 
-VkMemoryBarrier2 MakeMemoryBarrier(VkPipelineStageFlags2 srcStage, VkAccessFlags2 srcAccess,
-                                   VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess)
-{
-    return VkMemoryBarrier2
-    {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-        .srcStageMask  = srcStage,
-        .srcAccessMask = srcAccess,
-        .dstStageMask  = dstStage,
-        .dstAccessMask = dstAccess,
-    };
-}
-
-void PipelineBarrier(VkCommandBuffer cmd, const VkMemoryBarrier2& barrier)
-{
-    const VkDependencyInfo depInfo
-    {
-        .sType              = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .memoryBarrierCount = 1,
-        .pMemoryBarriers    = &barrier,
-    };
-    vkCmdPipelineBarrier2(cmd, &depInfo);
-}
-
 }
 
 void VulkanRayTracingDDGI::Shutdown(DeletionQueue& mainQueue, VkDevice device, VmaAllocator allocator)
@@ -97,13 +74,49 @@ void VulkanRayTracingDDGI::Shutdown(DeletionQueue& mainQueue, VkDevice device, V
 void VulkanRayTracingDDGI::Execute(const RaytracingContext& ctx, const VulkanDDGIParams& ddgi)
 {
     EnsureResources(ctx, ddgi);
-    RunTrace(ctx, ddgi);
-    RunBlendIrradiance(ctx, ddgi);
-    RunBlendDistance(ctx, ddgi);
-    RunBorder(ctx, m_BorderPipeline, m_BorderReady,
-              m_Irradiance.GetImageView(), k_IrradianceInterior, ddgi, m_AtlasW, m_AtlasH);
-    RunBorder(ctx, m_BorderDistancePipeline, m_BorderDistanceReady,
-              m_Distance.GetImageView(), k_DistanceInterior, ddgi, m_DistW, m_DistH);
+
+    using U = GraphUsage;
+    m_Graph.Begin();
+    const auto rayData = m_Graph.AddResource("ddgi.raydata");
+    const auto irr     = m_Graph.AddResource("ddgi.irradiance");
+    const auto dist    = m_Graph.AddResource("ddgi.distance");
+    const auto surfels = m_Graph.AddResource("ddgi.surfels");
+
+    m_Graph.AddPass("ddgi.trace",
+        { { rayData, U::ComputeWrite }, { surfels, U::ComputeWrite },
+          { irr, U::ComputeSample }, { dist, U::ComputeSample } },
+        [this, &ctx, &ddgi](VkCommandBuffer) { RunTrace(ctx, ddgi); });
+
+    m_Graph.AddPass("ddgi.blend_irradiance",
+        { { irr, U::ComputeReadWrite }, { rayData, U::ComputeRead } },
+        [this, &ctx, &ddgi](VkCommandBuffer) { RunBlendIrradiance(ctx, ddgi); });
+
+    m_Graph.AddPass("ddgi.blend_distance",
+        { { dist, U::ComputeReadWrite }, { rayData, U::ComputeRead } },
+        [this, &ctx, &ddgi](VkCommandBuffer) { RunBlendDistance(ctx, ddgi); });
+
+    m_Graph.AddPass("ddgi.border_irradiance",
+        { { irr, U::ComputeReadWrite } },
+        [this, &ctx, &ddgi](VkCommandBuffer)
+        {
+            RunBorder(ctx, m_BorderPipeline, m_BorderReady,
+                      m_Irradiance.GetImageView(), k_IrradianceInterior, ddgi, m_AtlasW, m_AtlasH);
+        });
+
+    m_Graph.AddPass("ddgi.border_distance",
+        { { dist, U::ComputeReadWrite } },
+        [this, &ctx, &ddgi](VkCommandBuffer)
+        {
+            RunBorder(ctx, m_BorderDistancePipeline, m_BorderDistanceReady,
+                      m_Distance.GetImageView(), k_DistanceInterior, ddgi, m_DistW, m_DistH);
+        });
+
+    // Sync-only: hand the atlases to the mesh fragment shader and surfels to the debug vertex shader.
+    m_Graph.AddPass("ddgi.handoff",
+        { { irr, U::FragmentSample }, { dist, U::FragmentSample }, { surfels, U::VertexRead } },
+        nullptr);
+
+    m_Graph.Execute(ctx.cmd);
     m_FirstBlend = false;
 }
 
@@ -228,13 +241,6 @@ void VulkanRayTracingDDGI::RunTrace(const RaytracingContext& ctx, const VulkanDD
     };
     m_TracePipeline.PushConstants(cmd, &push, sizeof(push));
     m_TracePipeline.Dispatch(cmd, frameIdx, (m_SurfelCount + 63) / 64);
-
-    // Ray-data written by the trace, read by the blend pass; surfel buffer read by the
-    // debug-sphere vertex shader via BDA.
-    PipelineBarrier(cmd, MakeMemoryBarrier(
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
-        VK_ACCESS_2_SHADER_STORAGE_READ_BIT));
 }
 
 void VulkanRayTracingDDGI::RunBlendIrradiance(const RaytracingContext& ctx, const VulkanDDGIParams& ddgi)
@@ -271,10 +277,6 @@ void VulkanRayTracingDDGI::RunBlendIrradiance(const RaytracingContext& ctx, cons
     };
     m_BlendIrradiancePipeline.PushConstants(cmd, &push, sizeof(push));
     m_BlendIrradiancePipeline.Dispatch(cmd, frameIdx, (m_AtlasW + 7) / 8, (m_AtlasH + 7) / 8);
-
-    PipelineBarrier(cmd, MakeMemoryBarrier(
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT));
 }
 
 void VulkanRayTracingDDGI::RunBlendDistance(const RaytracingContext& ctx, const VulkanDDGIParams& ddgi)
@@ -313,10 +315,6 @@ void VulkanRayTracingDDGI::RunBlendDistance(const RaytracingContext& ctx, const 
     };
     m_BlendDistancePipeline.PushConstants(cmd, &push, sizeof(push));
     m_BlendDistancePipeline.Dispatch(cmd, frameIdx, (m_DistW + 7) / 8, (m_DistH + 7) / 8);
-
-    PipelineBarrier(cmd, MakeMemoryBarrier(
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT));
 }
 
 void VulkanRayTracingDDGI::RunBorder(const RaytracingContext& ctx, VulkanComputePipeline& pipeline, bool& ready,
@@ -347,12 +345,6 @@ void VulkanRayTracingDDGI::RunBorder(const RaytracingContext& ctx, VulkanCompute
     };
     pipeline.PushConstants(cmd, &push, sizeof(push));
     pipeline.Dispatch(cmd, frameIdx, (atlasW + 7) / 8, (atlasH + 7) / 8);
-
-    // Atlas finished this frame; ready to be sampled by the mesh fragment shader.
-    PipelineBarrier(cmd, MakeMemoryBarrier(
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-        VK_ACCESS_2_SHADER_SAMPLED_READ_BIT));
 }
 
 }

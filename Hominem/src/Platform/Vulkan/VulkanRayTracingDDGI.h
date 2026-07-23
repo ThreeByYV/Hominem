@@ -5,6 +5,7 @@
 #include "VulkanComputePipeline.h"
 #include "VulkanStorageBuffer.h"
 #include "VulkanRenderTarget.h"
+#include "VulkanRenderGraph.h"
 
 #include <array>
 #include <cstdint>
@@ -66,6 +67,8 @@ private:
     bool                               m_SurfelBuffersCreated = false;
     uint32_t                           m_SurfelCapacity = 0;
     uint32_t                           m_SurfelCount    = 0;
+
+    VulkanRenderGraph  m_Graph;
 
     VulkanRenderTarget m_RayData;
     VulkanRenderTarget m_Irradiance;
