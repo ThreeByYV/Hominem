@@ -1,8 +1,8 @@
 #ifndef SCENE_COMMON_GLSL
 #define SCENE_COMMON_GLSL
 
-#ifndef SCENE_LIGHT_COUNT
-#define SCENE_LIGHT_COUNT 2
+#ifndef SCENE_MAX_LIGHTS
+#define SCENE_MAX_LIGHTS 20
 #endif
 
 // Layout must match GPUSceneData in VulkanSceneRenderer.cpp exactly
@@ -10,8 +10,9 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer
 {
     mat4  viewProj;
     vec4  cameraPos;
-    vec4  lightPos[SCENE_LIGHT_COUNT];
-    vec4  lightColor[SCENE_LIGHT_COUNT];
+    ivec4 lightCount;   // x = active lights this frame
+    vec4  lightPos[SCENE_MAX_LIGHTS];
+    vec4  lightColor[SCENE_MAX_LIGHTS];
     vec4  ambient;
     vec4  ddgiOrigin;
     vec4  ddgiSpacing;

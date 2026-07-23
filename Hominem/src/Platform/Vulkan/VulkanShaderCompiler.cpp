@@ -9,9 +9,6 @@
 
 namespace Hominem {
 
-// Resolves `#include "engine://Shaders/foo.glsl"` (and bare relative names, which are
-// treated as engine://Shaders/) through the AssetManager so DDGI shaders can share one
-// common header, cached alongside every other shader source.
 class ShaderIncluder : public shaderc::CompileOptions::IncluderInterface
 {
 public:
@@ -22,7 +19,7 @@ public:
         if (uri.find("://") == std::string::npos)
             uri = "engine://Shaders/" + uri;
 
-        auto* data = new IncludeData;
+        auto* data = new IncludeData{};
         data->name = AssetManager::ResolvePath(uri);
         if (auto result = AssetManager::Load<ShaderSource>(uri))
             data->content = result->Get()->source;
@@ -69,9 +66,10 @@ std::vector<uint32_t> VulkanShaderCompiler::Compile(const std::string& source,
     options.SetOptimizationLevel(shaderc_optimization_level_performance);
     options.SetIncluder(std::make_unique<ShaderIncluder>());
 
-    // Single source of truth: scene_common.glsl derives its SceneBuffer light-array size
-    // from this so a shader can never fall out of sync with GPUSceneData.
-    options.AddMacroDefinition("SCENE_LIGHT_COUNT", std::to_string(kVulkanSceneLightCount));
+    // Single source of truth: scene_common.glsl derives its SceneBuffer light-array capacity
+    // from this so a shader can never fall out of sync with GPUSceneData. The active light
+    // count is runtime (SceneBuffer.lightCount), so scenes add/remove lights without a rebuild.
+    options.AddMacroDefinition("SCENE_MAX_LIGHTS", std::to_string(kVulkanMaxSceneLights));
 
     const auto result = compiler.CompileGlslToSpv(source, ToShaderKind(stage), debugName.c_str(), options);
 

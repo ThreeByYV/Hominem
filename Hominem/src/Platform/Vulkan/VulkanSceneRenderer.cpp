@@ -13,8 +13,9 @@ struct GPUSceneData
 {
     glm::mat4  viewProj;
     glm::vec4  cameraPos;
-    glm::vec4  lightPos[kVulkanSceneLightCount];
-    glm::vec4  lightColor[kVulkanSceneLightCount];
+    glm::ivec4 lightCount;   // x = active lights this frame (<= kVulkanMaxSceneLights)
+    glm::vec4  lightPos[kVulkanMaxSceneLights];
+    glm::vec4  lightColor[kVulkanMaxSceneLights];
     glm::vec4  ambient;
     glm::vec4  ddgiOrigin;
     glm::vec4  ddgiSpacing;
@@ -422,7 +423,8 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
     GPUSceneData scene {};
     scene.viewProj  = view.proj * view.view;
     scene.cameraPos = glm::vec4(view.cameraPos, 1.f);
-    for (uint32_t i = 0; i < kVulkanSceneLightCount; i++)
+    scene.lightCount = glm::ivec4((int)view.lightCount, 0, 0, 0);
+    for (uint32_t i = 0; i < view.lightCount; i++)
     {
         const auto& light = view.lights[i];
         scene.lightPos[i]   = glm::vec4(light.Position, light.Radius);

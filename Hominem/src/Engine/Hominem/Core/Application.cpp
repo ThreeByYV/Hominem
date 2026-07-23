@@ -234,7 +234,9 @@ namespace Hominem {
 			recorded.vulkanView.proj      = frame.proj3D;
 			recorded.vulkanView.cameraPos = frame.cameraWorldPos;
 			recorded.vulkanView.ambient   = frame.light.AmbientColor * frame.light.AmbientIntensity;
-			for (uint32_t i = 0; i < kVulkanSceneLightCount && i < frame.lights.size(); ++i)
+			recorded.vulkanView.lightCount =
+				(uint32_t)std::min(frame.lights.size(), (size_t)kVulkanMaxSceneLights);
+			for (uint32_t i = 0; i < recorded.vulkanView.lightCount; ++i)
 				recorded.vulkanView.lights[i] = frame.lights[i];
 			recorded.viewportWidth  = frame.viewportWidth;
 			recorded.viewportHeight = frame.viewportHeight;

@@ -187,7 +187,7 @@ namespace Hominem {
 		bool       showSurfels      = false;
 	};
 
-	inline constexpr uint32_t kVulkanSceneLightCount = 2;
+	inline constexpr uint32_t kVulkanMaxSceneLights = 20;
 
 	struct VulkanSceneView
 	{
@@ -196,7 +196,8 @@ namespace Hominem {
 		glm::vec3 cameraPos {};
 		glm::vec3 ambient {};
 
-		std::array<Light, kVulkanSceneLightCount> lights;
+		uint32_t                                     lightCount = 0;
+		std::array<Light, kVulkanMaxSceneLights>     lights;
 	};
 
 	/**

@@ -62,7 +62,7 @@ layout(push_constant) uniform PushConstants
 vec3 shadeSurface(vec3 worldPos, vec3 normal, vec3 albedo)
 {
     vec3 color = vec3(0.0);
-    for (int i = 0; i < SCENE_LIGHT_COUNT; i++)
+    for (int i = 0; i < u_Scene.lightCount.x; i++)
     {
         vec3  toLight = u_Scene.lightPos[i].xyz - worldPos;
         float dist    = length(toLight);

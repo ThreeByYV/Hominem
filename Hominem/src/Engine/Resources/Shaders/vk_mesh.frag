@@ -65,7 +65,7 @@ void main()
 
     vec3 color = indirect * u_BaseColor.rgb;
 
-    for (int i = 0; i < SCENE_LIGHT_COUNT; i++)
+    for (int i = 0; i < u_Scene.lightCount.x; i++)
     {
         vec3  toLight = u_Scene.lightPos[i].xyz - v_WorldPos;
         float dist    = length(toLight);
