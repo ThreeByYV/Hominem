@@ -59,3 +59,17 @@ A lot has come together on the `feature/create-core-systems` branch. The rendere
 Moving forward the goal is a fixed-camera 3D game using the engine's rendering capabilities to their fullest.
 
 ![Image](https://github.com/user-attachments/assets/1158a6c1-e56c-4ce1-9adc-8a48825e49e7)
+
+~~July 2026~~  
+This is definitely the most difficult part of the rendering engine to date. Working from real ray tracing (via `VK_KHR_ray_query`) and a few papers and talks, we now have Dynamic Diffuse Global Illumination (DDGI). Next, of course, we need to integrate it with the rest of the scene, but these images serve as a good reminder of why GI is so important.
+
+<table>
+<tr>
+<th width="50%">Before (direct lighting only, flat ambient fill)</th>
+<th width="50%">After (DDGI)</th>
+</tr>
+<tr>
+<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/56ff4537-2ff7-4cb7-ac95-bcf7a7f04f8c"></td>
+<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/06d75858-256a-43a6-aea2-fc8c1635dcef"></td>
+</tr>
+</table>
