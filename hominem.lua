@@ -16,7 +16,7 @@ outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
 VulkanSDK = os.getenv("VULKAN_SDK") or ""
 if VulkanSDK == "" then
-    print("WARNING: VULKAN_SDK not set — shaderc_combined will not link until the Vulkan SDK is installed")
+    print("WARNING: VULKAN_SDK not set; shaderc_combined will not link until the Vulkan SDK is installed")
 end
 
 IncludeDir = IncludeDir or {}
@@ -101,6 +101,17 @@ local vendorPremake = {
 }
 for _, m in ipairs(vendorPremake) do
     os.copyfile(HMN .. "/premake/vendor/" .. m[1], HMN .. m[2])
+end
+
+-- assimp is a CMake project premake can't build directly, so premake links a prebuilt
+-- lib. Build it once here (via the CMake-based script) when the lib is missing, so a
+-- fresh `premake5 vs2022` needs no manual assimp step. The script is non-interactive.
+if not os.isfile(HMN .. "/Hominem/vendor/assimp/build/lib/Release/assimp.lib") then
+    print("Hominem: building assimp (one-time, a few minutes)...")
+    local ok = os.execute('"' .. path.translate(HMN .. "/scripts/Build-Assimp-MSVC.bat") .. '"')
+    if ok ~= true and ok ~= 0 then
+        print("Hominem: assimp build failed. Run scripts/Build-Assimp-MSVC.bat manually")
+    end
 end
 
 group "Dependencies"

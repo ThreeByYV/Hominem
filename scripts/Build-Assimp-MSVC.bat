@@ -19,15 +19,15 @@ cmake -S "%SRC%" -B "%BUILD%" ^
     -DBUILD_SHARED_LIBS=OFF ^
     -DCMAKE_DEBUG_POSTFIX=d ^
     -DLIBRARY_SUFFIX=""
-if %ERRORLEVEL% neq 0 ( echo [Assimp] Configure failed. & pause & exit /b 1 )
+if %ERRORLEVEL% neq 0 ( echo [Assimp] Configure failed. & exit /b 1 )
 
 echo [Assimp] Building Debug...
 cmake --build "%BUILD%" --config Debug --target assimp
-if %ERRORLEVEL% neq 0 ( echo [Assimp] Debug build failed. & pause & exit /b 1 )
+if %ERRORLEVEL% neq 0 ( echo [Assimp] Debug build failed. & exit /b 1 )
 
 echo [Assimp] Building Release...
 cmake --build "%BUILD%" --config Release --target assimp
-if %ERRORLEVEL% neq 0 ( echo [Assimp] Release build failed. & pause & exit /b 1 )
+if %ERRORLEVEL% neq 0 ( echo [Assimp] Release build failed. & exit /b 1 )
 
 echo [Assimp] Renaming libs to predictable names...
 
@@ -43,5 +43,4 @@ for /f "delims=" %%i in ('dir /b "%BUILD%\lib\Release\assimp*.lib" 2^>nul') do (
 
 echo.
 echo [Assimp] Done.
-pause
 endlocal
