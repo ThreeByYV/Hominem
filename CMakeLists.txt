@@ -12,6 +12,41 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 
+# Auto-init git submodules at configure time so a plain clone (e.g. opened
+# straight into CLion) works without a manual `git submodule update --init`.
+# Runs only when the vendor tree looks uninitialized, so reconfigures stay fast.
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git"
+        AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/GLFW/CMakeLists.txt")
+    message(STATUS "Hominem: initializing git submodules...")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE _hmn_submod_result
+    )
+    if(NOT _hmn_submod_result EQUAL 0)
+        # Self-heal: an interrupted earlier init can leave a submodule as a partial
+        # clone whose pinned commit was never fetched ("unable to find current
+        # revision"). Fetch every submodule fully, then retry the checkout.
+        message(STATUS "Hominem: submodule init incomplete — deep-fetching and retrying...")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} submodule foreach --recursive
+                    ${GIT_EXECUTABLE} fetch --quiet --tags origin
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --force
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE _hmn_submod_result2
+        )
+        if(NOT _hmn_submod_result2 EQUAL 0)
+            message(WARNING "Hominem: submodules still incomplete. A partial clone is "
+                "corrupt; reset it with:\n"
+                "  git submodule deinit -f --all && git submodule update --init --recursive")
+        endif()
+    endif()
+endif()
+
 # ── Block msys64/MinGW header contamination ───────────────────────────────────
 # When msys64 is on the system PATH, CMake's find_package() resolves ZLIB/PNG/
 # BZip2 to msys64 libraries and injects -IC:\msys64\mingw64\include into every
