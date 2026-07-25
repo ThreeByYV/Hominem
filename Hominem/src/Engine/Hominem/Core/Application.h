@@ -18,7 +18,7 @@ namespace Hominem {
     class Application
     {
     public:
-        Application();
+        Application(const WindowProps& props = WindowProps());
 
         void Initialize();
         void Update(float deltaTime);

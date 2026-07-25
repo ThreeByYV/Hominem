@@ -29,7 +29,7 @@ namespace Hominem {
 
 	Application* Application::s_Instance = nullptr;
 
-	Application::Application()
+	Application::Application(const WindowProps& props)
 	{
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
 		s_Instance = this;
@@ -48,7 +48,7 @@ namespace Hominem {
 		// 1ms resolution makes the frame limiter sleep accurate to ~1ms.
 		timeBeginPeriod(1);
 #endif
-		m_Window = std::unique_ptr<Window>(Window::Create()); 	//we don't have to manually delete the window when the application terminates
+		m_Window = std::unique_ptr<Window>(Window::Create(props)); 	//we don't have to manually delete the window when the application terminates
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
 		RenderCommand::Init();
