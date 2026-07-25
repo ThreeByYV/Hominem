@@ -1,5 +1,24 @@
+-- Standalone engine workspace. To consume the engine from a game instead, include
+-- hominem.lua from the game's own premake5.lua.
+
+-- Auto-init git submodules (with self-heal) before anything tries to include the
+-- vendor scripts, mirroring the CMake configure-time behavior. Runs only when the
+-- vendor tree looks uninitialized.
+local function ensure_submodules(root, sentinel)
+    if os.isfile(sentinel) then return end
+    print("Hominem: initializing git submodules...")
+    local ok = os.execute("git -C \"" .. root .. "\" submodule update --init --recursive")
+    if ok ~= true and ok ~= 0 then
+        print("Hominem: submodule init incomplete — deep-fetching and retrying...")
+        os.execute("git -C \"" .. root .. "\" submodule foreach --recursive git fetch --quiet --tags origin")
+        os.execute("git -C \"" .. root .. "\" submodule update --init --recursive --force")
+    end
+end
+ensure_submodules(_SCRIPT_DIR, _SCRIPT_DIR .. "/Hominem/vendor/GLFW/include/GLFW/glfw3.h")
+
 workspace "Hominem"
     architecture "x64"
+    startproject "Hominem"
 
     configurations
     {
@@ -8,256 +27,4 @@ workspace "Hominem"
         "Dist"
     }
 
-outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
-
-IncludeDir = {}
-IncludeDir["GLFW"]           = "Hominem/vendor/GLFW/include"
-IncludeDir["Glad"]           = "Hominem/vendor/Glad/include"
-IncludeDir["ImGui"]          = "Hominem/vendor/imgui"
-IncludeDir["ImGuiBackends"]  = "Hominem/vendor/imgui/backends"
-IncludeDir["glm"]            = "Hominem/vendor/glm"
-IncludeDir["stb_image"]      = "Hominem/vendor/stb_image"
-IncludeDir["tinyexr"]        = "Hominem/vendor/tinyexr"
-IncludeDir["zlib"]           = "Hominem/vendor/assimp/contrib/zlib"
-IncludeDir["zlib_build"]     = "Hominem/vendor/assimp/build/contrib/zlib"
-IncludeDir["entt"]           = "Hominem/vendor/entt/include"
-IncludeDir["msdfgen"]        = "Hominem/vendor/msdf-atlas-gen/msdfgen"
-IncludeDir["msdfgen_inc"]    = "Hominem/vendor/msdf-atlas-gen/msdfgen/include"
-IncludeDir["msdf_atlas_gen"] = "Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen"
-IncludeDir["freetype"]       = "Hominem/vendor/msdf-atlas-gen/msdfgen/freetype/include"
-IncludeDir["miniaudio"]      = "Hominem/vendor/miniaudio"
-IncludeDir["assimp"]         = "Hominem/vendor/assimp/include"
-IncludeDir["assimp_build"]   = "Hominem/vendor/assimp/build/include"
-IncludeDir["json"]           = "Hominem/vendor/json"
-IncludeDir["Box2D"]          = "Hominem/vendor/Box2D/include"
-IncludeDir["tracy"]          = "Hominem/vendor/tracy/public"
-IncludeDir["meshoptimizer"]  = "Hominem/vendor/meshoptimizer/src"
-IncludeDir["volk"]              = "Hominem/vendor/volk"
-IncludeDir["VulkanHeaders"]     = "Hominem/vendor/Vulkan-Headers/include"
-IncludeDir["VulkanMemAlloc"]    = "Hominem/vendor/VulkanMemoryAllocator/include"
-
-local VulkanSDK = os.getenv("VULKAN_SDK") or ""
-if VulkanSDK == "" then
-    print("WARNING: VULKAN_SDK not set — shaderc_combined will not link until the Vulkan SDK is installed")
-end
-IncludeDir["shaderc"] = VulkanSDK .. "/Include"
-
-include "Hominem/vendor/GLFW"
-include "Hominem/vendor/Glad"
-include "Hominem/vendor/imgui"
-include "Hominem/vendor/msdf-atlas-gen"
-include "Hominem/vendor/assimp"
-include "Hominem/vendor/Box2D"
-include "Hominem/vendor/tracy"
-include "Hominem/vendor/meshoptimizer"
-
-VendorIncludes = {
-    "Hominem/vendor/spdlog/include",
-    "%{IncludeDir.GLFW}",
-    "%{IncludeDir.Glad}",
-    "%{IncludeDir.ImGui}",
-    "%{IncludeDir.ImGuiBackends}",
-    "%{IncludeDir.glm}",
-    "%{IncludeDir.stb_image}",
-    "%{IncludeDir.tinyexr}",
-    "%{IncludeDir.zlib}",
-    "%{IncludeDir.zlib_build}",
-    "%{IncludeDir.entt}",
-    "%{IncludeDir.msdfgen}",
-    "%{IncludeDir.msdfgen_inc}",
-    "%{IncludeDir.msdf_atlas_gen}",
-    "%{IncludeDir.freetype}",
-    "%{IncludeDir.miniaudio}",
-    "%{IncludeDir.assimp}",
-    "%{IncludeDir.assimp_build}",
-    "%{IncludeDir.json}",
-    "%{IncludeDir.Box2D}",
-    "%{IncludeDir.tracy}",
-    "%{IncludeDir.meshoptimizer}",
-    "%{IncludeDir.volk}",
-    "%{IncludeDir.VulkanHeaders}",
-    "%{IncludeDir.VulkanMemAlloc}",
-    "%{IncludeDir.shaderc}"
-}
-
-project "Hominem"
-    location "Hominem"
-    kind "StaticLib"
-    language "C++"
-    cppdialect "C++latest"
-    multiprocessorcompile "on"
-
-    targetdir ("bin/" .. outputdir .. "/Hominem")
-    objdir    ("bin-int/" .. outputdir .. "/Hominem")
-
-    pchheader "hmnpch.h"
-    pchsource "Hominem/src/Engine/hmnpch.cpp"
-
-    files
-    {
-        "Hominem/src/Engine/**.h",
-        "Hominem/src/Engine/**.cpp",
-        "Hominem/src/Engine/**.hpp",
-        "Hominem/src/Platform/**.h",
-        "Hominem/src/Platform/**.cpp",
-        "Hominem/vendor/stb_image/**.h",
-        "Hominem/vendor/stb_image/**.cpp",
-        "Hominem/vendor/tinyexr/tinyexr.h",
-        "Hominem/vendor/tinyexr/tinyexr.cpp",
-        "Hominem/vendor/glm/glm/**.hpp",
-        "Hominem/vendor/glm/glm/**.inl",
-        "Hominem/vendor/volk/volk.c"
-    }
-
-    -- stb_image, tinyexr, and volk compile as plain TUs without the PCH
-    filter "files:**/stb_image/**.cpp"
-        enablepch "Off"
-    filter "files:**/tinyexr/**.cpp"
-        enablepch "Off"
-    filter "files:**/volk/volk.c"
-        enablepch "Off"
-    -- VMA implementation TU: isolated from the PCH because it's a huge header-only lib.
-    filter "files:**/Vulkan/VulkanMemory.cpp"
-        enablepch "Off"
-    filter {}
-
-    defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
-
-    defines { 'HMN_ENGINE_RESOURCES_PATH="' .. _MAIN_SCRIPT_DIR .. '/Hominem/src/Engine/Resources"' }
-
-    includedirs
-    (
-        table.move(VendorIncludes, 1, #VendorIncludes, 3,
-            { "Hominem/src/Engine",
-              "Hominem/src" })
-    )
-
-    filter "system:windows"
-        systemversion "latest"
-        buildoptions { "/utf-8", "/FS" }
-        defines { "HMN_PLATFORM_WINDOWS" }
-
-    filter "configurations:Debug"
-        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
-        symbols "on"
-        editandcontinue "Off"
-        runtime "Debug"
-
-    filter "configurations:Release"
-        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
-        optimize "on"
-        runtime "Release"
-
-    filter "configurations:Dist"
-        defines { "HMN_DIST", "NDEBUG" }
-        optimize "On"
-        runtime "Release"
-
-project "PostHominem"
-    location "PostHominem"
-    kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++latest"
-    multiprocessorcompile "on"
-
-    targetdir ("bin/" .. outputdir .. "/PostHominem")
-    objdir    ("bin-int/" .. outputdir .. "/PostHominem")
-
-    debugdir ("bin/" .. outputdir .. "/PostHominem")
-
-    postbuildcommands
-    {
-        "{COPYDIR} %{prj.location}src/Resources %{cfg.targetdir}/Resources",
-        "{COPYDIR} %{wks.location}Hominem/src/Engine/Resources %{cfg.targetdir}/EngineResources"
-    }
-
-    pchheader "hmnpch.h"
-    pchsource "PostHominem/src/hmnpch.cpp"
-
-    files
-    {
-        "PostHominem/src/**.h",
-
-        "PostHominem/src/**.cpp",
-        "PostHominem/src/**.hpp",
-        "PostHominem/src/Resources/**"
-    }
-
-    vpaths
-    {
-        ["Game/**"]        = "PostHominem/src/Game/**",
-        ["Layers/**"]      = "PostHominem/src/Layers/**",
-        ["Cinematics/**"]  = "PostHominem/src/Cinematics/**",
-        ["Resources/**"]   = "PostHominem/src/Resources/**",
-        ["*"]              = "PostHominem/src/*",
-    }
-
-    defines { "_CRT_SECURE_NO_WARNINGS", "GLM_ENABLE_EXPERIMENTAL" }
-
-    includedirs
-    (
-        table.move(VendorIncludes, 1, #VendorIncludes, 3,
-            { "Hominem/src/Engine",
-              "Hominem/src",
-              "PostHominem/src" })
-    )
-
-    dependson { "assimp" }
-
-    links
-    {
-        "Hominem",
-        "GLFW",
-        "Glad",
-        "ImGui",
-        "msdf-atlas-gen",
-        "msdfgen",
-        "freetype",
-        "Box2D",
-        "Tracy",
-        "meshoptimizer"
-    }
-
-    filter "files:**/imgui*.cpp"
-        enablepch "Off"
-
-    filter "system:windows"
-        systemversion "latest"
-        buildoptions { "/utf-8", "/FS" }
-        defines { "HMN_PLATFORM_WINDOWS" }
-            removefiles { "Hominem/src/Game/**/MacOS/**" }
-
-    filter "configurations:Debug"
-        defines { "HMN_DEBUG", "HMN_ENABLE_ASSERTS", "_DEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
-        symbols "on"
-        editandcontinue "Off"
-        runtime "Debug"
-        linkoptions { "/NODEFAULTLIB:LIBCMTD", "/DEBUG:FASTLINK" }
-        libdirs {
-            "Hominem/vendor/assimp/build/lib/Debug",
-            "Hominem/vendor/assimp/build/contrib/zlib/Debug",
-            VulkanSDK .. "/Lib"
-        }
-        links { "assimpd", "zlibstaticd", "shaderc_combinedd" }
-
-    filter "configurations:Release"
-        defines { "HMN_RELEASE", "NDEBUG", "TRACY_ENABLE", "TRACY_NO_SYSTEM_TRACING" }
-        optimize "on"
-        runtime "Release"
-        libdirs {
-            "Hominem/vendor/assimp/build/lib/Release",
-            "Hominem/vendor/assimp/build/contrib/zlib/Release",
-            VulkanSDK .. "/Lib"
-        }
-        links { "assimp", "zlibstatic", "shaderc_combined" }
-
-    filter "configurations:Dist"
-        defines { "HMN_DIST", "NDEBUG" }
-        optimize "On"
-        runtime "Release"
-        libdirs {
-            "Hominem/vendor/assimp/build/lib/Release",
-            "Hominem/vendor/assimp/build/contrib/zlib/Release",
-            VulkanSDK .. "/Lib"
-        }
-        links { "assimp", "zlibstatic", "shaderc_combined" }
+include "hominem.lua"
