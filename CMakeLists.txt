@@ -130,60 +130,17 @@ target_include_directories(Tracy PUBLIC Hominem/vendor/tracy/public)
 # Each target opts in explicitly via its own compile definitions below.
 target_compile_definitions(Tracy PRIVATE TRACY_ENABLE TRACY_NO_SYSTEM_TRACING)
 
-# Pre-create assimp generated-include dirs so CMake configure succeeds before the
-# first assimp build (scripts/Build-Assimp.bat will populate them).
-if(MSVC)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/include")
-    set(_ASSIMP_INC_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/include")
-    set(_ASSIMP_ZLIB_INC
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib")
-else()
-    # MinGW/Ninja: single-config generator — separate Debug & Release build dirs.
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/include")
-    set(_ASSIMP_INC_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/include")
-    set(_ASSIMP_ZLIB_INC
-        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/contrib/zlib")
-endif()
-
-add_library(assimp_lib STATIC IMPORTED GLOBAL)
-if(MSVC)
-    set_target_properties(assimp_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
-        IMPORTED_LOCATION_RELEASE        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
-        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
-        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/lib/Release/assimp.lib"
-        INTERFACE_INCLUDE_DIRECTORIES    "${_ASSIMP_INC_DIRS}"
-    )
-else()
-    set_target_properties(assimp_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/lib/libassimpd.a"
-        IMPORTED_LOCATION_RELEASE        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
-        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
-        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/lib/libassimp.a"
-        INTERFACE_INCLUDE_DIRECTORIES    "${_ASSIMP_INC_DIRS}"
-    )
-endif()
-
-add_library(zlib_lib STATIC IMPORTED GLOBAL)
-if(MSVC)
-    set_target_properties(zlib_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-        IMPORTED_LOCATION_RELEASE        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/contrib/zlib/Release/zlibstatic.lib"
-    )
-else()
-    set_target_properties(zlib_lib PROPERTIES
-        IMPORTED_LOCATION_DEBUG          "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Debug/contrib/zlib/libzlibstaticd.a"
-        IMPORTED_LOCATION_RELEASE        "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
-        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
-        IMPORTED_LOCATION_MINSIZEREL     "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/build/Release/contrib/zlib/libzlibstatic.a"
-    )
-endif()
+# Build assimp from source as a normal CMake target (no prebuilt lib, no script).
+# It also builds the bundled zlibstatic target, which tinyexr reuses.
+set(ASSIMP_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SAMPLES      OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL            OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ZLIB         ON  CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_USE_CCACHE   OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS         OFF CACHE BOOL "" FORCE)
+add_subdirectory(Hominem/vendor/assimp)
 
 if(WIN32)
     set(_VK_SDK_ROOT "")
@@ -257,7 +214,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdfgen
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/msdf-atlas-gen/msdf-atlas-gen
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/miniaudio
-    ${_ASSIMP_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/include
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/json
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/Box2D/include
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/tracy/public
@@ -311,9 +268,9 @@ add_library(tinyexr STATIC Hominem/vendor/tinyexr/tinyexr.cpp)
 target_include_directories(tinyexr PUBLIC Hominem/vendor/tinyexr)
 target_include_directories(tinyexr PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/assimp/contrib/zlib
-    ${_ASSIMP_ZLIB_INC}
+    ${CMAKE_CURRENT_BINARY_DIR}/Hominem/vendor/assimp/contrib/zlib
 )
-target_link_libraries(tinyexr PRIVATE zlib_lib)
+target_link_libraries(tinyexr PRIVATE zlibstatic)
 set_target_properties(tinyexr PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 target_compile_options(tinyexr PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
@@ -346,7 +303,7 @@ set_source_files_properties(
 )
 
 target_link_libraries(Hominem PUBLIC
-    glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp_lib zlib_lib opengl32 meshoptimizer volk
+    glfw Glad ImGui stb_image tinyexr msdf-atlas-gen box2d Tracy assimp zlibstatic opengl32 meshoptimizer volk
 )
 
 if(TARGET shaderc_lib)
