@@ -17,7 +17,7 @@ add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 # Runs only when the vendor tree looks uninitialized, so reconfigures stay fast.
 find_package(Git QUIET)
 # Set submodule.recurse once per clone so `git checkout`/`git pull` auto-update the
-# vendor submodules — no manual `git submodule update` after a branch switch.
+# vendor submodules; no manual `git submodule update` after a branch switch.
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
     execute_process(COMMAND ${GIT_EXECUTABLE} config submodule.recurse true
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -34,7 +34,7 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git"
         # Self-heal: an interrupted earlier init can leave a submodule as a partial
         # clone whose pinned commit was never fetched ("unable to find current
         # revision"). Fetch every submodule fully, then retry the checkout.
-        message(STATUS "Hominem: submodule init incomplete — deep-fetching and retrying...")
+        message(STATUS "Hominem: submodule init incomplete; deep-fetching and retrying...")
         execute_process(
             COMMAND ${GIT_EXECUTABLE} submodule foreach --recursive
                     ${GIT_EXECUTABLE} fetch --quiet --tags origin
@@ -59,13 +59,13 @@ endif()
 # target that links them (including freetype). That path is full of GCC-specific
 # headers that break MSVC with C2059 errors.
 #
-# Layer 1 — stop find_* from scanning PATH/system environment entirely.
+# Layer 1: stop find_* from scanning PATH/system environment entirely.
 set(CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH OFF)
 set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH       OFF)
 # Disable pkg-config (it also points at msys64 on Windows with msys64 in PATH).
 set(PKG_CONFIG_EXECUTABLE "" CACHE FILEPATH "" FORCE)
 
-# Layer 2 — scrub any msys/mingw dirs from an already-configured target.
+# Layer 2: scrub any msys/mingw dirs from an already-configured target.
 function(strip_mingw_includes target_name)
     if(NOT TARGET ${target_name})
         return()
@@ -79,7 +79,7 @@ function(strip_mingw_includes target_name)
     endforeach()
 endfunction()
 
-# Layer 3 — strip from CMake's own implicit lists so they never reach cl.exe.
+# Layer 3: strip from CMake's own implicit lists so they never reach cl.exe.
 if(MSVC)
     foreach(_var
             CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES
@@ -90,7 +90,7 @@ if(MSVC)
 endif()
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Use lld if available — much faster than GNU ld on large debug builds.
+# Use lld if available; much faster than GNU ld on large debug builds.
 if(NOT MSVC)
     find_program(_LLD lld HINTS "C:/Program Files/LLVM/bin")
     if(_LLD)
@@ -182,7 +182,7 @@ if(WIN32)
             INTERFACE_INCLUDE_DIRECTORIES    "${_VK_SDK_ROOT}/Include"
         )
     else()
-        message(WARNING "Vulkan SDK not found — shaderc will not be available")
+        message(WARNING "Vulkan SDK not found; shaderc will not be available")
     endif()
 endif()
 
@@ -238,7 +238,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/VulkanMemoryAllocator/include
 )
 
-# Vendor libs compiled without debug info — we never step into them in the debugger
+# Vendor libs compiled without debug info; we never step into them in the debugger
 # and -g0 significantly reduces the data GNU ld has to process at link time.
 if(NOT MSVC)
     foreach(_vend Glad ImGui Tracy stb_image tinyexr msdfgen msdf-atlas-gen meshoptimizer freetype glfw box2d)
@@ -276,7 +276,7 @@ target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
 set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 target_compile_options(stb_image PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Y->)
 
-# tinyexr — HDR/EXR loader (stb_image-style single header). Uses the project's
+# tinyexr: HDR/EXR loader (stb_image-style single header). Uses the project's
 # existing zlib (assimp's zlibstatic) via TINYEXR_USE_MINIZ=0 in tinyexr.cpp.
 add_library(tinyexr STATIC Hominem/vendor/tinyexr/tinyexr.cpp)
 target_include_directories(tinyexr PUBLIC Hominem/vendor/tinyexr)
