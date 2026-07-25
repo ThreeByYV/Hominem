@@ -16,6 +16,12 @@ add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 # straight into CLion) works without a manual `git submodule update --init`.
 # Runs only when the vendor tree looks uninitialized, so reconfigures stay fast.
 find_package(Git QUIET)
+# Set submodule.recurse once per clone so `git checkout`/`git pull` auto-update the
+# vendor submodules — no manual `git submodule update` after a branch switch.
+if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+    execute_process(COMMAND ${GIT_EXECUTABLE} config submodule.recurse true
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git"
         AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/GLFW/CMakeLists.txt")
     message(STATUS "Hominem: initializing git submodules...")
