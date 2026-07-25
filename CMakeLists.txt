@@ -140,7 +140,21 @@ set(ASSIMP_BUILD_ZLIB         ON  CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_USE_CCACHE   OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS         OFF CACHE BOOL "" FORCE)
+# The project links the release-only shaderc lib, so it forces the release CRT (/MD) in
+# every config. assimp's own CMake ignores that: in Debug it uses the debug CRT and adds
+# /D_DEBUG, which references debug-only CRT symbols (_CrtDbgReport) that cannot link
+# against /MD. Force CMP0091 NEW so assimp honors CMAKE_MSVC_RUNTIME_LIBRARY, then
+# undefine the _DEBUG it injects so its objects match the release CRT.
+set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 add_subdirectory(Hominem/vendor/assimp)
+if(MSVC)
+    foreach(_assimp_target assimp zlibstatic)
+        if(TARGET ${_assimp_target})
+            set_target_properties(${_assimp_target} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+            target_compile_options(${_assimp_target} PRIVATE $<$<CONFIG:Debug>:/U_DEBUG>)
+        endif()
+    endforeach()
+endif()
 
 if(WIN32)
     set(_VK_SDK_ROOT "")
