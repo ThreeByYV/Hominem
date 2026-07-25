@@ -22,7 +22,10 @@ template<> struct AssetLoader<Texture2D> {
 template<> struct AssetLoader<StaticMesh> {
     static Ref<StaticMesh> Load(const std::string& path) {
         auto mesh = StaticMesh::Create();
-        if (!mesh->LoadFromFile(path)) return nullptr;
+        if (auto result = mesh->LoadFromFile(path); !result) {
+            HMN_CORE_ERROR("AssetLoader<StaticMesh>: {}", result.error());
+            return nullptr;
+        }
         return mesh;
     }
 };
@@ -30,7 +33,10 @@ template<> struct AssetLoader<StaticMesh> {
 template<> struct AssetLoader<SkinnedMesh> {
     static Ref<SkinnedMesh> Load(const std::string& path) {
         auto mesh = SkinnedMesh::Create();
-        if (!mesh->LoadFromFile(path)) return nullptr;
+        if (auto result = mesh->LoadFromFile(path); !result) {
+            HMN_CORE_ERROR("AssetLoader<SkinnedMesh>: {}", result.error());
+            return nullptr;
+        }
         return mesh;
     }
 };

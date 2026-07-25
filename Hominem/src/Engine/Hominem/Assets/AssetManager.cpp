@@ -45,9 +45,16 @@ void LoaderThreadFunc()
         try
         {
             slot->data = req->loader(slot->path);
-            slot->state.store(slot->data ? AssetState::Loaded : AssetState::Failed,
-                              std::memory_order_release);
-            HMN_CORE_INFO("AssetManager: loaded '{}'", slot->path);
+            if (slot->data)
+            {
+                slot->state.store(AssetState::Loaded, std::memory_order_release);
+                HMN_CORE_INFO("AssetManager: loaded '{}'", slot->path);
+            }
+            else
+            {
+                slot->state.store(AssetState::Failed, std::memory_order_release);
+                HMN_CORE_ERROR("AssetManager: loader produced no data for '{}'", slot->path);
+            }
         }
         catch (const std::exception& e)
         {
@@ -134,8 +141,13 @@ void AssetManager::LoadSync(std::shared_ptr<AssetSlot> slot, const AssetLoaderFn
     try {
         auto data = loader(slot->path);
         slot->data = std::move(data);
-        slot->state.store(slot->data ? AssetState::Loaded : AssetState::Failed,
-                          std::memory_order_release);
+        if (slot->data)
+            slot->state.store(AssetState::Loaded, std::memory_order_release);
+        else
+        {
+            slot->state.store(AssetState::Failed, std::memory_order_release);
+            HMN_CORE_ERROR("AssetManager: loader produced no data for '{}'", slot->path);
+        }
     }
     catch (const std::exception& e) {
         slot->state.store(AssetState::Failed, std::memory_order_release);
