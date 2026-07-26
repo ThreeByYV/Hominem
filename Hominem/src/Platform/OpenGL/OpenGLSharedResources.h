@@ -25,6 +25,7 @@ public:
 
     static std::array<uint8_t, 8> GetDeviceLUID();
     static std::string             GetDeviceName();
+    static bool                    IsInteropSupported();
 
 private:
     uint32_t m_MemObject       = 0;

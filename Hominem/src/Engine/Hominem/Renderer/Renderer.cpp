@@ -23,6 +23,12 @@ void Renderer::Init(uint32_t w, uint32_t h)
 
 void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID)
 {
+    if (!SharedResources::IsInteropSupported())
+    {
+        HMN_CORE_WARN("Renderer: driver lacks GL/VK external-memory extensions, shared texture unavailable");
+        return;
+    }
+
     auto vkLUID = m_VulkanRenderer->GetDeviceLUID();
 
     if (glLUID == std::array<uint8_t, 8>{})

@@ -2,6 +2,7 @@
 #include "OpenGLSharedResources.h"
 
 #include <glad/glad.h>
+#include <cstring>
 
 namespace Hominem {
 
@@ -59,10 +60,42 @@ static void LoadProcs()
     pfn_SignalSemaphore      = (PFN_glSignalSemaphoreEXT)            get("glSignalSemaphoreEXT");
 }
 
+static bool HasGLExtension(const char* name)
+{
+    GLint count = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &count);
+    for (GLint i = 0; i < count; i++)
+    {
+        const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
+        if (ext && std::strcmp(ext, name) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool OpenGLSharedResources::IsInteropSupported()
+{
+    static constexpr const char* required[] = {
+        "GL_EXT_memory_object", "GL_EXT_memory_object_win32",
+        "GL_EXT_semaphore",     "GL_EXT_semaphore_win32",
+    };
+
+    bool ok = true;
+    for (const char* ext : required)
+    {
+        if (!HasGLExtension(ext))
+        {
+            HMN_CORE_WARN("OpenGLSharedResources: missing {} — GL/VK interop unavailable", ext);
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 std::array<uint8_t, 8> OpenGLSharedResources::GetDeviceLUID()
 {
     auto pfn = (PFN_glGetUnsignedBytei_vEXT)wglGetProcAddress("glGetUnsignedBytei_vEXT");
-    if (!pfn)
+    if (!pfn || !HasGLExtension("GL_EXT_memory_object"))
     {
         HMN_CORE_WARN("OpenGLSharedResources: GL_EXT_memory_object not exposed by driver, falling back to name match");
         return {};

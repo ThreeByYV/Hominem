@@ -20,4 +20,9 @@ std::string SharedResources::GetDeviceName()
     return OpenGLSharedResources::GetDeviceName();
 }
 
+bool SharedResources::IsInteropSupported()
+{
+    return OpenGLSharedResources::IsInteropSupported();
+}
+
 }
