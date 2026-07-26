@@ -16,7 +16,7 @@ namespace Hominem {
 	Ref<SubTexture2D> SubTexture2D::CreateFromCoords(const Ref<Texture2D>& texture, const glm::vec2& coords, const glm::vec2 spriteSize)
 	{
 		glm::vec2 min = { (coords.x * spriteSize.x) / texture->GetWidth(), (coords.y * spriteSize.y) / texture->GetHeight() }; //bottom left corner
-		glm::vec2 max = { ((coords.x + 1) * spriteSize.x) / texture->GetWidth(), (coords.y * spriteSize.y) / texture->GetHeight() }; //top right corner
+		glm::vec2 max = { ((coords.x + 1) * spriteSize.x) / texture->GetWidth(), ((coords.y + 1) * spriteSize.y) / texture->GetHeight() }; //top right corner
 	
 		return CreateRef<SubTexture2D>(texture, min, max);
 	}
