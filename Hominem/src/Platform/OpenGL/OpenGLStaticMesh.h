@@ -15,6 +15,8 @@ public:
 
 	[[nodiscard]] std::expected<void, std::string> LoadFromFile(const std::string& path) override;
 
+	void BuildFromData(MeshData data) override;
+
 	std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
 	                                    const glm::mat4&   actorTransform,
 	                                    CommandList&       cmd,

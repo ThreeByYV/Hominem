@@ -30,6 +30,21 @@ namespace Hominem {
         return {};
     }
 
+    void OpenGLStaticMesh::BuildFromData(MeshData data)
+    {
+        m_DrawGroups     = std::move(data.Groups);
+        m_AABBMin        = data.AABBMin;
+        m_AABBMax        = data.AABBMax;
+        m_PendingVerts   = std::move(data.Vertices);
+        m_PendingIndices = std::move(data.Indices);
+
+        RenderThread::QueueUpload([this] {
+            Upload(m_PendingVerts, m_PendingIndices);
+            m_PendingVerts   = {};
+            m_PendingIndices = {};
+        });
+    }
+
     void OpenGLStaticMesh::Upload(const std::vector<StaticVertex>& verts, const std::vector<uint32_t>& indices)
     {
         if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); }

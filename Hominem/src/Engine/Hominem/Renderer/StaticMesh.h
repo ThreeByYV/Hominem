@@ -5,6 +5,7 @@
 #include "Material.h"
 #include "CommandList.h"
 #include "Hominem/Core/AsyncLoad.h"
+#include "Hominem/Assets/MeshData.h"
 
 #include <glm/glm.hpp>
 #include <string>
@@ -22,6 +23,9 @@ public:
 	virtual ~StaticMesh() = default;
 
 	[[nodiscard]] virtual std::expected<void, std::string> LoadFromFile(const std::string& path) = 0;
+
+	/// Upload procedurally generated geometry
+	virtual void BuildFromData(MeshData data) = 0;
 
 	// Records draw commands into cmd. Returns {draw calls issued, triangles rendered}.
 	virtual std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
