@@ -196,6 +196,20 @@ namespace Hominem {
 		// factory calls QueueUpload() after the IntrusiveRef is established
 	}
 
+	static GLenum MagFilterToGL(TextureFilter f)
+	{
+		return f == TextureFilter::Nearest ? GL_NEAREST : GL_LINEAR;
+	}
+
+	// Mip levels stay interpolated even for Nearest so distant surfaces do not
+	// shimmer; only the in-level sampling becomes point-sampled.
+	static GLenum MinFilterToGL(TextureFilter f, int mipLevels)
+	{
+		if (f == TextureFilter::Nearest)
+			return mipLevels > 1 ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST;
+		return mipLevels > 1 ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
+	}
+
 	static GLenum WrapToGL(TextureWrap w)
 	{
 		switch (w)
@@ -217,9 +231,8 @@ namespace Hominem {
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
 		glTextureStorage2D(m_RendererID, m_MipLevels, m_InternalFormat, m_Width, m_Height);
 
-		GLenum minFilter = (m_MipLevels > 1) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
-		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, minFilter);
-		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, MinFilterToGL(m_Filter, m_MipLevels));
+		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, MagFilterToGL(m_Filter));
 		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, WrapToGL(m_WrapS));
 		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, WrapToGL(m_WrapT));
 
@@ -275,6 +288,20 @@ namespace Hominem {
 			uint32_t id = m_RendererID;
 			RenderThread::QueueUpload([id, gl = WrapToGL(wrap)] {
 				glTextureParameteri(id, GL_TEXTURE_WRAP_T, gl);
+			});
+		}
+	}
+
+	void OpenGLTexture2D::SetFilter(TextureFilter filter)
+	{
+		m_Filter = filter;
+		if (m_RendererID)
+		{
+			uint32_t id = m_RendererID;
+			RenderThread::QueueUpload([id, minF = MinFilterToGL(filter, m_MipLevels),
+			                               magF = MagFilterToGL(filter)] {
+				glTextureParameteri(id, GL_TEXTURE_MIN_FILTER, minF);
+				glTextureParameteri(id, GL_TEXTURE_MAG_FILTER, magF);
 			});
 		}
 	}

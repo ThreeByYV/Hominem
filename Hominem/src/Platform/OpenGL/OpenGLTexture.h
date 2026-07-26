@@ -50,6 +50,7 @@ namespace Hominem {
 		void Bind(uint32_t slot) const override;
 		void SetWrapS(TextureWrap wrap) override;
 		void SetWrapT(TextureWrap wrap) override;
+		void SetFilter(TextureFilter filter) override;
 
 		// Render thread: allocates GL storage immediately (e.g. for the BRDF LUT
 		// render target, which has no initial pixel data). No-op if already created.
@@ -73,6 +74,7 @@ namespace Hominem {
 		mutable int         m_MipLevels = 1;
 		mutable TextureWrap m_WrapS     = TextureWrap::Repeat;
 		mutable TextureWrap m_WrapT     = TextureWrap::Repeat;
+		TextureFilter       m_Filter    = TextureFilter::Linear;
 	};
 }
 

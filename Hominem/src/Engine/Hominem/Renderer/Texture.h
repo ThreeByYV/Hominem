@@ -15,6 +15,10 @@ namespace Hominem {
 	};
 
 	enum class TextureWrap { Repeat, ClampToEdge, MirroredRepeat };
+
+	// Nearest keeps texels crisp under magnification (pixel art); mip levels are
+	// still interpolated so distant surfaces do not shimmer.
+	enum class TextureFilter { Linear, Nearest };
 	
 	class Texture : public RefCounted
 	{
@@ -67,6 +71,7 @@ namespace Hominem {
 
 		virtual void SetWrapS(TextureWrap wrap) = 0;
 		virtual void SetWrapT(TextureWrap wrap) = 0;
+		virtual void SetFilter(TextureFilter filter) = 0;
 
 		virtual uint32_t GetRendererID() const = 0;
 
