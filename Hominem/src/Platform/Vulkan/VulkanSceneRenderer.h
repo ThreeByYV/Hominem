@@ -10,6 +10,7 @@
 #include "VulkanShaderLibrary.h"
 #include "VulkanRaytracer.h"
 #include "VulkanRayTracingDDGI.h"
+#include "VulkanSharedImages.h"
 
 #include <array>
 #include <cstdint>
@@ -45,6 +46,14 @@ public:
                   const VulkanDDGIParams& ddgi,
                   const VulkanSceneView& view);
 
+    /// Poll this before CollectSharedImages — that one mints Win32 handles the caller owns.
+    uint32_t GetSharedImageGeneration() const { return m_SharedImages.GetGeneration(); }
+
+    std::vector<SharedImageExport> CollectSharedImages() const
+    {
+        return m_SharedImages.Collect(m_Renderer->GetDevice());
+    }
+
     HANDLE       GetDrawImageWin32Handle()                       { return m_Renderer->GetDrawImageWin32Handle(); }
     HANDLE       GetComputeDoneSemaphoreWin32Handle(uint32_t i)  { return m_Renderer->GetComputeDoneSemaphoreWin32Handle(i); }
     HANDLE       GetGLDoneSemaphoreWin32Handle()                 { return m_Renderer->GetGLDoneSemaphoreWin32Handle(); }
@@ -77,6 +86,7 @@ private:
     std::unique_ptr<VulkanRenderer>                         m_Renderer;
     VulkanRaytracer                                         m_Raytracer;
     VulkanRayTracingDDGI                                    m_DDGI;
+    VulkanSharedImages                                      m_SharedImages;
 
     std::unordered_map<std::string, VulkanComputePipeline>  m_ComputePipelines;
     std::vector<RenderTargetSlot>                           m_RenderTargets;

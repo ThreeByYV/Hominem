@@ -3,6 +3,9 @@
 #include "VulkanCore.h"
 #include <cstdint>
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
 namespace Hominem {
 
 struct VulkanAllocatedImage
@@ -12,6 +15,10 @@ struct VulkanAllocatedImage
     VmaAllocation allocation = VK_NULL_HANDLE;
     VkExtent3D    extent     = {};
     VkFormat      format     = VK_FORMAT_UNDEFINED;
+
+    // CreateShared only — allocated outside VMA to carry VkExportMemoryAllocateInfo.
+    VkDeviceMemory memory     = VK_NULL_HANDLE;
+    VkDeviceSize   memorySize = 0;
 };
 
 namespace VulkanImage {
@@ -20,6 +27,15 @@ VulkanAllocatedImage Create(VkDevice device, VmaAllocator allocator,
                             VkExtent3D extent, VkFormat format,
                             VkImageUsageFlags usage,
                             bool mipmapped = false);
+
+/// Image OpenGL can import over the same memory. Bypasses VMA, which can't attach
+/// VkExportMemoryAllocateInfo to an allocation.
+VulkanAllocatedImage CreateShared(VkDevice device, VkPhysicalDevice physical,
+                                  VkExtent3D extent, VkFormat format,
+                                  VkImageUsageFlags usage);
+
+/// Caller owns the returned handle and must CloseHandle it after the importer takes a reference.
+HANDLE GetWin32Handle(VkDevice device, const VulkanAllocatedImage& img);
 
 void Destroy(VkDevice device, VmaAllocator allocator, const VulkanAllocatedImage& img);
 

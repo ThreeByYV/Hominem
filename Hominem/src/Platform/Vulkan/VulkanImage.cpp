@@ -65,10 +65,115 @@ VulkanAllocatedImage VulkanImage::Create(VkDevice device, VmaAllocator allocator
     return img;
 }
 
+static uint32_t FindMemoryType(VkPhysicalDevice physical, uint32_t typeBits,
+                               VkMemoryPropertyFlags props)
+{
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(physical, &memProps);
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i)
+    {
+        if ((typeBits & (1u << i)) &&
+            (memProps.memoryTypes[i].propertyFlags & props) == props)
+            return i;
+    }
+    HMN_CORE_ASSERT(false, "Failed to find suitable memory type");
+    return ~0u;
+}
+
+VulkanAllocatedImage VulkanImage::CreateShared(VkDevice device, VkPhysicalDevice physical,
+                                               VkExtent3D extent, VkFormat format,
+                                               VkImageUsageFlags usage)
+{
+    VulkanAllocatedImage img;
+    img.extent = extent;
+    img.format = format;
+
+    const VkExternalMemoryImageCreateInfo extMemInfo
+    {
+        .sType       = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+    };
+    const VkImageCreateInfo imageInfo
+    {
+        .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext         = &extMemInfo,
+        .imageType     = VK_IMAGE_TYPE_2D,
+        .format        = format,
+        .extent        = extent,
+        .mipLevels     = 1,
+        .arrayLayers   = 1,
+        .samples       = VK_SAMPLE_COUNT_1_BIT,
+        .tiling        = VK_IMAGE_TILING_OPTIMAL,
+        .usage         = usage,
+        .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+    VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &img.image));
+
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(device, img.image, &memReqs);
+    img.memorySize = memReqs.size;
+
+    const VkExportMemoryAllocateInfo exportInfo
+    {
+        .sType       = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+    };
+    const VkMemoryAllocateInfo allocInfo
+    {
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext           = &exportInfo,
+        .allocationSize  = memReqs.size,
+        .memoryTypeIndex = FindMemoryType(physical, memReqs.memoryTypeBits,
+                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &img.memory));
+    VK_CHECK(vkBindImageMemory(device, img.image, img.memory, 0));
+
+    const VkImageViewCreateInfo viewInfo
+    {
+        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image    = img.image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format   = format,
+        .subresourceRange =
+        {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        },
+    };
+    VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &img.imageView));
+    return img;
+}
+
+HANDLE VulkanImage::GetWin32Handle(VkDevice device, const VulkanAllocatedImage& img)
+{
+    if (img.memory == VK_NULL_HANDLE) return nullptr;
+
+    const VkMemoryGetWin32HandleInfoKHR info
+    {
+        .sType      = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR,
+        .memory     = img.memory,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+    };
+    HANDLE handle = nullptr;
+    VK_CHECK(vkGetMemoryWin32HandleKHR(device, &info, &handle));
+    return handle;
+}
+
 void VulkanImage::Destroy(VkDevice device, VmaAllocator allocator,
                           const VulkanAllocatedImage& img)
 {
     vkDestroyImageView(device, img.imageView, nullptr);
+    if (img.memory != VK_NULL_HANDLE)
+    {
+        vkDestroyImage(device, img.image, nullptr);
+        vkFreeMemory(device, img.memory, nullptr);
+        return;
+    }
     vmaDestroyImage(allocator, img.image, img.allocation);
 }
 

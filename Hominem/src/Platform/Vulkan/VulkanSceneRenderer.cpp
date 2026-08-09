@@ -448,8 +448,26 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
     // Ray-traced GI (trace + blend + border) must run before the draw image goes into rendering.
     if (ddgiActive && m_Raytracer.HasScene())
     {
-        auto ctx = m_Raytracer.MakeContext(*m_Renderer, cmd, sceneAddress, m_ShaderLibrary);
+        static bool s_LoggedTrace = false;
+        if (!s_LoggedTrace)
+        {
+            s_LoggedTrace = true;
+            HMN_CORE_INFO("DDGI: tracing {0}x{1}x{2} probes, {3} rays, {4} lights, {5} draws",
+                          ddgi.probeCounts.x, ddgi.probeCounts.y, ddgi.probeCounts.z,
+                          ddgi.probeNumRays, view.lightCount, draws.size());
+        }
+
+        auto ctx = m_Raytracer.MakeContext(*m_Renderer, cmd, sceneAddress, m_ShaderLibrary, m_SharedImages);
         m_DDGI.Execute(ctx, ddgi);
+    }
+    else if (ddgiActive)
+    {
+        static bool s_LoggedNoScene = false;
+        if (!s_LoggedNoScene)
+        {
+            s_LoggedNoScene = true;
+            HMN_CORE_WARN("DDGI: volume active but the ray tracer has no scene — nothing to trace");
+        }
     }
 
     const bool preserveContents = m_Renderer->DrawImageHasComputeOutput();
@@ -464,7 +482,10 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp      = preserveContents ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp     = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue  = { .color = { { 0.f, 0.f, 0.f, 1.f } } },
+        // Transparent, not black: the blit alpha-blends this over the GL frame, so alpha
+        // has to mean "Vulkan drew here". The raster shaders write 1; a compute pass
+        // writing this image must set its own alpha or it composites as nothing.
+        .clearValue  = { .color = { { 0.f, 0.f, 0.f, 0.f } } },
     };
     const VkRenderingAttachmentInfo depthAttachment
     {
@@ -534,6 +555,8 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
 
     for (const auto& draw : draws)
     {
+        if (draw.traceOnly) continue;  // in the TLAS only — another backend draws it
+
         auto it = m_Meshes.find(draw.mesh);
         if (it == m_Meshes.end()) continue;
         auto& mesh = it->second;

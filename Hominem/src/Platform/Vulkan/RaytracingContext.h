@@ -6,6 +6,7 @@ namespace Hominem {
 
 class VulkanRenderer;
 class VulkanShaderLibrary;
+class VulkanSharedImages;
 
 struct RaytracingContext
 {
@@ -15,6 +16,7 @@ struct RaytracingContext
     VkDeviceAddress            instanceGeom;  // per-instance { vtxAddr, idxAddr, baseColor }
     VkDeviceAddress            scene;         // GPUSceneData (lights + camera)
     VulkanShaderLibrary&       shaders;       // shared compile cache
+    VulkanSharedImages&        sharedImages;  // publish results here for the GL passes
 };
 
 }

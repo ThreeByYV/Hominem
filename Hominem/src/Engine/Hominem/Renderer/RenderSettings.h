@@ -18,6 +18,7 @@ namespace Hominem {
 		// Shading modes
 		static inline bool ToonShading  = false;
 		static inline bool DebugHeatmap = false;
+		static inline bool DDGIDebug    = false;  // shade with the raw DDGI irradiance only
 
 		// Features
 		static inline bool AreaLights = true;

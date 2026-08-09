@@ -69,6 +69,34 @@ in vec2 v_TexCoord;
 #ifdef HAS_ENV_MAP
     #include "includes/irradiance.glsl"
 #endif
+#include "include/ddgi_common.glsl"
+
+    // Ray-traced irradiance field, written by Vulkan into memory this context imports.
+    // u_DDGICounts.w == 0 means no volume this frame; the atlases are then unbound.
+    uniform vec4      u_DDGIOrigin;
+    uniform vec4      u_DDGISpacing;
+    uniform vec4      u_DDGICounts;  // xyz = probe counts, w = rays per probe
+    uniform vec4      u_DDGITiles;   // x = irradiance interior, y = distance interior
+    uniform int       u_DDGIDebug;   // 1 = shade with the raw irradiance, nothing else
+    uniform float     u_DDGIIntensity;
+    uniform sampler2D u_DDGIIrradiance; // slot 7
+    uniform sampler2D u_DDGIDistance;   // slot 8
+
+    vec3 SampleDDGI(vec3 worldPos, vec3 N, vec3 V)
+    {
+        DDGIVolume v;
+        v.origin   = u_DDGIOrigin;
+        v.spacing  = u_DDGISpacing;
+        v.counts   = ivec4(u_DDGICounts);
+        v.rotation = vec4(0.0, 0.0, 0.0, 1.0); // only the trace needs the ray rotation
+        v.tiles    = ivec4(u_DDGITiles);
+
+        float avgSpacing = (v.spacing.x + v.spacing.y + v.spacing.z) / 3.0;
+        vec3  bias       = N * (0.25 * avgSpacing) + V * (0.1 * avgSpacing);
+
+        return ddgiSampleIrradiance(worldPos, N, bias, v.tiles.x, v.tiles.y, v,
+                                    u_DDGIIrradiance, u_DDGIDistance);
+    }
 
     uniform sampler2D u_Albedo;      // slot 0
     uniform float     u_Roughness;   // scalar fallback when no MR texture
@@ -194,6 +222,25 @@ void main()
 #else
     vec3 color = u_AmbientColor.xyz * u_AmbientIntensity * albedo;
 #endif
+
+    // Ray-traced GI adds the local bounce that ambient and distant IBL can't carry.
+    // Purely additive so u_DDGIIntensity 0 is exactly the look without a volume — the
+    // existing indirect stays put rather than being swapped out. Diffuse only.
+    if (u_DDGICounts.w > 0.0)
+    {
+        vec3 ddgi = SampleDDGI(v_WorldPos, N, V) * u_DDGIIntensity;
+        if (u_DDGIDebug != 0)
+        {
+            FragColor = vec4(ddgi, 1.0);
+            return;
+        }
+        color += ddgi * albedo * (1.0 - metalness);
+    }
+    else if (u_DDGIDebug != 0)
+    {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     // Directional light
     color += evalPBR(N, V, normalize(-u_LightDirection.xyz), albedo, roughness, metalness,

@@ -28,9 +28,10 @@ void VulkanRaytracer::Shutdown(DeletionQueue& mainQueue, VkDevice device, VmaAll
 }
 
 RaytracingContext VulkanRaytracer::MakeContext(VulkanRenderer& renderer, VkCommandBuffer cmd,
-                                               VkDeviceAddress scene, VulkanShaderLibrary& shaders) const
+                                               VkDeviceAddress scene, VulkanShaderLibrary& shaders,
+                                               VulkanSharedImages& sharedImages) const
 {
-    return { renderer, cmd, m_Accel.GetTlas(), m_InstanceGeomAddress, scene, shaders };
+    return { renderer, cmd, m_Accel.GetTlas(), m_InstanceGeomAddress, scene, shaders, sharedImages };
 }
 
 void VulkanRaytracer::OnMeshUploaded(VulkanRenderer& renderer, VkCommandBuffer cmd,

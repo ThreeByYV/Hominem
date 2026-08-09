@@ -16,8 +16,8 @@ namespace Hominem {
 class VulkanRayTracingDDGI
 {
 public:
-    static constexpr int k_IrradianceInterior = 8;
-    static constexpr int k_DistanceInterior   = 16;
+    static constexpr int k_IrradianceInterior = kDDGIIrradianceInterior;
+    static constexpr int k_DistanceInterior   = kDDGIDistanceInterior;
 
     struct AtlasView
     {

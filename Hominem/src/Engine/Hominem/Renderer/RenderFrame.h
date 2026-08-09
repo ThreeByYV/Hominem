@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <vector>
 #include <span>
 #include <string>
@@ -166,7 +167,17 @@ namespace Hominem {
 		glm::mat4    transform { 1.f };
 		glm::vec4    baseColor { 1.f };
 		bool         unlit     = false;
+
+		/// In the BLAS/TLAS for DDGI to trace, but never rasterized — the visible render
+		/// of this mesh belongs to the GL forward pass.
+		bool         traceOnly = false;
 	};
+
+	inline bool HasRasterDraws(const std::vector<VulkanMeshDraw>& draws)
+	{
+		return std::any_of(draws.begin(), draws.end(),
+		                   [](const VulkanMeshDraw& d) { return !d.traceOnly; });
+	}
 
 	// One unlit sphere billboarded into the scene. xyz = world centre, w = radius.
 	struct VulkanSphereInstance
@@ -174,6 +185,12 @@ namespace Hominem {
 		glm::vec4 positionRadius { 0.f, 0.f, 0.f, 1.f };
 		glm::vec4 color          { 1.f };
 	};
+
+
+	// Octahedral tile sizes of the probe atlases, shared by the Vulkan technique that
+	// writes them and every shader that samples them.
+	inline constexpr int kDDGIIrradianceInterior = 8;
+	inline constexpr int kDDGIDistanceInterior   = 16;
 
 	// DDGI irradiance-field parameters for the frame. probeNumRays == 0 means no volume
 	// this frame (DDGI off). Populated by the probe actor from its DDGIVolumeDesc.
@@ -185,6 +202,10 @@ namespace Hominem {
 		int        probeNumRays     = 0;
 		glm::quat  probeRayRotation { 1.f, 0.f, 0.f, 0.f };
 		bool       showSurfels      = false;
+
+		// Shading-side only: how much of the traced irradiance the forward pass applies.
+		// Below 1 where IBL is also on, since both feed the same indirect diffuse term.
+		float      intensity        = 1.f;
 	};
 
 	inline constexpr uint32_t kVulkanMaxSceneLights = 20;

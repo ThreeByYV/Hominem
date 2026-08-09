@@ -269,6 +269,44 @@ void Renderer3D::EndScene()
     Texture::UnbindAll();
 }
 
+// Ray-traced indirect diffuse. Slots 7/8 stay bound to whatever was there when the volume
+// is off — u_DDGICounts.w == 0 keeps the shader from sampling them.
+static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const Renderer3D::SceneData& scene)
+{
+    const bool active = scene.DDGI.probeNumRays > 0
+                     && scene.DDGIIrradianceID != 0
+                     && scene.DDGIDistanceID   != 0;
+
+    static bool s_LoggedState = false;
+    if (!s_LoggedState && scene.DDGI.probeNumRays > 0)
+    {
+        s_LoggedState = true;
+        HMN_CORE_INFO("DDGI (GL): volume active, irradiance tex {0}, distance tex {1} -> {2}",
+                      scene.DDGIIrradianceID, scene.DDGIDistanceID,
+                      active ? "sampling" : "NOT sampling (atlases missing)");
+    }
+
+    cmd.SetInt(shader, "u_DDGIDebug", RenderSettings::DDGIDebug ? 1 : 0);
+
+    if (!active)
+    {
+        cmd.SetFloat4(shader, "u_DDGICounts", glm::vec4(0.f));
+        return;
+    }
+
+    cmd.BindTexture(7, scene.DDGIIrradianceID);
+    cmd.BindTexture(8, scene.DDGIDistanceID);
+    cmd.SetInt(shader, "u_DDGIIrradiance", 7);
+    cmd.SetInt(shader, "u_DDGIDistance",   8);
+
+    cmd.SetFloat4(shader, "u_DDGIOrigin",  glm::vec4(scene.DDGI.origin, 0.f));
+    cmd.SetFloat4(shader, "u_DDGISpacing", glm::vec4(scene.DDGI.probeSpacing, 0.f));
+    cmd.SetFloat4(shader, "u_DDGICounts",  glm::vec4(scene.DDGI.probeCounts, (float)scene.DDGI.probeNumRays));
+    cmd.SetFloat4(shader, "u_DDGITiles",   glm::vec4((float)kDDGIIrradianceInterior,
+                                                     (float)kDDGIDistanceInterior, 0.f, 0.f));
+    cmd.SetFloat(shader, "u_DDGIIntensity", scene.DDGI.intensity);
+}
+
 void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene)
 {
     HMN_PROFILE_FUNCTION();
@@ -307,6 +345,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     cmd.BindShader(shader);
     cmd.SetInt (shader, "u_Albedo", 0);
     cmd.SetMat4(shader, "u_Model", transform);
+    BindDDGI(cmd, shader, scene);
     const Material& mat = mat0;
     cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
     cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
@@ -384,6 +423,8 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
         cmd.BindTexture(6, s_Data->BRDFLUT->GetRendererID());
         cmd.SetInt(shader, "u_BRDFLUT", 6);
     }
+
+    BindDDGI(cmd, shader, scene);
 
     const Material& mat = mesh.GetMaterial();
     cmd.SetFloat(shader, "u_Roughness", mat.Roughness);

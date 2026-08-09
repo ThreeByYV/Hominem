@@ -3,9 +3,11 @@
 #include "SceneRenderer.h"
 #include "RenderFrame.h"
 #include "SharedResources.h"
+#include "SharedImages.h"
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace Hominem {
 
@@ -32,10 +34,17 @@ public:
 private:
     void SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID);
 
+    /// Re-import the images Vulkan publishes whenever they change. No-op on the frames
+    /// where nothing did, which is nearly all of them.
+    void SyncSharedImages();
+
     SceneRenderer                        m_SceneRenderer;
     std::unique_ptr<VulkanSceneRenderer> m_VulkanRenderer;
     std::unique_ptr<SharedResources>     m_SharedResources;
     uint32_t                          m_VkFrameIdx = 0;
+
+    uint32_t              m_SharedImageGeneration = 0;
+    std::vector<uint32_t> m_ImportedImages;
 };
 
 }

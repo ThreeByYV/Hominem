@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SharedImages.h"
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -16,6 +18,12 @@ public:
     virtual ~SharedResources() = default;
 
     virtual void ImportSharedTexture(HANDLE memHandle, uint64_t memSize, uint32_t w, uint32_t h) = 0;
+
+    /// Bind another Vulkan image as a GL texture. Returns the GL texture id, or 0 on failure.
+    /// Every imported image joins the per-frame semaphore wait/signal set.
+    virtual uint32_t ImportSharedImage(const SharedImageDesc& desc) = 0;
+    virtual void     ReleaseSharedImage(uint32_t texID) = 0;
+
     virtual void ImportSemaphore(uint32_t frameIdx, HANDLE semHandle) = 0;
     virtual void ImportGLDoneSemaphore(HANDLE semHandle) = 0;
     virtual void WaitSemaphore(uint32_t frameIdx) = 0;

@@ -85,6 +85,12 @@ public:
         float    ETA             = 0.667f;
         float    FresnelPower    = 5.f;
         Frustum  CameraFrustum  {};
+
+        // Vulkan's DDGI output, imported as GL textures. probeNumRays == 0 or a missing
+        // atlas falls back to the IBL/ambient indirect term.
+        VulkanDDGIParams DDGI {};
+        uint32_t DDGIIrradianceID = 0;
+        uint32_t DDGIDistanceID   = 0;
     };
 
     static void Init();

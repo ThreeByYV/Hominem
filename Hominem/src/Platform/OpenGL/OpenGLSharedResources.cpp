@@ -11,6 +11,7 @@ namespace Hominem {
 
 static constexpr GLenum k_HandleTypeOpaqueWin32 = 0x9587u;
 static constexpr GLenum k_LayoutShaderReadOnly  = 0x9509u;
+static constexpr GLenum k_LayoutGeneral         = 0x958Du;
 static constexpr GLenum k_DeviceLUIDEXT         = 0x9599u;
 
 using PFN_glGetUnsignedBytei_vEXT        = void (APIENTRY*)(GLenum, GLuint, GLubyte*);
@@ -115,17 +116,88 @@ std::string OpenGLSharedResources::GetDeviceName()
 void OpenGLSharedResources::ImportSharedTexture(HANDLE memHandle, uint64_t memSize,
                                                 uint32_t w, uint32_t h)
 {
+    m_Texture = ImportSharedImage({ memHandle, memSize, w, h, /*generalLayout=*/false });
+}
+
+uint32_t OpenGLSharedResources::ImportSharedImage(const SharedImageDesc& desc)
+{
     LoadProcs();
 
-    pfn_CreateMemoryObjects(1, &m_MemObject);
-    pfn_ImportMemoryWin32(m_MemObject, (GLuint64)memSize, k_HandleTypeOpaqueWin32, memHandle);
+    if (!desc.memHandle || desc.memSize == 0 || desc.width == 0 || desc.height == 0)
+        return 0;
 
-    glCreateTextures(GL_TEXTURE_2D, 1, &m_Texture);
-    pfn_TextureStorageMem2D(m_Texture, 1, GL_RGBA16F, (GLsizei)w, (GLsizei)h, m_MemObject, 0);
-    glTextureParameteri(m_Texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(m_Texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureParameteri(m_Texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(m_Texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // Vulkan's limits are its own; a shared image can be legal there and too big here.
+    // Without this the storage call just fails and leaves an incomplete texture that
+    // samples as black, which looks like a broken technique rather than a size problem.
+    GLint maxTexSize = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexSize);
+    if ((GLint)desc.width > maxTexSize || (GLint)desc.height > maxTexSize)
+    {
+        HMN_CORE_ERROR("Shared image {0}x{1} exceeds GL_MAX_TEXTURE_SIZE ({2})",
+                       desc.width, desc.height, maxTexSize);
+        return 0;
+    }
+
+    ImportedImage img;
+    img.layout = desc.generalLayout ? k_LayoutGeneral : k_LayoutShaderReadOnly;
+
+    pfn_CreateMemoryObjects(1, &img.memObject);
+    pfn_ImportMemoryWin32(img.memObject, (GLuint64)desc.memSize, k_HandleTypeOpaqueWin32, desc.memHandle);
+
+    while (glGetError() != GL_NO_ERROR) {}
+    glCreateTextures(GL_TEXTURE_2D, 1, &img.texture);
+    pfn_TextureStorageMem2D(img.texture, 1, GL_RGBA16F, (GLsizei)desc.width, (GLsizei)desc.height,
+                            img.memObject, 0);
+    if (const GLenum err = glGetError(); err != GL_NO_ERROR)
+    {
+        HMN_CORE_ERROR("Shared image {0}x{1} storage failed (GL error 0x{2:X})",
+                       desc.width, desc.height, err);
+        glDeleteTextures(1, &img.texture);
+        pfn_DeleteMemoryObjects(1, &img.memObject);
+        return 0;
+    }
+
+    glTextureParameteri(img.texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(img.texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(img.texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(img.texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Keep the first import addressable through m_MemObject so Destroy's original
+    // teardown order (draw image last) is unchanged.
+    if (m_Images.empty()) m_MemObject = img.memObject;
+
+    m_Images.push_back(img);
+    RebuildSyncLists();
+    return img.texture;
+}
+
+void OpenGLSharedResources::ReleaseSharedImage(uint32_t texID)
+{
+    for (auto it = m_Images.begin(); it != m_Images.end(); ++it)
+    {
+        if (it->texture != texID) continue;
+
+        glDeleteTextures(1, &it->texture);
+        pfn_DeleteMemoryObjects(1, &it->memObject);
+        if (m_MemObject == it->memObject) m_MemObject = 0;
+        if (m_Texture   == texID)         m_Texture   = 0;
+        m_Images.erase(it);
+        RebuildSyncLists();
+        return;
+    }
+}
+
+void OpenGLSharedResources::RebuildSyncLists()
+{
+    m_SyncTextures.clear();
+    m_SyncLayouts.clear();
+    m_SyncTextures.reserve(m_Images.size());
+    m_SyncLayouts.reserve(m_Images.size());
+    for (const auto& img : m_Images)
+    {
+        m_SyncTextures.push_back(img.texture);
+        m_SyncLayouts.push_back(img.layout);
+    }
 }
 
 void OpenGLSharedResources::ImportSemaphore(uint32_t frameIdx, HANDLE semHandle)
@@ -146,20 +218,29 @@ void OpenGLSharedResources::ImportGLDoneSemaphore(HANDLE semHandle)
 
 void OpenGLSharedResources::WaitSemaphore(uint32_t frameIdx)
 {
-    const GLenum layout = k_LayoutShaderReadOnly;
-    pfn_WaitSemaphore(m_Semaphores[frameIdx], 0, nullptr, 1, &m_Texture, &layout);
+    if (m_SyncTextures.empty()) return;
+    pfn_WaitSemaphore(m_Semaphores[frameIdx], 0, nullptr,
+                      (GLuint)m_SyncTextures.size(), m_SyncTextures.data(), m_SyncLayouts.data());
 }
 
 void OpenGLSharedResources::SignalGLDone()
 {
-    const GLenum layout = k_LayoutShaderReadOnly;
-    pfn_SignalSemaphore(m_GLDoneSemaphore, 0, nullptr, 1, &m_Texture, &layout);
+    if (m_SyncTextures.empty()) return;
+    pfn_SignalSemaphore(m_GLDoneSemaphore, 0, nullptr,
+                        (GLuint)m_SyncTextures.size(), m_SyncTextures.data(), m_SyncLayouts.data());
 }
 
 void OpenGLSharedResources::Destroy()
 {
-    if (m_Texture)   { glDeleteTextures(1, &m_Texture);          m_Texture   = 0; }
-    if (m_MemObject) { pfn_DeleteMemoryObjects(1, &m_MemObject); m_MemObject = 0; }
+    for (auto& img : m_Images)
+    {
+        glDeleteTextures(1, &img.texture);
+        pfn_DeleteMemoryObjects(1, &img.memObject);
+    }
+    m_Images.clear();
+    RebuildSyncLists();
+    m_Texture   = 0;
+    m_MemObject = 0;
     for (auto& sem : m_Semaphores)
         if (sem) { pfn_DeleteSemaphores(1, &sem); sem = 0; }
     if (m_GLDoneSemaphore) { pfn_DeleteSemaphores(1, &m_GLDoneSemaphore); m_GLDoneSemaphore = 0; }

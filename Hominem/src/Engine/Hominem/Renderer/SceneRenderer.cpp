@@ -153,6 +153,13 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
     // match gl_FragCoord — they diverge from frame.viewportWidth when renderScale != 1.
     Renderer3D::SceneData scene = Renderer3D::BeginScene(frame, cmd, hdrSpec.Width, hdrSpec.Height);
 
+    scene.DDGI = frame.vulkanDDGI;
+    if (const auto shared = m_SharedImages.load(std::memory_order_acquire))
+    {
+        scene.DDGIIrradianceID = shared->Get(SharedImageName::DDGIIrradiance);
+        scene.DDGIDistanceID   = shared->Get(SharedImageName::DDGIDistance);
+    }
+
     for (const auto& sm : frame.staticMeshes)
         Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
 
@@ -316,7 +323,13 @@ void SceneRenderer::CompositePass(const RenderFrame& frame, CommandList& cmd)
 
 void SceneRenderer::VulkanBlitPass(const RenderFrame& frame, CommandList& cmd)
 {
-    if (!m_SharedVkTexture || (frame.vulkanPasses.empty() && frame.vulkanMeshDraws.empty())) return;
+    // Trace-only draws produce no pixels; skipping the blit then also skips a full-screen
+    // pass every frame. Anything Vulkan does draw composites over the GL scene by alpha.
+    const bool vulkanDrewSomething = !frame.vulkanPasses.empty()
+                                  || HasRasterDraws(frame.vulkanMeshDraws)
+                                  || !frame.vulkanDebugSpheres.empty()
+                                  || frame.vulkanDDGI.showSurfels;
+    if (!m_SharedVkTexture || !vulkanDrewSomething) return;
 
     cmd.BindShader (m_VkBlitShader);
     cmd.SetInt     (m_VkBlitShader, "u_VkTexture", 0);

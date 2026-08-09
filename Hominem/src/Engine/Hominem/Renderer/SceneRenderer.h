@@ -1,11 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <string>
 #include <functional>
 
 #include "RenderGraph.h"
 #include "AutoExposure.h"
 #include "RenderFrame.h"
+#include "SharedImages.h"
 
 namespace Hominem {
 
@@ -24,6 +26,13 @@ public:
     void SetImGuiCallbacks(std::function<void()> waitFn, std::function<void()> notifyFn);
 
     void SetSharedVulkanTexture(uint32_t texID) { m_SharedVkTexture = texID; }
+
+    /// GL textures over Vulkan's published results. Swapped by the render thread when they
+    /// change, read by name while recording passes on the main thread.
+    void SetSharedImages(std::shared_ptr<const SharedImageTable> table)
+    {
+        m_SharedImages.store(std::move(table), std::memory_order_release);
+    }
 
     /// Records every pass into a CommandList per pass. You should call it from the main thread.
     std::vector<CommandList> Record(const RenderFrame& frame) { return m_RenderGraph.Record(frame); }
@@ -58,6 +67,8 @@ private:
     Ref<Shader> m_VkBlitShader;
 
     uint32_t m_SharedVkTexture = 0;
+
+    std::atomic<std::shared_ptr<const SharedImageTable>> m_SharedImages;
 };
 
 }

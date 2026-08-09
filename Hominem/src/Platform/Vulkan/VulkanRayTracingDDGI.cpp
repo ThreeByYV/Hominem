@@ -4,6 +4,7 @@
 #include "VulkanShaderLibrary.h"
 #include "VulkanImage.h"
 #include "VulkanBarrier.h"
+#include "VulkanSharedImages.h"
 
 #include <glm/glm.hpp>
 
@@ -153,9 +154,15 @@ void VulkanRayTracingDDGI::EnsureResources(const RaytracingContext& ctx, const V
 
     // All three are RGBA16F so the shared border shader (rgba16f) matches every view;
     // the distance atlas only uses .rg (mean, mean^2), the extra channels are slack.
+    // The two atlases are the DDGI result the GL forward pass shades from, so their memory
+    // is exportable; ray data stays VK-private.
+    const VkPhysicalDevice physical = ctx.renderer.GetPhysical();
     m_RayData    = VulkanRenderTarget::Create(device, allocator, rayW, rayH, VK_FORMAT_R16G16B16A16_SFLOAT);
-    m_Irradiance = VulkanRenderTarget::Create(device, allocator, atlasW, atlasH, VK_FORMAT_R16G16B16A16_SFLOAT);
-    m_Distance   = VulkanRenderTarget::Create(device, allocator, distW, distH, VK_FORMAT_R16G16B16A16_SFLOAT);
+    m_Irradiance = VulkanRenderTarget::CreateShared(device, physical, atlasW, atlasH, VK_FORMAT_R16G16B16A16_SFLOAT);
+    m_Distance   = VulkanRenderTarget::CreateShared(device, physical, distW, distH, VK_FORMAT_R16G16B16A16_SFLOAT);
+
+    ctx.sharedImages.Publish(SharedImageName::DDGIIrradiance, m_Irradiance);
+    ctx.sharedImages.Publish(SharedImageName::DDGIDistance,   m_Distance);
 
     // All three go to GENERAL; the atlases are cleared so the first frame's trace samples
     // zeroes (not uninitialized float16) before the first blend overwrites them.

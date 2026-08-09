@@ -91,6 +91,9 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
                                     frame.vulkanDDGI, frame.vulkanView);
         if (m_SharedResources)
         {
+            // Import before the wait: the semaphore acquires every shared texture at once,
+            // and what the GL passes are about to sample must be in that set.
+            SyncSharedImages();
             sharedTextureInUse = true;
             m_SharedResources->WaitSemaphore(m_VkFrameIdx);
             m_VkFrameIdx = (m_VkFrameIdx + 1) % 2;
@@ -102,6 +105,39 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
 
     if (sharedTextureInUse)
         m_SharedResources->SignalGLDone();
+}
+
+void Renderer::SyncSharedImages()
+{
+    const uint32_t generation = m_VulkanRenderer->GetSharedImageGeneration();
+    if (generation == m_SharedImageGeneration) return;
+
+    // Vulkan already queued the old images for deletion, so the GL textures over that
+    // memory go regardless of whether replacements arrive.
+    for (uint32_t tex : m_ImportedImages)
+        m_SharedResources->ReleaseSharedImage(tex);
+    m_ImportedImages.clear();
+
+    auto table = std::make_shared<SharedImageTable>();
+
+    for (const auto& img : m_VulkanRenderer->CollectSharedImages())
+    {
+        const uint32_t tex = m_SharedResources->ImportSharedImage(img.desc);
+        if (tex)
+        {
+            m_ImportedImages.push_back(tex);
+            HMN_CORE_INFO("Renderer: imported shared image '{0}' -> GL tex {1} ({2}x{3})",
+                          img.name, tex, img.desc.width, img.desc.height);
+        }
+        else HMN_CORE_WARN("Renderer: failed to import shared image '{0}'", img.name);
+
+        table->Set(img.name, tex);
+        if (img.desc.memHandle) CloseHandle(img.desc.memHandle);
+    }
+    table->Finalize();
+
+    m_SharedImageGeneration = generation;
+    m_SceneRenderer.SetSharedImages(std::move(table));
 }
 
 void Renderer::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
