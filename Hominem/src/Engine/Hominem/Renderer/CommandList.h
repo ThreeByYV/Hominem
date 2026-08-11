@@ -53,6 +53,7 @@ namespace Cmd {
     struct BindDrawIndirectBuffer     { uint32_t bufferID; };
     struct MultiDrawElementsIndirect  { uint32_t byteOffset; uint32_t drawCount; uint32_t stride; };
     struct SetCullFaceEnabled         { bool enabled; };
+    struct SetColorMask               { uint32_t attachment; bool enabled; };
 
     /// For immediate work that has no typed Cmd:: equivalent yet
     /// (ImGui rendering, Renderer2D::Flush, AutoExposure::Compute). Runs in
@@ -95,6 +96,7 @@ using GpuCommand = std::variant<
     Cmd::BindDrawIndirectBuffer,
     Cmd::MultiDrawElementsIndirect,
     Cmd::SetCullFaceEnabled,
+    Cmd::SetColorMask,
     Cmd::Invoke
 >;
 
@@ -145,6 +147,10 @@ public:
     void BindDrawIndirectBuffer(uint32_t bufferID);
     void MultiDrawElementsIndirect(uint32_t byteOffset, uint32_t drawCount, uint32_t stride);
     void SetCullFaceEnabled(bool enabled);
+
+    /// Enables or disables writes to one MRT attachment. Blended passes use it to leave
+    /// the velocity attachment alone — GL blend state applies to every draw buffer.
+    void SetColorMask(uint32_t attachment, bool enabled);
 
     /// Records arbitrary immediate work to run at Submit() time. Automatically
     /// appends a SetPipelineState restore after the callback so GL state

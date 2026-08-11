@@ -67,7 +67,11 @@ namespace Hominem {
 		Ref<StorageBuffer> m_InNormSSBO;
 		Ref<StorageBuffer> m_InBoneDataSSBO;
 		Ref<StorageBuffer> m_BoneSSBO;
-		Ref<StorageBuffer> m_OutPosSSBO;
+		// Skinned positions ping-pong: the velocity buffer needs last frame's deformed
+		// vertices, not just last frame's actor transform, or limbs ghost while the body
+		// tracks correctly. m_SkinPosIdx selects which half is current.
+		Ref<StorageBuffer> m_OutPosSSBO[2];
+		uint32_t           m_SkinPosIdx = 0;
 		Ref<StorageBuffer> m_OutNormSSBO;
 		Ref<ComputeShader> m_ComputeShader;
 

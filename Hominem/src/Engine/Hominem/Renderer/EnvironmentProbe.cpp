@@ -57,6 +57,11 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
         faceFrame.viewProjection3D = proj * view;
         faceFrame.view3D           = view;
         faceFrame.proj3D           = proj;
+        // Bakes never jitter and have no previous frame, so velocity resolves to zero
+        // rather than reading uninitialised matrices out of the UBO.
+        faceFrame.viewProjection3DUnjittered = faceFrame.viewProjection3D;
+        faceFrame.proj3DUnjittered           = proj;
+        faceFrame.prevViewProjection3D       = faceFrame.viewProjection3D;
         faceFrame.cameraWorldPos   = capturePos;
         faceFrame.light            = sceneFrame.light;
         faceFrame.lights           = sceneFrame.lights;

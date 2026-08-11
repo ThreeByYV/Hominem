@@ -80,8 +80,40 @@ namespace Hominem {
 		frame.cameraWorldPos   = m_CameraPosition;
 		frame.frustum3D        = Frustum::FromViewProjection(viewProjection);
 
+		// Each actor's draws are matched against the ones it pushed last frame, by position
+		// within its own contribution, to recover the transform they had then. TAA needs it
+		// to tell an object that moved from one the camera merely moved past. Falls back to
+		// the current transform (zero velocity) whenever an actor's draw count changes.
 		for (auto& actor : m_Actors)
+		{
+			const size_t staticBegin = frame.staticMeshes.size();
+			const size_t skinnedBegin = frame.meshes.size();
+
 			actor->OnBuildRenderFrame(frame);
+
+			auto& prev = m_PrevDrawTransforms[actor.get()];
+			const size_t staticCount  = frame.staticMeshes.size() - staticBegin;
+			const size_t skinnedCount = frame.meshes.size()       - skinnedBegin;
+			const bool   matches      = prev.size() == staticCount + skinnedCount;
+
+			for (size_t i = 0; i < staticCount; i++)
+			{
+				auto& draw = frame.staticMeshes[staticBegin + i];
+				draw.prevTransform = matches ? prev[i] : draw.transform;
+			}
+			for (size_t i = 0; i < skinnedCount; i++)
+			{
+				auto& draw = frame.meshes[skinnedBegin + i];
+				draw.prevTransform = matches ? prev[staticCount + i] : draw.transform;
+			}
+
+			prev.clear();
+			prev.reserve(staticCount + skinnedCount);
+			for (size_t i = 0; i < staticCount; i++)
+				prev.push_back(frame.staticMeshes[staticBegin + i].transform);
+			for (size_t i = 0; i < skinnedCount; i++)
+				prev.push_back(frame.meshes[skinnedBegin + i].transform);
+		}
 
 		// Sort static meshes by key: groups same shader + same mesh together,
 		// minimising redundant shader/texture binds on the render thread.

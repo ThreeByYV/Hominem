@@ -69,7 +69,7 @@ void SceneRenderer::Shutdown()
 
 void SceneRenderer::SetupPasses()
 {
-    // HDR has 2 color attachments: [0] = rendered scene, [1] = view-space normals + linear depth
+    // HDR has 2 color attachments: [0] = rendered scene, [1] = RG velocity in UV space
     m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
     // Two targets: the resolve's output is next frame's input, and a pass cannot sample
     // the texture it renders into. Record() swaps the aliases each frame.
@@ -92,6 +92,7 @@ void SceneRenderer::SetupPasses()
         PipelineState::NoDepthNoCull(),
         PassBuilder{}.Read("hdr.color",      Slot::Color0)
                      .Read("taa_prev.color", Slot::Color1)
+                     .Read("hdr.color1",     Slot::Color2)
                      .Read("hdr.depth",      Slot::Depth)
                      .WriteFBO("taa_curr"),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { TAAResolvePass(f, cmd); });
@@ -200,11 +201,13 @@ void SceneRenderer::TAAResolvePass(const RenderFrame& frame, CommandList& cmd)
     if (!hdr) return;
     const auto& spec = hdr->GetSpecification();
 
-    // FBO bound, viewport set, slots 0/1/5 = current / history / depth — all from PassBuilder.
+    // FBO bound, viewport set, texture slots bound — all from PassBuilder.
     cmd.BindShader(m_TAAResolveShader);
-    cmd.SetInt(m_TAAResolveShader, "u_Current", 0);
-    cmd.SetInt(m_TAAResolveShader, "u_History", 1);
-    cmd.SetInt(m_TAAResolveShader, "u_Depth",   (int)Slot::Depth);
+    cmd.SetInt(m_TAAResolveShader, "u_Current",  (int)Slot::Color0);
+    cmd.SetInt(m_TAAResolveShader, "u_History",  (int)Slot::Color1);
+    cmd.SetInt(m_TAAResolveShader, "u_Velocity", (int)Slot::Color2);
+    cmd.SetInt(m_TAAResolveShader, "u_Depth",    (int)Slot::Depth);
+    cmd.SetInt(m_TAAResolveShader, "u_UseVelocity", RenderSettings::TAAVelocity ? 1 : 0);
 
     // Packed into a vec4 — CommandList has no SetFloat2, and one uniform is cheaper than
     // threading another setter through Shader and every backend.
@@ -291,17 +294,24 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
     }
 
     for (const auto& sm : frame.staticMeshes)
-        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
+        Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene, &sm.prevTransform);
 
     for (const auto& m : frame.meshes)
     {
         if (m.overrideShader) Renderer3D::SetOverrideShader(m.overrideShader);
         m.mesh->DispatchSkinning(m.bones, cmd);
-        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform, cmd, scene);
+        Renderer3D::DrawSkinnedMesh(*m.mesh, m.transform, cmd, scene, &m.prevTransform);
         if (m.overrideShader) Renderer3D::ClearOverrideShader();
     }
 
     cmd.Invoke([]() { Renderer3D::EndScene(); });
+
+    // Everything from here on — debug gizmos, smoke, fire, all 2D — is blended and has no
+    // velocity output. GL blend state applies to every draw buffer, so leaving writes on
+    // would fade the values the opaque pass wrote. Masked instead: those pixels reproject
+    // as whatever surface is behind them, a better guess for thin effects and screen-space
+    // UI than a blended-toward-zero vector. Restored at the end of the pass.
+    cmd.SetColorMask(1, false);
 
     if (frame.debugLights && !frame.lights.empty())
         cmd.Invoke([lights = frame.lights]() { Renderer3D::DrawDebugLights(lights); });
@@ -343,6 +353,8 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
         }
     }
 
+    // 2D content is screen-space static, so zero velocity is correct for it — but it is
+    // alpha-blended too, so it stays masked and keeps whatever the scene wrote beneath.
     if (barHeight > 0)
         cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
 
@@ -361,6 +373,8 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
 
         Renderer2D::EndScene();
     });
+
+    cmd.SetColorMask(1, true); // GL global state — must not leak into next frame's opaque pass
     // FBO unbound by graph after this fn returns.
 }
 

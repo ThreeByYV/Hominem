@@ -28,10 +28,12 @@ public:
 	virtual void BuildFromData(MeshData data) = 0;
 
 	// Records draw commands into cmd. Returns {draw calls issued, triangles rendered}.
+	// prevActorTransform feeds the velocity buffer; null means "didn't move".
 	virtual std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
 	                                            const glm::mat4&   actorTransform,
 	                                            CommandList&       cmd,
-	                                            const Frustum*     frustum = nullptr) = 0;
+	                                            const Frustum*     frustum = nullptr,
+	                                            const glm::mat4*   prevActorTransform = nullptr) = 0;
 
 	virtual bool IsLoaded()        const = 0;
 

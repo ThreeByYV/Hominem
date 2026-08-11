@@ -11,6 +11,7 @@
 #include <vector>
 #include <concepts>
 #include <memory>
+#include <unordered_map>
 
 namespace Hominem {
 
@@ -126,6 +127,9 @@ namespace Hominem {
 
 	private:
 		std::vector<Scope<Actor>> m_Actors;
+
+		// Last frame's draw transforms per actor, in the order that actor pushed them.
+		std::unordered_map<const Actor*, std::vector<glm::mat4>> m_PrevDrawTransforms;
 
 		Camera m_Camera;
 		glm::vec3   m_CameraPosition{ 0.f };

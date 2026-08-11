@@ -58,6 +58,7 @@ namespace Hominem {
 		glm::mat4               transform { 1.f };
 		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
 		Ref<Shader>             overrideShader; // null = use scene default
+		glm::mat4               prevTransform { 1.f }; // filled by Scene, not the actor
 	};
 
 	enum class LightType : uint32_t { Point = 0, Spot = 1 };
@@ -89,6 +90,7 @@ namespace Hominem {
 		Ref<StaticMesh> mesh;
 		glm::mat4       transform { 1.f };
 		uint64_t        sortKey   = 0;    // (shaderID << 32 | meshID) — set at submit time
+		glm::mat4       prevTransform { 1.f }; // filled by Scene, not the actor
 	};
 
 	/**

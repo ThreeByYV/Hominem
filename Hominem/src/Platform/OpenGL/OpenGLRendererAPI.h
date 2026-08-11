@@ -22,6 +22,7 @@ namespace Hominem {
 		void SetDepthWriteEnabled(bool enabled) override;
 		void SetBlendMode(BlendMode mode)       override;
 		void SetCullFaceEnabled(bool enabled)   override;
+		void SetColorMask(uint32_t attachment, bool enabled) override;
 		void SetScissorEnabled(bool enabled)   override;
 
 		void BindEmptyVAO()                      override;

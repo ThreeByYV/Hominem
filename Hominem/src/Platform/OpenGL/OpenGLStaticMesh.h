@@ -20,7 +20,8 @@ public:
 	std::pair<uint32_t, uint64_t> Draw(const Ref<Shader>& shader,
 	                                    const glm::mat4&   actorTransform,
 	                                    CommandList&       cmd,
-	                                    const Frustum*     frustum = nullptr) override;
+	                                    const Frustum*     frustum = nullptr,
+	                                    const glm::mat4*   prevActorTransform = nullptr) override;
 
 	bool IsLoaded()        const override { return m_VAO != 0 || !m_PendingVerts.empty(); }
 
@@ -48,6 +49,7 @@ private:
 	uint32_t                   m_VBO               = 0;
 	uint32_t                   m_IBO               = 0;
 	uint32_t                   m_ModelMatrixSSBO   = 0;
+	uint32_t                   m_PrevModelSSBO     = 0;
 	uint32_t                   m_DrawCommandBuffer = 0;
 	std::vector<MeshDrawGroup> m_DrawGroups;
 	glm::vec3                  m_AABBMin { 0.f };

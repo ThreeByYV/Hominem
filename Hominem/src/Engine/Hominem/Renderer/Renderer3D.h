@@ -30,9 +30,11 @@ struct alignas(16) SceneUBOData
     float     FresnelPower;      // offset 144
     uint32_t  ScreenWidth;       // offset 148
     int32_t   DebugMode;         // offset 152
-    int32_t   AreaLightsEnabled; // offset 156 → total 160 bytes
+    int32_t   AreaLightsEnabled; // offset 156
+    glm::mat4 ViewProjectionUnjittered; // offset 160, 64 bytes
+    glm::mat4 PrevViewProjection;       // offset 224 → total 288 bytes
 };
-static_assert(sizeof(SceneUBOData) == 160, "SceneUBOData size mismatch — check std140 layout");
+static_assert(sizeof(SceneUBOData) == 288, "SceneUBOData size mismatch — check std140 layout");
 
 struct Renderer3DStorage
 {
@@ -113,8 +115,11 @@ public:
     static uint32_t GetGroupsCulled() { return s_GroupsCulled; }
 
     static void DrawDebugLights(const std::vector<Light>& lights);
-    static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene);
-    static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform, CommandList& cmd, const SceneData& scene);
+    // prevTransform feeds the velocity buffer; null means the mesh didn't move.
+    static void DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+                                const glm::mat4* prevTransform = nullptr);
+    static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+                                const glm::mat4* prevTransform = nullptr);
 
     static Ref<ShaderLibrary> GetShaderLibrary() { return s_Data->ShaderLibrary; }
     static void ReloadVariants() { if (s_Data->MeshVariants) s_Data->MeshVariants->ReloadAll(); }

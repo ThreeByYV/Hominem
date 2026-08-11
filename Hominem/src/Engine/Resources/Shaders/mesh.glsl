@@ -6,11 +6,15 @@
    // draw call. Indexed by gl_VertexID — no VAO vertex fetch for these attributes.
     layout(std430, binding = 4) readonly buffer SkinnedPositions { vec4 u_SkinnedPos[];  };
     layout(std430, binding = 5) readonly buffer SkinnedNormals   { vec4 u_SkinnedNorm[]; };
+    // Last frame's skinned output, kept so velocity picks up limb motion and not just the
+    // actor's transform. Written by the same compute pass, one frame behind.
+    layout(std430, binding = 6) readonly buffer PrevSkinnedPositions { vec4 u_PrevSkinnedPos[]; };
     layout(location = 1) in vec2 a_TexCoord;
 #else
     // Model matrices uploaded once per draw call batch; gl_DrawID indexes within the batch,
     // u_BaseModelIndex offsets to the correct position in the global SSBO.
-    layout(std430, binding = 5) readonly buffer ModelMatrices { mat4 b_Models[]; };
+    layout(std430, binding = 5) readonly buffer ModelMatrices     { mat4 b_Models[];     };
+    layout(std430, binding = 6) readonly buffer PrevModelMatrices { mat4 b_PrevModels[]; };
     uniform int u_BaseModelIndex;
 
     layout(location = 0) in vec3 a_Position;
@@ -24,6 +28,8 @@
 out vec3 v_WorldPos;
 out vec3 v_Normal;
 out vec2 v_TexCoord;
+out vec4 v_ClipCurr;
+out vec4 v_ClipPrev;
 
 #if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
     out vec4 v_Tangent;
@@ -32,12 +38,15 @@ out vec2 v_TexCoord;
 void main()
 {
 #ifdef SKINNED
-    vec4 worldPos = u_Model * u_SkinnedPos[gl_VertexID];
-    v_Normal      = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
+    vec4 worldPos     = u_Model * u_SkinnedPos[gl_VertexID];
+    vec4 prevWorldPos = u_PrevM * u_PrevSkinnedPos[gl_VertexID];
+    v_Normal          = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
 #else
-    mat4 model    = b_Models[uint(u_BaseModelIndex) + uint(gl_DrawID)];
-    vec4 worldPos = model * vec4(a_Position, 1.0);
-    v_Normal      = mat3(model) * a_Normal;
+    uint modelIdx     = uint(u_BaseModelIndex) + uint(gl_DrawID);
+    mat4 model        = b_Models[modelIdx];
+    vec4 worldPos     = model * vec4(a_Position, 1.0);
+    vec4 prevWorldPos = b_PrevModels[modelIdx] * vec4(a_Position, 1.0);
+    v_Normal          = mat3(model) * a_Normal;
 #ifdef HAS_NORMAL_MAP
     v_Tangent     = vec4(mat3(model) * a_Tangent.xyz, a_Tangent.w);
 #endif
@@ -46,6 +55,9 @@ void main()
     v_WorldPos  = worldPos.xyz;
     v_TexCoord  = a_TexCoord;
     gl_Position = u_ViewProjection * worldPos;
+
+    v_ClipCurr = u_ViewProjectionUnjittered * worldPos;
+    v_ClipPrev = u_PrevViewProjection       * prevWorldPos;
 }
 
 
@@ -54,10 +66,13 @@ void main()
 #version 460 core
 
 layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 FragVelocity;
 
 in vec3 v_WorldPos;
 in vec3 v_Normal;
 in vec2 v_TexCoord;
+in vec4 v_ClipCurr;
+in vec4 v_ClipPrev;
 #if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
     in vec4 v_Tangent;
 #endif
@@ -124,6 +139,11 @@ in vec2 v_TexCoord;
 
 void main()
 {
+    // Written first because main() has several early returns, and an MRT attachment left
+    // unwritten holds undefined values.
+    FragVelocity = vec4((v_ClipCurr.xy / v_ClipCurr.w - v_ClipPrev.xy / v_ClipPrev.w) * 0.5,
+                        0.0, 0.0);
+
     vec4 albedoSample = texture(u_Albedo, v_TexCoord);
     vec3 albedo = albedoSample.rgb;
 
