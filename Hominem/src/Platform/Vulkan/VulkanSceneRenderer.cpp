@@ -59,7 +59,7 @@ void VulkanSceneRenderer::Shutdown()
 
     // Deferred, not called directly: VulkanRenderer::Shutdown() only flushes this
     // queue after its own vkDeviceWaitIdle, so these are guaranteed safe to destroy
-    // by the time they actually run — never call Destroy() on these directly here.
+    // by the time they actually run - never call Destroy() on these directly here.
     for (auto& [_, pipeline] : m_ComputePipelines)
         deletionQueue.push_function([&pipeline]() { pipeline.Destroy(); });
     for (auto& slot : m_RenderTargets)
@@ -162,9 +162,11 @@ void VulkanSceneRenderer::UploadMeshes(VkCommandBuffer cmd, const std::vector<Vu
         }
         auto& mesh = m_Meshes.emplace(upload.handle,
             VulkanMeshBuffer::Create(device, allocator, cmd, frameQueue,
-                                     upload.vertexData, upload.indices)).first->second;
+                                     upload.vertexData, upload.indices,
+                                     m_Renderer->IsRayTracingSupported())).first->second;
 
-        m_Raytracer.OnMeshUploaded(*m_Renderer, cmd, upload.handle, mesh);
+        if (m_Renderer->IsRayTracingSupported())
+            m_Raytracer.OnMeshUploaded(*m_Renderer, cmd, upload.handle, mesh);
     }
 }
 
@@ -284,7 +286,7 @@ void VulkanSceneRenderer::EnsureDebugSphereMesh(VkCommandBuffer cmd)
         m_Renderer->GetDevice(), m_Renderer->GetAllocator(),
         cmd, m_Renderer->GetFrameDeletionQueue(),
         { bytes, bytes + mesh.vertices.size() * sizeof(StaticVertex) },
-        mesh.indices);
+        mesh.indices, m_Renderer->IsRayTracingSupported());
     m_DebugSphereMeshReady = true;
 }
 
@@ -403,13 +405,16 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
     const uint32_t frameIdx = m_Renderer->GetCurrentFrameIndex();
     auto [w, h]             = m_Renderer->GetDrawExtent();
 
-    const bool ddgiActive = ddgi.probeNumRays > 0;
+    // Without RT extensions the acceleration-structure entry points were never loaded,
+    // so every DDGI path below has to stay dark, not just the trace.
+    const bool ddgiActive = ddgi.probeNumRays > 0 && m_Renderer->IsRayTracingSupported();
 
     if (!debugSpheres.empty() || (ddgiActive && ddgi.showSurfels))
         EnsureDebugSphereMesh(cmd);
 
     EnsureMeshDescriptors(cmd);
-    m_Raytracer.EnsureScene(*m_Renderer, cmd, draws, m_Meshes);
+    if (m_Renderer->IsRayTracingSupported())
+        m_Raytracer.EnsureScene(*m_Renderer, cmd, draws, m_Meshes);
 
     if (!m_SceneBuffersCreated)
     {
@@ -466,7 +471,7 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
         if (!s_LoggedNoScene)
         {
             s_LoggedNoScene = true;
-            HMN_CORE_WARN("DDGI: volume active but the ray tracer has no scene — nothing to trace");
+            HMN_CORE_WARN("DDGI: volume active but the ray tracer has no scene - nothing to trace");
         }
     }
 
@@ -555,7 +560,7 @@ void VulkanSceneRenderer::RunScenePass(VkCommandBuffer cmd, const std::vector<Vu
 
     for (const auto& draw : draws)
     {
-        if (draw.traceOnly) continue;  // in the TLAS only — another backend draws it
+        if (draw.traceOnly) continue;  // in the TLAS only - another backend draws it
 
         auto it = m_Meshes.find(draw.mesh);
         if (it == m_Meshes.end()) continue;

@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "VulkanRenderer.h"
+#include "Hominem/Renderer/RenderSettings.h"
 
 #include <set>
 
@@ -10,14 +11,35 @@ static const std::vector<const char*> k_ValidationLayers =
     "VK_LAYER_KHRONOS_validation"
 };
 
-static const std::vector<const char*> k_DeviceExtensions =
+// Without these there is no GL interop at all, so a device lacking them is unusable.
+static const std::vector<const char*> k_RequiredDeviceExtensions =
 {
     VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
     VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
+};
+
+// DDGI needs these; everything else runs without them. Kept optional so the app still
+// starts on a GPU with no ray tracing - on a hybrid laptop the adapter can change between
+// runs, and losing GI is a better outcome than failing to launch.
+static const std::vector<const char*> k_RayTracingExtensions =
+{
     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
     VK_KHR_RAY_QUERY_EXTENSION_NAME,
     VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 };
+
+static bool HasExtensions(VkPhysicalDevice dev, const std::vector<const char*>& wanted)
+{
+    uint32_t extCount;
+    vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, nullptr);
+    std::vector<VkExtensionProperties> available(extCount);
+    vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, available.data());
+
+    std::set<std::string> missing(wanted.begin(), wanted.end());
+    for (const auto& ext : available)
+        missing.erase(ext.extensionName);
+    return missing.empty();
+}
 
 #ifdef HMN_DEBUG
 static constexpr bool k_EnableValidation = true;
@@ -31,6 +53,30 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
     if (k_EnableValidation)
         SetupDebugMessenger();
     PickPhysicalDevice(preferredLUID, preferredName);
+
+    // Here rather than inside PickPhysicalDevice - that has several early returns, and
+    // missing one leaves this false while the rest of the renderer still emits ray tracing
+    // usage flags and barriers the device was never given the extensions for.
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &props);
+    const bool integrated = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+
+    // Integrated parts expose ray query but have nowhere near the throughput for it: a
+    // probe volume sized for a room is still hundreds of thousands of rays a frame, which
+    // costs tens of seconds or trips the GPU watchdog outright. Capability says yes,
+    // viability says no, so the device type decides.
+    m_RayTracingSupported = RenderSettings::RayTracing
+                         && (!integrated || RenderSettings::RayTracingOnIntegrated)
+                         && HasExtensions(m_PhysicalDevice, k_RayTracingExtensions);
+
+    if (!m_RayTracingSupported)
+    {
+        const char* reason = !RenderSettings::RayTracing ? "disabled by RenderSettings"
+                           : integrated                  ? "integrated GPU"
+                                                         : "extensions unavailable";
+        HMN_CORE_WARN("Vulkan: ray tracing off on {0} ({1}) - DDGI disabled", props.deviceName, reason);
+    }
+
     CreateLogicalDevice();
     InitVMA();
     CreateDrawImage(w, h);
@@ -38,8 +84,6 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
     CreateCommandStructures();
     CreateSyncObjects();
 
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &props);
     HMN_CORE_INFO("Vulkan headless renderer initialised: {0}", props.deviceName);
 }
 
@@ -72,7 +116,18 @@ VkCommandBuffer VulkanRenderer::BeginFrame()
         .pSemaphores    = &m_TimelineSemaphore,
         .pValues        = &frame.timelineValue,
     };
-    VK_CHECK(vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX));
+    // The main thread blocks behind this in RenderThread::Submit, so a GPU that stops
+    // making progress shows up as an unresponsive window and nothing in the log. Name it
+    // once, then wait as before - the diagnosis is the point, not the recovery.
+    constexpr uint64_t k_WaitTimeoutSeconds = 5;
+    VkResult waitResult = vkWaitSemaphores(m_Device, &waitInfo, k_WaitTimeoutSeconds * 1000000000ull);
+    if (waitResult == VK_TIMEOUT)
+    {
+        HMN_CORE_ERROR("Vulkan: GPU stuck for {0}s. Usually one frame asked for too much work; "
+                       "check DDGI probe count.", k_WaitTimeoutSeconds);
+        waitResult = vkWaitSemaphores(m_Device, &waitInfo, UINT64_MAX);
+    }
+    VK_CHECK(waitResult);
 
     frame.deletionQueue.flush();
     vkResetCommandPool(m_Device, frame.cmdPool, 0);
@@ -336,16 +391,7 @@ QueueFamilyIndices VulkanRenderer::FindQueueFamilies(VkPhysicalDevice dev) const
 bool VulkanRenderer::IsDeviceSuitable(VkPhysicalDevice dev) const
 {
     if (!FindQueueFamilies(dev).IsComplete()) return false;
-
-    uint32_t extCount;
-    vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, nullptr);
-    std::vector<VkExtensionProperties> available(extCount);
-    vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, available.data());
-
-    std::set<std::string> required(k_DeviceExtensions.begin(), k_DeviceExtensions.end());
-    for (const auto& ext : available)
-        required.erase(ext.extensionName);
-    return required.empty();
+    return HasExtensions(dev, k_RequiredDeviceExtensions);
 }
 
 std::array<uint8_t, 8> VulkanRenderer::GetPhysicalDeviceLUID(VkPhysicalDevice dev)
@@ -478,14 +524,24 @@ void VulkanRenderer::CreateLogicalDevice()
         .rayQuery = VK_TRUE,
     };
 
+    // Requesting a feature whose extension isn't enabled is invalid, so the RT structs
+    // only enter the chain when the device actually has them.
+    std::vector<const char*> extensions = k_RequiredDeviceExtensions;
+    void* featureChain = &bda;
+    if (m_RayTracingSupported)
+    {
+        extensions.insert(extensions.end(), k_RayTracingExtensions.begin(), k_RayTracingExtensions.end());
+        featureChain = &rayQuery;
+    }
+
     const VkDeviceCreateInfo createInfo
     {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext                   = &rayQuery,
+        .pNext                   = featureChain,
         .queueCreateInfoCount    = 1,
         .pQueueCreateInfos       = &queueInfo,
-        .enabledExtensionCount   = (uint32_t)k_DeviceExtensions.size(),
-        .ppEnabledExtensionNames = k_DeviceExtensions.data(),
+        .enabledExtensionCount   = (uint32_t)extensions.size(),
+        .ppEnabledExtensionNames = extensions.data(),
     };
     VK_CHECK(vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device));
     volkLoadDevice(m_Device);
@@ -560,13 +616,37 @@ void VulkanRenderer::CreateDrawImage(uint32_t w, uint32_t h)
         };
         VK_CHECK(vkCreateImage(m_Device, &imageInfo, nullptr, &drawImage.image));
 
-        VkMemoryRequirements memReqs;
-        vkGetImageMemoryRequirements(m_Device, drawImage.image, &memReqs);
+        // Drivers differ on whether an external-memory image needs its own allocation -
+        // Intel demands it, NVIDIA doesn't - so ask rather than assume.
+        const VkImageMemoryRequirementsInfo2 reqInfo
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+            .image = drawImage.image,
+        };
+        VkMemoryDedicatedRequirements dedicatedReqs
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+        };
+        VkMemoryRequirements2 memReqs2
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+            .pNext = &dedicatedReqs,
+        };
+        vkGetImageMemoryRequirements2(m_Device, &reqInfo, &memReqs2);
+
+        const VkMemoryRequirements& memReqs = memReqs2.memoryRequirements;
         m_DrawImageMemorySize = memReqs.size;
 
+        const VkMemoryDedicatedAllocateInfo dedicatedInfo
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+            .image = drawImage.image,
+        };
         const VkExportMemoryAllocateInfo exportInfo
         {
             .sType       = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+            .pNext       = (dedicatedReqs.requiresDedicatedAllocation ||
+                            dedicatedReqs.prefersDedicatedAllocation) ? &dedicatedInfo : nullptr,
             .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
         };
         const VkMemoryAllocateInfo allocInfo
