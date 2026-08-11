@@ -2,7 +2,7 @@
 // history buffer, reprojecting it through per-object motion and rejecting samples that
 // no longer describe what is on screen.
 //
-// Ported from Playdead's "Temporal Reprojection Anti-Aliasing in INSIDE" (GDC 2016) —
+// Ported from Playdead's "Temporal Reprojection Anti-Aliasing in INSIDE" (GDC 2016) -
 // github.com/playdeadgames/temporal, MIT, (c) 2015 Playdead. Their saturate() in
 // YCoCg_RGB is dropped: this resolves before tone mapping, on values above 1.
 
@@ -42,13 +42,6 @@ uniform int   u_DebugView;     // 0 off, 1 motion, 2 clamped history, 3 rejectio
 
 const float FLT_EPS = 0.00000001;
 
-float Luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
-
-// Reinhard on luminance, applied around the blend and undone after. Without it a single
-// very bright sample dominates the neighbourhood bounds and smears into a comet tail.
-vec3 Tonemap  (vec3 c) { return c / (1.0 + Luma(c)); }
-vec3 Untonemap(vec3 c) { return c / max(1.0 - Luma(c), 1e-4); }
-
 vec3 RGBToYCoCg(vec3 c)
 {
     return vec3( 0.25 * c.r + 0.5 * c.g + 0.25 * c.b,
@@ -63,13 +56,20 @@ vec3 YCoCgToRGB(vec3 c)
                 c.x - c.y - c.z);
 }
 
+// Reinhard on the YCoCg luma channel, applied around the blend and undone after. Without
+// it one very bright sample dominates the neighbourhood bounds and smears into a comet
+// tail. Tonemapping on .x rather than an RGB luma is what makes the inverse exact: the
+// box, the clip and the blend all bound .x below 1, so the divide below can't explode.
+vec3 Tonemap  (vec3 c) { return c / (1.0 + c.x); }
+vec3 Untonemap(vec3 c) { return c / max(1.0 - c.x, 1e-4); }
+
 vec3 SampleCurrent(vec2 uv)
 {
-    return RGBToYCoCg(Tonemap(texture(u_Current, uv).rgb));
+    return Tonemap(RGBToYCoCg(texture(u_Current, uv).rgb));
 }
 
 // Clips towards the centre of the box along the ray from history to it, rather than
-// clamping each channel independently — per-channel clamping lands on colours that were
+// clamping each channel independently - per-channel clamping lands on colours that were
 // never on that ray, which shifts hue and flickers frame to frame.
 vec3 ClipToAABB(vec3 boxMin, vec3 boxMax, vec3 q)
 {
@@ -104,7 +104,7 @@ vec3 SampleHistory(vec2 uv)
     vec2 texPos3  = (texPos1 + 2.0)      / texSize;
     vec2 texPos12 = (texPos1 + offset12) / texSize;
 
-    // Corner taps dropped and the rest renormalised — 5 fetches instead of 9.
+    // Corner taps dropped and the rest renormalised - 5 fetches instead of 9.
     vec3  result = vec3(0.0);
     float weight = 0.0;
 
@@ -184,7 +184,7 @@ void main()
         return;
     }
 
-    // Positive test so a NaN prevUV also fails it — every comparison against NaN is false.
+    // Positive test so a NaN prevUV also fails it - every comparison against NaN is false.
     bool onScreen = all(greaterThanEqual(prevUV, vec2(0.0)))
                  && all(lessThanEqual   (prevUV, vec2(1.0)));
     if (!onScreen)
@@ -193,10 +193,10 @@ void main()
         return;
     }
 
-    vec3 cur  = RGBToYCoCg(Tonemap(curRGB));
-    vec3 hist = RGBToYCoCg(Tonemap(SampleHistory(prevUV)));
+    vec3 cur  = Tonemap(RGBToYCoCg(curRGB));
+    vec3 hist = Tonemap(RGBToYCoCg(SampleHistory(prevUV)));
 
-    // Reprojection finds the right address, not necessarily valid data — the surface may
+    // Reprojection finds the right address, not necessarily valid data - the surface may
     // have been hidden last frame, or shaded differently since. The neighbourhood bounds
     // what is plausible here now, and history outside it is stale.
     vec2 du = vec2(u_TexelSize.x, 0.0);
@@ -231,7 +231,7 @@ void main()
 
     if (u_DebugView == 2)
     {
-        FragColor = vec4(Untonemap(YCoCgToRGB(hist)), 1.0);
+        FragColor = vec4(max(YCoCgToRGB(Untonemap(hist)), 0.0), 1.0);
         return;
     }
 
@@ -248,5 +248,7 @@ void main()
         return;
     }
 
-    FragColor = vec4(Untonemap(YCoCgToRGB(mix(cur, hist, k))), 1.0);
+    // Clamped because Catmull-Rom overshoot and the YCoCg round trip can both go slightly
+    // negative, and a negative feeding next frame's history compounds.
+    FragColor = vec4(max(YCoCgToRGB(Untonemap(mix(cur, hist, k))), 0.0), 1.0);
 }
