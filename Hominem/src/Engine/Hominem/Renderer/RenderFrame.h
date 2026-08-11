@@ -246,6 +246,16 @@ namespace Hominem {
 		glm::vec3 cameraWorldPos   {};
 		Frustum   frustum3D        {};
 
+		// Temporal AA — filled by SceneRenderer::PrepareTemporal, which also rewrites
+		// proj3D / viewProjection3D above with this frame's jitter. The scene renders
+		// with those; TAA reprojects with these, or the jitter reads as real motion.
+		glm::mat4 viewProjection3DUnjittered {};
+		glm::mat4 proj3DUnjittered           {};
+		glm::mat4 prevViewProjection3D       {};
+		glm::vec2 taaJitter                  {};  // UV units
+		bool      taaEnabled = false;
+		bool      taaReset   = true;              // history invalid — don't blend it
+
 		uint32_t  viewportWidth  = 0;
 		uint32_t  viewportHeight = 0;
 

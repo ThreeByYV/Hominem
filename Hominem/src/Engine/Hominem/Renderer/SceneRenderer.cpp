@@ -6,11 +6,32 @@
 #include <backends/imgui_impl_opengl3.h>
 
 #include "Hominem/Renderer/RenderCommand.h"
+#include "Hominem/Renderer/RenderSettings.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include "Hominem/Renderer/EnvironmentProbe.h"
 
 namespace Hominem {
+
+namespace {
+
+// Low-discrepancy, so jitter offsets spread evenly over the pixel rather than clumping
+// and leaving parts of it unsampled.
+float Halton(uint32_t i, uint32_t base)
+{
+    float f = 1.f, r = 0.f;
+    while (i > 0)
+    {
+        f /= (float)base;
+        r += f * (float)(i % base);
+        i /= base;
+    }
+    return r;
+}
+
+constexpr uint32_t k_TAASampleCount = 16;
+
+}
 
 void SceneRenderer::SetImGuiCallbacks(std::function<void()> waitFn,
                                       std::function<void()> notifyFn)
@@ -34,11 +55,13 @@ void SceneRenderer::Init()
     m_FireQuadShader  = Renderer3D::GetShaderLibrary()->Get("fire_quad");
     m_SmokeQuadShader = Renderer3D::GetShaderLibrary()->Get("smoke_quad");
     m_VkBlitShader    = Renderer3D::GetShaderLibrary()->Get("vk_blit");
+    m_TAAResolveShader = Renderer3D::GetShaderLibrary()->Get("taa_resolve");
 }
 
 void SceneRenderer::Shutdown()
 {
     m_VkBlitShader.reset();
+    m_TAAResolveShader.reset();
     m_ThresholdShader.reset();
     m_BlurShader.reset();
     m_CompositeShader.reset();
@@ -48,13 +71,30 @@ void SceneRenderer::SetupPasses()
 {
     // HDR has 2 color attachments: [0] = rendered scene, [1] = view-space normals + linear depth
     m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
+    // Two targets: the resolve's output is next frame's input, and a pass cannot sample
+    // the texture it renders into. Record() swaps the aliases each frame.
+    m_RenderGraph.AddFBO("taa_0",      FramebufferFormat::RGBA16F, 1.0f);
+    m_RenderGraph.AddFBO("taa_1",      FramebufferFormat::RGBA16F, 1.0f);
     m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f);
     m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f);
+
+    m_RenderGraph.SetAlias("taa_curr", "taa_0");
+    m_RenderGraph.SetAlias("taa_prev", "taa_1");
 
     m_RenderGraph.AddPass("scene",
         PipelineState::DepthTestWriteCull(),
         PassBuilder{}.WriteFBO("hdr"),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { GeometryPass(f, cmd); });
+
+    // Everything downstream reads taa_curr instead of hdr, auto-exposure included — it
+    // would otherwise meter an unresolved image and flicker against the resolved one.
+    m_RenderGraph.AddPass("taa_resolve",
+        PipelineState::NoDepthNoCull(),
+        PassBuilder{}.Read("hdr.color",      Slot::Color0)
+                     .Read("taa_prev.color", Slot::Color1)
+                     .Read("hdr.depth",      Slot::Depth)
+                     .WriteFBO("taa_curr"),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { TAAResolvePass(f, cmd); });
 
     m_RenderGraph.AddPass("auto_exposure",
         PipelineState::NoDepthNoCull(),
@@ -63,7 +103,7 @@ void SceneRenderer::SetupPasses()
 
     m_RenderGraph.AddPass("bloom_threshold",
         PipelineState::NoDepthNoCull(),
-        PassBuilder{}.Read("hdr.color", Slot::Color0).WriteFBO("bloom"),
+        PassBuilder{}.Read("taa_curr.color", Slot::Color0).WriteFBO("bloom"),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomThresholdPass(f, cmd); });
 
     m_RenderGraph.AddPass("bloom_blur_h",
@@ -78,7 +118,7 @@ void SceneRenderer::SetupPasses()
 
     m_RenderGraph.AddPass("composite",
         PipelineState::NoDepthNoCull(),
-        PassBuilder{}.Read("hdr.color", Slot::Color0).Read("bloom.color", Slot::Color1),
+        PassBuilder{}.Read("taa_curr.color", Slot::Color0).Read("bloom.color", Slot::Color1),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { CompositePass(f, cmd); });
 
     m_RenderGraph.AddPass("vk_output",
@@ -90,6 +130,96 @@ void SceneRenderer::SetupPasses()
         PipelineState::AlphaBlendNoDepth(),
         PassBuilder{},
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { ImGuiPass(f, cmd); });
+}
+
+void SceneRenderer::PrepareTemporal(RenderFrame& frame)
+{
+    frame.viewProjection3DUnjittered = frame.viewProjection3D;
+    frame.proj3DUnjittered           = frame.proj3D;
+    frame.prevViewProjection3D       = m_PrevViewProjection;
+    frame.taaEnabled                 = RenderSettings::TAA;
+    frame.taaJitter                  = glm::vec2(0.f);
+    frame.taaReset                   = true;
+
+    if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
+
+    // Mirrors RenderGraph::OnResize for a scale-1.0 target. Recomputed rather than read
+    // off the FBO because the graph resizes on the render thread, a frame behind this.
+    const float    scale   = std::clamp(frame.renderScale, 0.25f, 1.0f);
+    const uint32_t renderW = std::max(1u, (uint32_t)(frame.viewportWidth  * scale));
+    const uint32_t renderH = std::max(1u, (uint32_t)(frame.viewportHeight * scale));
+
+    if (renderW != m_TAALastRenderW || renderH != m_TAALastRenderH)
+    {
+        m_TAAResetPending = true;  // resize recreates the FBOs, so the history is gone
+        m_TAALastRenderW  = renderW;
+        m_TAALastRenderH  = renderH;
+    }
+
+    frame.taaReset = m_TAAResetPending || !frame.taaEnabled;
+
+    if (frame.taaEnabled)
+    {
+        const uint32_t n = (m_TAAFrameIndex % k_TAASampleCount) + 1;
+        const glm::vec2 jitterPx {
+            (Halton(n, 2) - 0.5f) * RenderSettings::TAAJitterScale,
+            (Halton(n, 3) - 0.5f) * RenderSettings::TAAJitterScale,
+        };
+        frame.taaJitter = jitterPx / glm::vec2(renderW, renderH);
+
+        // Sub-pixel shift of the whole projection — moves where inside each pixel the
+        // single sample lands. Without it every frame samples the same point and the
+        // accumulation adds no coverage.
+        frame.proj3D[2][0] += 2.f * jitterPx.x / (float)renderW;
+        frame.proj3D[2][1] += 2.f * jitterPx.y / (float)renderH;
+        frame.viewProjection3D = frame.proj3D * frame.view3D;
+
+        m_TAAFrameIndex++;
+    }
+
+    m_PrevViewProjection = frame.viewProjection3DUnjittered;
+    m_TAAResetPending    = false;
+}
+
+std::vector<CommandList> SceneRenderer::Record(const RenderFrame& frame)
+{
+    m_TAAHistoryIdx ^= 1u;
+    m_RenderGraph.SetAlias("taa_curr", m_TAAHistoryIdx == 0 ? "taa_0" : "taa_1");
+    m_RenderGraph.SetAlias("taa_prev", m_TAAHistoryIdx == 0 ? "taa_1" : "taa_0");
+
+    return m_RenderGraph.Record(frame);
+}
+
+void SceneRenderer::TAAResolvePass(const RenderFrame& frame, CommandList& cmd)
+{
+    HMN_PROFILE_FUNCTION();
+
+    if (frame.viewportWidth == 0 || frame.viewportHeight == 0 || !m_TAAResolveShader) return;
+
+    const auto hdr = m_RenderGraph.GetFBO("hdr");
+    if (!hdr) return;
+    const auto& spec = hdr->GetSpecification();
+
+    // FBO bound, viewport set, slots 0/1/5 = current / history / depth — all from PassBuilder.
+    cmd.BindShader(m_TAAResolveShader);
+    cmd.SetInt(m_TAAResolveShader, "u_Current", 0);
+    cmd.SetInt(m_TAAResolveShader, "u_History", 1);
+    cmd.SetInt(m_TAAResolveShader, "u_Depth",   (int)Slot::Depth);
+
+    // Packed into a vec4 — CommandList has no SetFloat2, and one uniform is cheaper than
+    // threading another setter through Shader and every backend.
+    cmd.SetFloat4(m_TAAResolveShader, "u_TexelSize",
+        glm::vec4(1.f / (float)spec.Width, 1.f / (float)spec.Height,
+                  (float)spec.Width, (float)spec.Height));
+
+    cmd.SetMat4(m_TAAResolveShader, "u_InvViewProj",
+                glm::inverse(frame.viewProjection3DUnjittered));
+    cmd.SetMat4(m_TAAResolveShader, "u_PrevViewProj", frame.prevViewProjection3D);
+    cmd.SetFloat(m_TAAResolveShader, "u_Feedback",
+                 frame.taaReset ? 0.f : glm::clamp(RenderSettings::TAAFeedback, 0.f, 0.99f));
+    cmd.SetInt(m_TAAResolveShader, "u_DebugView", RenderSettings::TAADebugView);
+
+    cmd.DrawFullscreenTriangle();
 }
 
 void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
@@ -257,9 +387,9 @@ void SceneRenderer::AutoExposurePass(const RenderFrame& frame, CommandList& cmd)
     HMN_PROFILE_FUNCTION();
     if (frame.toneMappingEnabled)
     {
-        auto hdr = m_RenderGraph.GetFBO("hdr");
-        const auto& spec = hdr->GetSpecification();
-        uint32_t colorAttachment = hdr->GetColorAttachmentRendererID();
+        auto resolved = m_RenderGraph.GetFBO("taa_curr");
+        const auto& spec = resolved->GetSpecification();
+        uint32_t colorAttachment = resolved->GetColorAttachmentRendererID();
         cmd.Invoke([this, colorAttachment, width = spec.Width, height = spec.Height]()
         {
             m_AutoExposure.Compute(colorAttachment, width, height);
