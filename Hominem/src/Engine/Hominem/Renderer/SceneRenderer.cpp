@@ -218,9 +218,14 @@ void SceneRenderer::TAAResolvePass(const RenderFrame& frame, CommandList& cmd)
     cmd.SetMat4(m_TAAResolveShader, "u_InvViewProj",
                 glm::inverse(frame.viewProjection3DUnjittered));
     cmd.SetMat4(m_TAAResolveShader, "u_PrevViewProj", frame.prevViewProjection3D);
-    cmd.SetFloat(m_TAAResolveShader, "u_Feedback",
-                 frame.taaReset ? 0.f : glm::clamp(RenderSettings::TAAFeedback, 0.f, 0.99f));
-    cmd.SetInt(m_TAAResolveShader, "u_DebugView", RenderSettings::TAADebugView);
+
+    const float feedbackMax = glm::clamp(RenderSettings::TAAFeedbackMax, 0.f, 0.99f);
+    cmd.SetFloat(m_TAAResolveShader, "u_FeedbackMin",
+                 glm::clamp(RenderSettings::TAAFeedbackMin, 0.f, feedbackMax));
+    cmd.SetFloat(m_TAAResolveShader, "u_FeedbackMax", feedbackMax);
+    cmd.SetInt(m_TAAResolveShader, "u_Reset",       frame.taaReset ? 1 : 0);
+    cmd.SetInt(m_TAAResolveShader, "u_UseDilation", RenderSettings::TAADilation ? 1 : 0);
+    cmd.SetInt(m_TAAResolveShader, "u_DebugView",   RenderSettings::TAADebugView);
 
     cmd.DrawFullscreenTriangle();
 }
