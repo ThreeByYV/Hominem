@@ -7,13 +7,14 @@
 namespace Hominem {
 
 // GL_EXT_memory_object / GL_EXT_memory_object_win32 / GL_EXT_semaphore / GL_EXT_semaphore_win32
-// Not present in the pre-built GLAD — load manually after GL context is current.
+// Not present in the pre-built GLAD - load manually after GL context is current.
 
 static constexpr GLenum k_HandleTypeOpaqueWin32 = 0x9587u;
-static constexpr GLenum k_LayoutShaderReadOnly  = 0x9509u;
+static constexpr GLenum k_LayoutShaderReadOnly  = 0x9591u; // GL_LAYOUT_SHADER_READ_ONLY_EXT
 static constexpr GLenum k_LayoutGeneral         = 0x958Du;
 static constexpr GLenum k_DeviceLUIDEXT         = 0x9599u;
 
+using PFN_glGetUnsignedBytevEXT          = void (APIENTRY*)(GLenum, GLubyte*);
 using PFN_glGetUnsignedBytei_vEXT        = void (APIENTRY*)(GLenum, GLuint, GLubyte*);
 using PFN_glCreateMemoryObjectsEXT       = void (APIENTRY*)(GLsizei, GLuint*);
 using PFN_glDeleteMemoryObjectsEXT       = void (APIENTRY*)(GLsizei, const GLuint*);
@@ -86,7 +87,7 @@ bool OpenGLSharedResources::IsInteropSupported()
     {
         if (!HasGLExtension(ext))
         {
-            HMN_CORE_WARN("OpenGLSharedResources: missing {} — GL/VK interop unavailable", ext);
+            HMN_CORE_WARN("OpenGLSharedResources: missing {} - GL/VK interop unavailable", ext);
             ok = false;
         }
     }
@@ -95,15 +96,19 @@ bool OpenGLSharedResources::IsInteropSupported()
 
 std::array<uint8_t, 8> OpenGLSharedResources::GetDeviceLUID()
 {
-    auto pfn = (PFN_glGetUnsignedBytei_vEXT)wglGetProcAddress("glGetUnsignedBytei_vEXT");
-    if (!pfn || !HasGLExtension("GL_EXT_memory_object"))
+    // Non-indexed get: DEVICE_LUID_EXT is a plain pname in EXT_external_objects_win32,
+    // unlike DEVICE_UUID_EXT which is indexed by device. Querying it through the indexed
+    // entry point is GL_INVALID_ENUM - NVIDIA answers anyway, Intel rejects it and the
+    // LUID comes back zeroed, silently dropping the adapter match to the name fallback.
+    auto pfn = (PFN_glGetUnsignedBytevEXT)wglGetProcAddress("glGetUnsignedBytevEXT");
+    if (!pfn || !HasGLExtension("GL_EXT_memory_object_win32"))
     {
-        HMN_CORE_WARN("OpenGLSharedResources: GL_EXT_memory_object not exposed by driver, falling back to name match");
+        HMN_CORE_WARN("OpenGLSharedResources: GL_EXT_memory_object_win32 not exposed by driver, falling back to name match");
         return {};
     }
 
     std::array<uint8_t, 8> luid{};
-    pfn(k_DeviceLUIDEXT, 0, luid.data());
+    pfn(k_DeviceLUIDEXT, luid.data());
     return luid;
 }
 
