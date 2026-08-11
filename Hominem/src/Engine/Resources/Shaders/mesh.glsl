@@ -84,7 +84,7 @@ in vec4 v_ClipPrev;
 #ifdef HAS_ENV_MAP
     #include "includes/irradiance.glsl"
 #endif
-#include "include/ddgi_common.glsl"
+#include "includes/ddgi_common.glsl"
 
     // Ray-traced irradiance field, written by Vulkan into memory this context imports.
     // u_DDGICounts.w == 0 means no volume this frame; the atlases are then unbound.

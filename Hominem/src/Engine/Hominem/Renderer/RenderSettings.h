@@ -23,12 +23,15 @@ namespace Hominem {
 		// Features
 		static inline bool AreaLights = true;
 
-		// Temporal AA
-		static inline bool  TAA            = true;
-		static inline bool  TAAVelocity    = true;  // off = camera-only reprojection from depth
-		static inline float TAAFeedback    = 0.9f;  // history weight; higher = more samples, more ghosting
-		static inline float TAAJitterScale = 1.0f;  // 0 keeps the sample at the pixel centre (no AA)
-		static inline int   TAADebugView   = 0;     // 0 off, 1 reprojection offset, 2 clamped history
+		// Temporal AA. Feedback min/max are Playdead's shipped values — history weight is
+		// interpolated between them by how much the pixel's luminance is changing.
+		static inline bool  TAA             = true;
+		static inline bool  TAAVelocity     = true;  // off = camera-only reprojection from depth
+		static inline bool  TAADilation     = true;  // velocity from the closest fragment of the 3x3
+		static inline float TAAFeedbackMin  = 0.88f; // where the pixel is changing
+		static inline float TAAFeedbackMax  = 0.97f; // where it is stable
+		static inline float TAAJitterScale  = 1.0f;  // 0 keeps the sample at the pixel centre (no AA)
+		static inline int   TAADebugView    = 0;     // 0 off, 1 motion, 2 clamped history, 3 rejection
 
 		// Set by the renderer during Init based on GPU detection; read by game code.
 		static inline float RecommendedRenderScale = 1.0f;
