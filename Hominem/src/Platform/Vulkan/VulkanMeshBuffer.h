@@ -10,10 +10,13 @@ namespace Hominem {
 class VulkanMeshBuffer
 {
 public:
+    /// rayTracing=false drops the acceleration-structure usage flags and barrier stage,
+    /// which are invalid on a device that was never given the RT extensions.
     static VulkanMeshBuffer Create(VkDevice device, VmaAllocator allocator,
                                    VkCommandBuffer frameCmd, DeletionQueue& frameQueue,
                                    std::span<const uint8_t> vertexData,
-                                   std::span<const uint32_t> indices);
+                                   std::span<const uint32_t> indices,
+                                   bool rayTracing);
     void Destroy(VmaAllocator allocator);
 
     VkDeviceAddress GetVertexBufferAddress() const { return m_VertexAddress; }

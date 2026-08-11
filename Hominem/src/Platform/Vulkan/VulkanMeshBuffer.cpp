@@ -39,22 +39,26 @@ DeviceBuffer CreateDeviceLocalBuffer(VmaAllocator allocator, VkDeviceSize size, 
 VulkanMeshBuffer VulkanMeshBuffer::Create(VkDevice device, VmaAllocator allocator,
                                           VkCommandBuffer frameCmd, DeletionQueue& frameQueue,
                                           std::span<const uint8_t> vertexData,
-                                          std::span<const uint32_t> indices)
+                                          std::span<const uint32_t> indices,
+                                          bool rayTracing)
 {
     const VkDeviceSize vertexSize = vertexData.size_bytes();
     const VkDeviceSize indexSize  = indices.size_bytes();
+
+    const VkBufferUsageFlags accelInput = rayTracing ? kAccelInput
+                                                     : VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
     VulkanMeshBuffer mesh;
     mesh.m_IndexCount  = (uint32_t)indices.size();
     mesh.m_VertexCount = (uint32_t)(vertexSize / sizeof(StaticVertex));
 
     auto [vb, vbAlloc] = CreateDeviceLocalBuffer(allocator, vertexSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | kAccelInput);
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | accelInput);
     mesh.m_VertexBuffer     = vb;
     mesh.m_VertexAllocation = vbAlloc;
 
     auto [ib, ibAlloc] = CreateDeviceLocalBuffer(allocator, indexSize,
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | kAccelInput);
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | accelInput);
     mesh.m_IndexBuffer     = ib;
     mesh.m_IndexAllocation = ibAlloc;
 
@@ -111,7 +115,8 @@ VulkanMeshBuffer VulkanMeshBuffer::Create(VkDevice device, VmaAllocator allocato
         .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
         .dstStageMask  = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT |
                          VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT |
-                         VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                         (rayTracing ? VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR
+                                     : VK_PIPELINE_STAGE_2_NONE),
         .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
                          VK_ACCESS_2_INDEX_READ_BIT |
                          VK_ACCESS_2_SHADER_READ_BIT,

@@ -46,6 +46,9 @@ public:
     VkFormat     GetDepthImageFormat() const { return VK_FORMAT_D32_SFLOAT; }
     bool         DrawImageHasComputeOutput() const { return m_DrawImage.layout == DrawImageLayout::General; }
 
+    /// False when the chosen adapter has no ray tracing extensions - DDGI must stay off.
+    bool         IsRayTracingSupported() const { return m_RayTracingSupported; }
+
     uint32_t     GetCurrentFrameIndex() const { return m_CurrentFrame; }
     bool         IsFrameInProgress()    const { return m_FrameStarted; }
 
@@ -109,6 +112,7 @@ private:
     VkDevice                 m_Device         = VK_NULL_HANDLE;
     VkQueue                  m_GraphicsQueue  = VK_NULL_HANDLE;
     uint32_t                 m_GraphicsFamily = ~0u;
+    bool                     m_RayTracingSupported = false;
 
     VmaAllocator m_Allocator = VK_NULL_HANDLE;
 
