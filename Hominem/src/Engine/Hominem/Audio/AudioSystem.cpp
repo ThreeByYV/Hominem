@@ -110,7 +110,10 @@ SoundHandle AudioSystem::Play(AssetHandle<SoundBuffer> handle, float volume, boo
 
 SoundHandle AudioSystem::PlayEx(AssetHandle<SoundBuffer> handle, float volume, float pitch, float pan, bool loop, float startOffsetSeconds)
 {
-    if (!handle.IsLoaded())
+    // s_Instance is set before the engine is up, so Get() hands back a live object even
+    // when there is no audio device. Nothing below may run then: the thread that drains
+    // the command queue was never started, so every push would just accumulate.
+    if (!m_Initialized || !handle.IsLoaded())
         return InvalidSound;
 
     PlaySoundCmd cmd;
@@ -127,19 +130,22 @@ SoundHandle AudioSystem::PlayEx(AssetHandle<SoundBuffer> handle, float volume, f
     return sh;
 }
 
-void AudioSystem::Stop(SoundHandle handle)   { m_CommandQueue.Push(StopSoundCmd{ handle }); }
-void AudioSystem::Pause(SoundHandle handle)  { m_CommandQueue.Push(PauseSoundCmd{ handle }); }
-void AudioSystem::Resume(SoundHandle handle) { m_CommandQueue.Push(ResumeSoundCmd{ handle }); }
-void AudioSystem::StopAll()                  { m_CommandQueue.Push(StopAllCmd{}); }
+void AudioSystem::Stop(SoundHandle handle)   { if (m_Initialized) m_CommandQueue.Push(StopSoundCmd{ handle }); }
+void AudioSystem::Pause(SoundHandle handle)  { if (m_Initialized) m_CommandQueue.Push(PauseSoundCmd{ handle }); }
+void AudioSystem::Resume(SoundHandle handle) { if (m_Initialized) m_CommandQueue.Push(ResumeSoundCmd{ handle }); }
+void AudioSystem::StopAll()                  { if (m_Initialized) m_CommandQueue.Push(StopAllCmd{}); }
 
-void AudioSystem::SetVolume(SoundHandle handle, float volume) { m_CommandQueue.Push(SetVolumeCmd{ handle, volume }); }
-void AudioSystem::SetPitch(SoundHandle handle, float pitch)   { m_CommandQueue.Push(SetPitchCmd{ handle, pitch }); }
-void AudioSystem::SetPan(SoundHandle handle, float pan)       { m_CommandQueue.Push(SetPanCmd{ handle, pan }); }
+void AudioSystem::SetVolume(SoundHandle handle, float volume) { if (m_Initialized) m_CommandQueue.Push(SetVolumeCmd{ handle, volume }); }
+void AudioSystem::SetPitch(SoundHandle handle, float pitch)   { if (m_Initialized) m_CommandQueue.Push(SetPitchCmd{ handle, pitch }); }
+void AudioSystem::SetPan(SoundHandle handle, float pan)       { if (m_Initialized) m_CommandQueue.Push(SetPanCmd{ handle, pan }); }
 
 void AudioSystem::SetMasterVolume(float volume)
 {
+    // Volume is still tracked with no device, so the UI reads back what was set and a
+    // later successful Init picks it up.
     m_MasterVolume = std::clamp(volume, 0.0f, 1.0f);
-    m_CommandQueue.Push(SetMasterVolumeCmd{ m_MasterVolume.load() });
+    if (m_Initialized)
+        m_CommandQueue.Push(SetMasterVolumeCmd{ m_MasterVolume.load() });
 }
 
 SoundHandle AudioSystem::AllocateSoundHandle()
