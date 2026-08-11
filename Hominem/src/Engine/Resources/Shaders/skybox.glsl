@@ -20,7 +20,8 @@ uniform vec3      u_CamPos;
 uniform float     u_Intensity;
 
 in  vec2 v_NDC;
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 FragVelocity;
 
 const float PI = 3.14159265359;
 
@@ -43,4 +44,8 @@ void main()
 
     vec3 col = texture(u_Equirect, dirToEquirect(dir)).rgb * u_Intensity;
     FragColor = vec4(col, 1.0);
+
+    // Sky is at infinity, so camera translation moves it not at all. Only rotation would,
+    // and the resolve reprojects sky by depth anyway — this just keeps the attachment defined.
+    FragVelocity = vec4(0.0);
 }

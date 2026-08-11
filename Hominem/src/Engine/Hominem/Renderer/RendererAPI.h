@@ -64,6 +64,9 @@ namespace Hominem {
 		/// Enables or disables back-face culling.
 		virtual void SetCullFaceEnabled(bool enabled) = 0;
 
+		/// Toggles writes to a single MRT attachment.
+		virtual void SetColorMask(uint32_t attachment, bool enabled) = 0;
+
 		/// Enables or disables the scissor test.
 		virtual void SetScissorEnabled(bool enabled) = 0;
 

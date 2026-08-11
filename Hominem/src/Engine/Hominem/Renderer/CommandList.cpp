@@ -177,6 +177,11 @@ void CommandList::SetCullFaceEnabled(bool enabled)
     m_Cmds.push_back(Cmd::SetCullFaceEnabled{ enabled });
 }
 
+void CommandList::SetColorMask(uint32_t attachment, bool enabled)
+{
+    m_Cmds.push_back(Cmd::SetColorMask{ attachment, enabled });
+}
+
 void CommandList::Invoke(std::function<void()> fn)
 {
     m_Cmds.push_back(Cmd::Invoke{ std::move(fn) });
@@ -272,6 +277,8 @@ void CommandList::Submit()
                 m_API->MultiDrawElementsIndirect(c.byteOffset, c.drawCount, c.stride);
             else if constexpr (std::is_same_v<T, Cmd::SetCullFaceEnabled>)
                 m_API->SetCullFaceEnabled(c.enabled);
+            else if constexpr (std::is_same_v<T, Cmd::SetColorMask>)
+                m_API->SetColorMask(c.attachment, c.enabled);
             else if constexpr (std::is_same_v<T, Cmd::Invoke>)
                 c.fn();
         }, cmd);

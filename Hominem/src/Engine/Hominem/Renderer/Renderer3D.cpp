@@ -251,6 +251,10 @@ Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandLi
         ubo.ScreenWidth      = useW;
         ubo.DebugMode         = RenderSettings::DebugHeatmap ? 1 : 0;
         ubo.AreaLightsEnabled = RenderSettings::AreaLights   ? 1 : 0;
+        // Velocity is the difference between these two, so both must be jitter-free —
+        // otherwise the per-frame sample offset reads as motion and cancels the accumulation.
+        ubo.ViewProjectionUnjittered = frame.viewProjection3DUnjittered;
+        ubo.PrevViewProjection       = frame.prevViewProjection3D;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
@@ -308,13 +312,17 @@ static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const Renderer
     cmd.SetFloat(shader, "u_DDGIIntensity", scene.DDGI.intensity);
 }
 
-void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene)
+void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+                                  const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
     const Material& mat0 = mesh.GetMaterial();
 
     if (RenderSettings::DrawBoneWeights && s_Data->BoneWeightShader)
     {
+        // Debug shader writes no velocity — mask the attachment so it keeps whatever the
+        // scene put there rather than undefined values.
+        cmd.SetColorMask(1, false);
         // Light culling overwrites bindings 3 and 4 — restore the mesh SSBOs before drawing.
         mesh.DispatchSkinning({}, cmd);
         cmd.BindShader(s_Data->BoneWeightShader);
@@ -323,6 +331,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
         cmd.SetFloat4(s_Data->BoneWeightShader, "u_Color", glm::vec4(1.f));
         cmd.SetInt  (s_Data->BoneWeightShader, "gDisplayBoneIndex", RenderSettings::DisplayBoneIndex);
         mesh.Render(s_Data->BoneWeightShader, cmd);
+        cmd.SetColorMask(1, true);
         s_DrawCalls += mesh.GetSubmeshCount();
         s_Triangles += mesh.GetIndexCount() / 3;
         return;
@@ -346,6 +355,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     cmd.BindShader(shader);
     cmd.SetInt (shader, "u_Albedo", 0);
     cmd.SetMat4(shader, "u_Model", transform);
+    cmd.SetMat4(shader, "u_PrevM", prevTransform ? *prevTransform : transform);
     BindDDGI(cmd, shader, scene);
     const Material& mat = mat0;
     cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
@@ -370,14 +380,17 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
 
     if (RenderSettings::DrawNormals && s_Data->NormalsSkinnedShader)
     {
+        cmd.SetColorMask(1, false); // no velocity output on the debug shader
         cmd.BindShader(s_Data->NormalsSkinnedShader);
         cmd.SetMat4 (s_Data->NormalsSkinnedShader, "u_Model", transform);
         cmd.SetFloat(s_Data->NormalsSkinnedShader, "u_NormalLength", RenderSettings::NormalLength);
         mesh.Render(s_Data->NormalsSkinnedShader, cmd);
+        cmd.SetColorMask(1, true);
     }
 }
 
-void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene)
+void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+                                 const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
 
@@ -431,7 +444,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
     cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
     cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
 
-    auto [calls, tris] = mesh.Draw(shader, transform, cmd, &scene.CameraFrustum);
+    auto [calls, tris] = mesh.Draw(shader, transform, cmd, &scene.CameraFrustum, prevTransform);
     s_DrawCalls   += calls;
     s_Triangles   += tris;
     uint32_t total = static_cast<uint32_t>(mesh.GetDrawGroupCount());
@@ -440,9 +453,11 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
 
     if (RenderSettings::DrawNormals && s_Data->NormalsShader)
     {
+        cmd.SetColorMask(1, false); // no velocity output on the debug shader
         cmd.BindShader(s_Data->NormalsShader);
         cmd.SetFloat(s_Data->NormalsShader, "u_NormalLength", RenderSettings::NormalLength);
         mesh.Draw(s_Data->NormalsShader, transform, cmd);
+        cmd.SetColorMask(1, true);
     }
 
     if (RenderSettings::DrawAABB && s_Data->DebugAABBShader)

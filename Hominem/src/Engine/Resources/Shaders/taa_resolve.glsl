@@ -28,15 +28,18 @@ out vec4 FragColor;
 uniform sampler2D u_Current;
 uniform sampler2D u_History;
 uniform sampler2D u_Depth;
+uniform sampler2D u_Velocity;  // hdr attachment 1, RG = UV-space motion
 
 uniform vec4  u_TexelSize;     // xy = 1/resolution, zw = resolution
 uniform mat4  u_InvViewProj;   // this frame, unjittered
 uniform mat4  u_PrevViewProj;  // last frame, unjittered
 uniform float u_Feedback;      // history weight; 0 = passthrough
 uniform int   u_DebugView;     // 0 off, 1 reprojection offset, 2 clamped history
+uniform int   u_UseVelocity;   // 0 falls back to camera-only reprojection from depth
 
-// Where this pixel's surface sat on last frame's screen. Exact for anything that did not
-// move in world space; wrong for anything that did, until velocity lands in stage 4.
+// Camera-only reprojection: where this pixel's *point in space* sat on last frame's screen.
+// Identical to the velocity buffer for anything that did not move in world space, and wrong
+// for anything that did. The fallback when the velocity buffer is off.
 vec2 Reproject(vec2 uv, float depth)
 {
     vec4 ndc   = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
@@ -58,9 +61,21 @@ void main()
         return;
     }
 
-    // Sky sits on the cleared far plane, where Reproject's perspective divide degenerates.
-    vec2 prevUV = (depth >= 1.0) ? v_UV : Reproject(v_UV, depth);
+    // Hoisted out of the branch below: texture() picks its LOD from quad derivatives, which
+    // are undefined for lanes that branched away.
+    vec2 velocity = texture(u_Velocity, v_UV).rg;
 
+    // Sky sits on the cleared far plane: Reproject's perspective divide degenerates there,
+    // and being at infinity it doesn't move under camera translation anyway.
+    vec2 prevUV;
+    if (depth >= 1.0)
+        prevUV = v_UV;
+    else if (u_UseVelocity != 0)
+        prevUV = v_UV - velocity;
+    else
+        prevUV = Reproject(v_UV, depth);
+
+    // Motion in pixels, scaled so a 10px/frame move reads as full intensity.
     if (u_DebugView == 1)
     {
         FragColor = vec4(abs(v_UV - prevUV) * u_TexelSize.zw * 0.1, 0.0, 1.0);

@@ -80,6 +80,9 @@ namespace Hominem {
         const uint32_t maxGroups = std::max((uint32_t)m_DrawGroups.size(), 1u);
         glCreateBuffers(1, &m_ModelMatrixSSBO);
         glNamedBufferData(m_ModelMatrixSSBO, (GLsizeiptr)(maxGroups * sizeof(glm::mat4)), nullptr, GL_DYNAMIC_DRAW);
+
+        glCreateBuffers(1, &m_PrevModelSSBO);
+        glNamedBufferData(m_PrevModelSSBO, (GLsizeiptr)(maxGroups * sizeof(glm::mat4)), nullptr, GL_DYNAMIC_DRAW);
         glCreateBuffers(1, &m_DrawCommandBuffer);
         glNamedBufferData(m_DrawCommandBuffer, (GLsizeiptr)(maxGroups * 5 * sizeof(uint32_t)), nullptr, GL_DYNAMIC_DRAW);
     }
@@ -99,7 +102,8 @@ namespace Hominem {
     }
 
     std::pair<uint32_t, uint64_t> OpenGLStaticMesh::Draw(
-        const Ref<Shader>& shader, const glm::mat4& actorTransform, CommandList& cmd, const Frustum* frustum)
+        const Ref<Shader>& shader, const glm::mat4& actorTransform, CommandList& cmd,
+        const Frustum* frustum, const glm::mat4* prevActorTransform)
     {
         HMN_PROFILE_FUNCTION();
         if (!m_VAO || m_DrawGroups.empty()) return { 0, 0 };
@@ -121,11 +125,15 @@ namespace Hominem {
             uint32_t         tris;
         };
         thread_local static std::vector<glm::mat4> tl_matrices;
+        thread_local static std::vector<glm::mat4> tl_prevMatrices;
         thread_local static std::vector<DrawCmd>   tl_cmds;
         thread_local static std::vector<BatchInfo> tl_batches;
-        tl_matrices.clear(); tl_matrices.reserve(m_DrawGroups.size());
-        tl_cmds.clear();     tl_cmds.reserve(m_DrawGroups.size());
-        tl_batches.clear();  tl_batches.reserve(m_DrawGroups.size());
+        tl_matrices.clear();     tl_matrices.reserve(m_DrawGroups.size());
+        tl_prevMatrices.clear(); tl_prevMatrices.reserve(m_DrawGroups.size());
+        tl_cmds.clear();         tl_cmds.reserve(m_DrawGroups.size());
+        tl_batches.clear();      tl_batches.reserve(m_DrawGroups.size());
+
+        const glm::mat4& prevActor = prevActorTransform ? *prevActorTransform : actorTransform;
 
         for (const auto& group : m_DrawGroups)
         {
@@ -134,6 +142,7 @@ namespace Hominem {
                 continue;
 
             tl_matrices.push_back(model);
+            tl_prevMatrices.push_back(prevActor * group.NodeTransform);
             tl_cmds.push_back({
                 group.IndexCount,
                 1u,
@@ -155,6 +164,10 @@ namespace Hominem {
         cmd.UpdateBufferSubData(m_ModelMatrixSSBO, tl_matrices.data(),
             (uint32_t)(tl_matrices.size() * sizeof(glm::mat4)), 0);
         cmd.BindShaderStorageBufferBase(m_ModelMatrixSSBO, 5);
+
+        cmd.UpdateBufferSubData(m_PrevModelSSBO, tl_prevMatrices.data(),
+            (uint32_t)(tl_prevMatrices.size() * sizeof(glm::mat4)), 0);
+        cmd.BindShaderStorageBufferBase(m_PrevModelSSBO, 6);
 
         // Upload all draw commands.
         cmd.UpdateBufferSubData(m_DrawCommandBuffer, tl_cmds.data(),
@@ -218,6 +231,7 @@ namespace Hominem {
         if (m_VBO)               { glDeleteBuffers(1, &m_VBO);                m_VBO               = 0; }
         if (m_IBO)               { glDeleteBuffers(1, &m_IBO);                m_IBO               = 0; }
         if (m_ModelMatrixSSBO)   { glDeleteBuffers(1, &m_ModelMatrixSSBO);    m_ModelMatrixSSBO   = 0; }
+        if (m_PrevModelSSBO)     { glDeleteBuffers(1, &m_PrevModelSSBO);      m_PrevModelSSBO     = 0; }
         if (m_DrawCommandBuffer) { glDeleteBuffers(1, &m_DrawCommandBuffer);  m_DrawCommandBuffer = 0; }
     }
 }

@@ -144,7 +144,8 @@ namespace Hominem {
 	void OpenGLSkinnedMesh::CreateComputeSSBOs()
 	{
 		// Reset existing SSBOs before recreating (safe on reload - Ref<> drops the old GL object).
-		m_InPosSSBO = m_InNormSSBO = m_InBoneDataSSBO = m_BoneSSBO = m_OutPosSSBO = m_OutNormSSBO = nullptr;
+		m_InPosSSBO = m_InNormSSBO = m_InBoneDataSSBO = m_BoneSSBO = m_OutNormSSBO = nullptr;
+		m_OutPosSSBO[0] = m_OutPosSSBO[1] = nullptr;
 
 		uint32_t vertCount = static_cast<uint32_t>(m_Positions.size());
 		uint32_t boneCount = static_cast<uint32_t>(m_Skeleton.GetNumBones());
@@ -178,8 +179,11 @@ namespace Hominem {
 		m_BoneSSBO->SetData(identityMats.data(), boneMatrixBytes);
 
 		// Initialised with rest-pose so no-animation renders correctly without a dispatch.
-		m_OutPosSSBO = StorageBuffer::Create(vertBytes);
-		m_OutPosSSBO->SetData(pos4.data(), vertBytes);
+		for (auto& buf : m_OutPosSSBO)
+		{
+			buf = StorageBuffer::Create(vertBytes);
+			buf->SetData(pos4.data(), vertBytes);
+		}
 
 		m_OutNormSSBO = StorageBuffer::Create(vertBytes);
 		m_OutNormSSBO->SetData(norm4.data(), vertBytes);
@@ -192,10 +196,15 @@ namespace Hominem {
 	{
 		if (!m_VAO || !m_ComputeShader || !m_InBoneDataSSBO) return;
 
+		// Skinning writes the buffer the draw then reads, so the swap has to happen before
+		// the dispatch: what was current becomes the previous frame's positions.
+		if (!bones.empty()) m_SkinPosIdx ^= 1u;
+
 		// Always bind outputs and bone data so vertex + bone-weight shaders can read them.
-		cmd.BindStorageBufferBase(m_InBoneDataSSBO, 3);
-		cmd.BindStorageBufferBase(m_OutPosSSBO,     4);
-		cmd.BindStorageBufferBase(m_OutNormSSBO,    5);
+		cmd.BindStorageBufferBase(m_InBoneDataSSBO,          3);
+		cmd.BindStorageBufferBase(m_OutPosSSBO[m_SkinPosIdx], 4);
+		cmd.BindStorageBufferBase(m_OutNormSSBO,             5);
+		cmd.BindStorageBufferBase(m_OutPosSSBO[m_SkinPosIdx ^ 1u], 6);
 
 		if (bones.empty()) return;
 

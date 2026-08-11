@@ -150,6 +150,12 @@ namespace Hominem {
 		else         glDisable(GL_CULL_FACE);
 	}
 
+	void OpenGLRendererAPI::SetColorMask(uint32_t attachment, bool enabled)
+	{
+		const GLboolean m = enabled ? GL_TRUE : GL_FALSE;
+		glColorMaski(attachment, m, m, m, m);
+	}
+
 	void OpenGLRendererAPI::SetScissorEnabled(bool enabled)
 	{
 		if (enabled) glEnable(GL_SCISSOR_TEST);

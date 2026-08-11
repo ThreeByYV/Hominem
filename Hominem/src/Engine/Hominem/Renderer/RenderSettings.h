@@ -25,6 +25,7 @@ namespace Hominem {
 
 		// Temporal AA
 		static inline bool  TAA            = true;
+		static inline bool  TAAVelocity    = true;  // off = camera-only reprojection from depth
 		static inline float TAAFeedback    = 0.9f;  // history weight; higher = more samples, more ghosting
 		static inline float TAAJitterScale = 1.0f;  // 0 keeps the sample at the pixel centre (no AA)
 		static inline int   TAADebugView   = 0;     // 0 off, 1 reprojection offset, 2 clamped history
