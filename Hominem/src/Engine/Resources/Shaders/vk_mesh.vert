@@ -1,7 +1,7 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
 
-#include "include/scene_common.glsl"
+#include "includes/scene_common.glsl"
 
 struct Vertex
 {
