@@ -221,6 +221,10 @@ namespace Hominem {
 					ui->BuildRenderFrame(frame);
 			}
 
+			// Jitters the camera for TAA. Must run after every layer has contributed and
+			// before Record, which bakes the matrices into the command lists.
+			m_RenderThread.GetSceneRenderer().PrepareTemporal(frame);
+
 			// Record every pass into CommandLists; the render thread only replays them.
 			RecordedFrame recorded;
 			recorded.passCmds       = m_RenderThread.GetSceneRenderer().Record(frame);
@@ -231,7 +235,7 @@ namespace Hominem {
 			recorded.vulkanDDGI         = frame.vulkanDDGI;
 
 			recorded.vulkanView.view      = frame.view3D;
-			recorded.vulkanView.proj      = frame.proj3D;
+			recorded.vulkanView.proj      = frame.proj3DUnjittered; // composites after TAA
 			recorded.vulkanView.cameraPos = frame.cameraWorldPos;
 			recorded.vulkanView.ambient   = frame.light.AmbientColor * frame.light.AmbientIntensity;
 			recorded.vulkanView.lightCount =

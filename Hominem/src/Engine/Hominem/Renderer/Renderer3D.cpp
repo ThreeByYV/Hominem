@@ -56,6 +56,7 @@ void Renderer3D::Init()
     s_Data->ShaderLibrary->Load("engine://Shaders/prefilter_convolve.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/brdf_lut.glsl");
     s_Data->ShaderLibrary->Load("engine://Shaders/vk_blit.glsl");
+    s_Data->ShaderLibrary->Load("engine://Shaders/taa_resolve.glsl");
 
     RenderThread::QueueUpload([] {
         s_Data->BRDFLUT = EnvironmentProbe::BakeBRDFLUT();

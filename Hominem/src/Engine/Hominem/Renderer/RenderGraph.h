@@ -66,6 +66,10 @@ public:
     // Returns a previously declared FBO. May be null before the first valid resize.
     Ref<Framebuffer> GetFBO(const std::string& name);
 
+    // Points an alias name at a real target. Passes declare the alias once; repointing it
+    // between Record() calls swaps what they read and write (the TAA history ping-pong).
+    void SetAlias(std::string alias, std::string target);
+
     // Records all passes into CommandLists. Resets the blackboard at the start
     // of each frame so stale entries never bleed across frames.
     std::vector<CommandList> Record(const RenderFrame& frame);
@@ -98,14 +102,16 @@ public:
     void ResetBlackboard() { m_Blackboard.clear(); }
 
 private:
-    void     OnResize(uint32_t w, uint32_t h);
-    uint32_t ResolveResource(const std::string& name);
+    void        OnResize(uint32_t w, uint32_t h);
+    uint32_t    ResolveResource(const std::string& name);
+    std::string ResolveAlias(const std::string& name) const;
 
     struct Pass     { std::string name; PipelineState state; PassBuilder io; PassFn fn; };
     struct FBOEntry { Ref<Framebuffer> fbo; FramebufferFormat format; float scale = 1.0f; uint32_t numColorAttachments = 1; };
 
-    std::vector<Pass>                         m_Passes;
-    std::unordered_map<std::string, FBOEntry> m_FBOs;
+    std::vector<Pass>                            m_Passes;
+    std::unordered_map<std::string, FBOEntry>    m_FBOs;
+    std::unordered_map<std::string, std::string> m_Aliases;
     std::unordered_map<size_t, std::any>      m_Blackboard;
     uint32_t m_Width       = 0;
     uint32_t m_Height      = 0;

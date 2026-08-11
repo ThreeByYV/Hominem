@@ -23,6 +23,12 @@ namespace Hominem {
 		// Features
 		static inline bool AreaLights = true;
 
+		// Temporal AA
+		static inline bool  TAA            = true;
+		static inline float TAAFeedback    = 0.9f;  // history weight; higher = more samples, more ghosting
+		static inline float TAAJitterScale = 1.0f;  // 0 keeps the sample at the pixel centre (no AA)
+		static inline int   TAADebugView   = 0;     // 0 off, 1 reprojection offset, 2 clamped history
+
 		// Set by the renderer during Init based on GPU detection; read by game code.
 		static inline float RecommendedRenderScale = 1.0f;
 

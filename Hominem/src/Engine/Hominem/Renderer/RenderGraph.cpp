@@ -18,9 +18,23 @@ void RenderGraph::AddFBO(std::string name, FramebufferFormat format, float scale
 	m_FBOs[std::move(name)] = { nullptr, format, scale, numColorAttachments };
 }
 
+void RenderGraph::SetAlias(std::string alias, std::string target)
+{
+	HMN_CORE_ASSERT(m_FBOs.find(target) != m_FBOs.end(),
+		"RenderGraph::SetAlias('{}') — target '{}' was never declared", alias, target);
+	m_Aliases[std::move(alias)] = std::move(target);
+}
+
+std::string RenderGraph::ResolveAlias(const std::string& name) const
+{
+	const auto it = m_Aliases.find(name);
+	return it != m_Aliases.end() ? it->second : name;
+}
+
 Ref<Framebuffer> RenderGraph::GetFBO(const std::string& name)
 {
-	const auto it = m_FBOs.find(name);
+	const std::string& target = ResolveAlias(name);
+	const auto it = m_FBOs.find(target);
 	HMN_CORE_ASSERT(it != m_FBOs.end(),
 		"RenderGraph::GetFBO('{}') — target was never declared", name);
 	return it->second.fbo; // may be null if viewport was 0 and OnResize hasn't fired yet
@@ -88,12 +102,13 @@ uint32_t RenderGraph::ResolveResource(const std::string& name)
 {
 	auto dot = name.find('.');
 	HMN_CORE_ASSERT(dot != std::string::npos,
-		"RenderGraph: resource '{}' missing attachment suffix (.color / .color1)", name);
-	auto fbo = GetFBO(name.substr(0, dot));
+		"RenderGraph: resource '{}' missing attachment suffix (.color / .color1 / .depth)", name);
+	auto fbo = GetFBO(name.substr(0, dot)); // resolves aliases
 	if (!fbo) return 0;
 	auto suffix = name.substr(dot + 1);
 	if (suffix == "color")  return fbo->GetColorAttachmentRendererID(0);
 	if (suffix == "color1") return fbo->GetColorAttachmentRendererID(1);
+	if (suffix == "depth")  return fbo->GetDepthAttachmentRendererID();
 	HMN_CORE_ASSERT(false, "RenderGraph: unknown attachment suffix '{}' in '{}'", suffix, name);
 	return 0;
 }
