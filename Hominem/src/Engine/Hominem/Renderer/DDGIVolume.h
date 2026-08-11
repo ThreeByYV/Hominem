@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "Hominem/Core/Log.h"
+
 #include <cmath>
 #include <cstdint>
 #include <random>
@@ -42,17 +44,39 @@ struct DDGIVolumeDesc
      * by a fixed probe count; counts derive from the padded bounds.
      */
     static DDGIVolumeDesc FitToBounds(glm::vec3 aabbMin, glm::vec3 aabbMax,
-                                      float targetSpacing, int paddingProbes = 1)
+                                      float targetSpacing, int paddingProbes = 1,
+                                      int maxProbes = 8192)
     {
-        const glm::vec3 pad     = glm::vec3(targetSpacing * (float)paddingProbes);
-        const glm::vec3 paddedMin = aabbMin - pad;
-        const glm::vec3 paddedMax = aabbMax + pad;
-        const glm::vec3 extent  = paddedMax - paddedMin;
+        // Counts follow from spacing, so a large volume at a fine spacing has no upper
+        // bound - and every probe traces probeNumRays rays through the whole TLAS every
+        // frame. Fitting a 40x30x55 m building at 1.25 m gives 45k probes and ~2.9M rays
+        // per frame, which hangs the GPU outright rather than merely running slowly.
+        // Coarsen until the total fits: worse GI density beats not rendering.
+        float spacing       = targetSpacing;
+        int   requestedCount = 0;
 
         DDGIVolumeDesc desc;
-        desc.probeCounts  = glm::max(glm::ivec3(glm::ceil(extent / targetSpacing)) + 1, glm::ivec3(2));
-        desc.origin       = (paddedMin + paddedMax) * 0.5f;
-        desc.probeSpacing = extent / glm::vec3(desc.probeCounts - 1);
+        for (;;)
+        {
+            const glm::vec3 pad       = glm::vec3(spacing * (float)paddingProbes);
+            const glm::vec3 paddedMin = aabbMin - pad;
+            const glm::vec3 paddedMax = aabbMax + pad;
+            const glm::vec3 extent    = paddedMax - paddedMin;
+
+            desc.probeCounts  = glm::max(glm::ivec3(glm::ceil(extent / spacing)) + 1, glm::ivec3(2));
+            desc.origin       = (paddedMin + paddedMax) * 0.5f;
+            desc.probeSpacing = extent / glm::vec3(desc.probeCounts - 1);
+
+            if (requestedCount == 0) requestedCount = desc.NumProbes();
+
+            if (desc.NumProbes() <= maxProbes || desc.probeCounts == glm::ivec3(2))
+                break;
+            spacing *= 1.25f;
+        }
+
+        if (spacing > targetSpacing)
+            HMN_CORE_WARN("DDGI: {0} probes at {1:.2f} m exceeds the {2} budget - coarsened to {3} probes at {4:.2f} m",
+                          requestedCount, targetSpacing, maxProbes, desc.NumProbes(), spacing);
         return desc;
     }
 };
