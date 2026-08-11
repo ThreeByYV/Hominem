@@ -110,13 +110,37 @@ VulkanAllocatedImage VulkanImage::CreateShared(VkDevice device, VkPhysicalDevice
     };
     VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &img.image));
 
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(device, img.image, &memReqs);
+    // Drivers differ on whether an external-memory image needs its own allocation -
+    // Intel demands it, NVIDIA doesn't - so ask rather than assume.
+    const VkImageMemoryRequirementsInfo2 reqInfo
+    {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+        .image = img.image,
+    };
+    VkMemoryDedicatedRequirements dedicatedReqs
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+    };
+    VkMemoryRequirements2 memReqs2
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = &dedicatedReqs,
+    };
+    vkGetImageMemoryRequirements2(device, &reqInfo, &memReqs2);
+
+    const VkMemoryRequirements& memReqs = memReqs2.memoryRequirements;
     img.memorySize = memReqs.size;
 
+    const VkMemoryDedicatedAllocateInfo dedicatedInfo
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+        .image = img.image,
+    };
     const VkExportMemoryAllocateInfo exportInfo
     {
         .sType       = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+        .pNext       = (dedicatedReqs.requiresDedicatedAllocation ||
+                        dedicatedReqs.prefersDedicatedAllocation) ? &dedicatedInfo : nullptr,
         .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
     };
     const VkMemoryAllocateInfo allocInfo

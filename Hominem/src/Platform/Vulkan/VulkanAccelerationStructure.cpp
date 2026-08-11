@@ -41,12 +41,31 @@ void CreateAccelStorage(VmaAllocator allocator, VkDeviceSize size, VkBuffer& out
     VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &outBuffer, &outAlloc, nullptr));
 }
 
-ScratchBuffer CreateScratch(VkDevice device, VmaAllocator allocator, VkDeviceSize size)
+VkDeviceSize ScratchAlignment(VkPhysicalDevice physical)
 {
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps
+    {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR,
+    };
+    VkPhysicalDeviceProperties2 props2
+    {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &accelProps,
+    };
+    vkGetPhysicalDeviceProperties2(physical, &props2);
+    return std::max<VkDeviceSize>(accelProps.minAccelerationStructureScratchOffsetAlignment, 1);
+}
+
+ScratchBuffer CreateScratch(VkDevice device, VmaAllocator allocator, VkDeviceSize size,
+                            VkDeviceSize alignment)
+{
+    // Over-allocated by one alignment so the address can be rounded up. VMA guarantees
+    // nothing about where a buffer lands, and the build rejects a misaligned scratch
+    // address - drivers whose allocations happen to come back aligned hide this.
     const VkBufferCreateInfo bufferInfo
     {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size  = size,
+        .size  = size + alignment,
         .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
     };
     const VmaAllocationCreateInfo allocInfo
@@ -55,7 +74,7 @@ ScratchBuffer CreateScratch(VkDevice device, VmaAllocator allocator, VkDeviceSiz
     };
     ScratchBuffer scratch;
     VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &scratch.buffer, &scratch.alloc, nullptr));
-    scratch.address = BufferAddress(device, scratch.buffer);
+    scratch.address = (BufferAddress(device, scratch.buffer) + alignment - 1) & ~(alignment - 1);
     return scratch;
 }
 
@@ -140,7 +159,8 @@ VkAccelerationStructureKHR VulkanAccelerationStructure::BuildMeshBlas(
     };
     VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &blas.handle));
 
-    const ScratchBuffer scratch = CreateScratch(device, allocator, sizes.buildScratchSize);
+    const ScratchBuffer scratch = CreateScratch(device, allocator, sizes.buildScratchSize,
+                                                ScratchAlignment(renderer.GetPhysical()));
 
     buildInfo.dstAccelerationStructure  = blas.handle;
     buildInfo.scratchData.deviceAddress = scratch.address;
@@ -266,7 +286,8 @@ void VulkanAccelerationStructure::BuildTlas(
     };
     VK_CHECK(vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &tlas.handle));
 
-    const ScratchBuffer scratch = CreateScratch(device, allocator, sizes.buildScratchSize);
+    const ScratchBuffer scratch = CreateScratch(device, allocator, sizes.buildScratchSize,
+                                                ScratchAlignment(renderer.GetPhysical()));
 
     buildInfo.dstAccelerationStructure  = tlas.handle;
     buildInfo.scratchData.deviceAddress = scratch.address;
