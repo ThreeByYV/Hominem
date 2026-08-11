@@ -1,8 +1,8 @@
 #version 460
 #extension GL_EXT_buffer_reference : require
 
-#include "include/ddgi_common.glsl"
-#include "include/scene_common.glsl"
+#include "includes/ddgi_common.glsl"
+#include "includes/scene_common.glsl"
 
 struct Vertex
 {

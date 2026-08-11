@@ -4,8 +4,8 @@
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-#include "include/ddgi_common.glsl"
-#include "include/scene_common.glsl"
+#include "includes/ddgi_common.glsl"
+#include "includes/scene_common.glsl"
 
 layout(local_size_x = 64) in;
 
