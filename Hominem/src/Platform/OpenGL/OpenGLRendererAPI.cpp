@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLRendererAPI.h"
+#include "Hominem/Renderer/RenderSettings.h"
 
 #include <glad/glad.h>
 
@@ -9,7 +10,7 @@ namespace Hominem {
 	{
 #ifdef HMN_DEBUG
 		glEnable(GL_DEBUG_OUTPUT);
-		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // callback fires on the offending thread before the call returns — allows stack traces in debugger
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); // callback fires on the offending thread before the call returns - allows stack traces in debugger
 
 		glDebugMessageCallback([](GLenum source, GLenum type, GLuint id,
 		                          GLenum severity, GLsizei, const GLchar* message,
@@ -18,7 +19,7 @@ namespace Hominem {
 			// Suppress noisy NVIDIA driver bookkeeping messages that carry no actionable info
 			if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
 			if (severity == GL_DEBUG_SEVERITY_NOTIFICATION) return;
-			if (id == 2) return; // API_ID_RECOMPILE_FRAGMENT_SHADER — one-time per format pair
+			if (id == 2) return; // API_ID_RECOMPILE_FRAGMENT_SHADER - one-time per format pair
 
 			auto srcStr = [source]() -> const char* {
 				switch (source) {
@@ -68,9 +69,20 @@ namespace Hominem {
 			switch (severity)
 			{
 				case GL_DEBUG_SEVERITY_HIGH:
-					HMN_CORE_ERROR("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
-					HMN_CORE_ASSERT(false, "OpenGL high-severity error — see log above");
+				{
+					// Not fatal by default: drivers differ in strictness, and on a hybrid
+					// laptop the context can land on either GPU between runs. Intel reports
+					// calls NVIDIA silently accepts, so a hard assert here turns "ran on the
+					// other GPU today" into "won't start". Each id is logged once - set
+					// RenderSettings::StrictGLErrors to break on the offending call instead
+					// (debug output is synchronous, so the stack names it).
+					static std::unordered_set<GLuint> s_Reported;
+					if (s_Reported.insert(id).second)
+						HMN_CORE_ERROR("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
+					HMN_CORE_ASSERT(!RenderSettings::StrictGLErrors,
+					                "OpenGL high-severity error - see log above");
 					break;
+				}
 				case GL_DEBUG_SEVERITY_MEDIUM:
 					HMN_CORE_WARN("[OpenGL] ({}) {} id={}: {}", srcStr, typeStr, idBuf, message);
 					break;

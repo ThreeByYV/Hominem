@@ -23,7 +23,20 @@ namespace Hominem {
 		// Features
 		static inline bool AreaLights = true;
 
-		// Temporal AA. Feedback min/max are Playdead's shipped values — history weight is
+		/// Turns high-severity GL errors back into a hard assert. Off by default so a
+		/// stricter driver than the one you develop on can't stop the app from starting.
+		static inline bool StrictGLErrors = false;
+
+		/// Forces the ray tracing path off even where the device supports it, taking DDGI
+		/// with it. Read once during Vulkan device creation, so set it before the
+		/// Application is constructed - it does nothing at runtime.
+		static inline bool RayTracing = true;
+
+		/// Integrated GPUs are excluded from ray tracing on throughput grounds, not
+		/// capability. Set this to test the path on one anyway; expect seconds per frame.
+		static inline bool RayTracingOnIntegrated = false;
+
+		// Temporal AA. Feedback min/max are Playdead's shipped values - history weight is
 		// interpolated between them by how much the pixel's luminance is changing.
 		static inline bool  TAA             = true;
 		static inline bool  TAAVelocity     = true;  // off = camera-only reprojection from depth
