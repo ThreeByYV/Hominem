@@ -45,7 +45,13 @@ namespace Hominem {
 			s_IsGLFWInitialized = true;
 		}
 
+		// Created hidden: the render thread needs a few seconds for Vulkan device creation
+		// and shader compilation before it can present, and a mapped window with nothing
+		// drawn into it shows as a white rectangle. Application shows it after the first
+		// frame reaches the screen.
+		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 		m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
+		glfwDefaultWindowHints();
 
 		m_Context = new OpenGLContext(m_Window);
 		m_Context->Init();
@@ -154,7 +160,7 @@ namespace Hominem {
 
 	void WindowsWindow::OnUpdate()
 	{
-		// SwapBuffers moved to RenderThread — only poll events here.
+		// SwapBuffers moved to RenderThread - only poll events here.
 		glfwPollEvents();
 	}
  
@@ -190,9 +196,14 @@ namespace Hominem {
 			glfwSetWindowMonitor(m_Window, nullptr, m_WindowedX, m_WindowedY, m_WindowedWidth, m_WindowedHeight, 0);
 		}
 
-		// VSync (glfwSwapInterval) must be restored on the render thread — caller is responsible.
+		// VSync (glfwSwapInterval) must be restored on the render thread - caller is responsible.
 	}
 
+
+	void WindowsWindow::Show()
+	{
+		glfwShowWindow(m_Window);
+	}
 
 	void WindowsWindow::Hide()
 	{

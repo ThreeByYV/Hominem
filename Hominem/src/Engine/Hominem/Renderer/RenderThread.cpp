@@ -97,6 +97,7 @@ void RenderThread::ThreadFunc()
 		m_ConsumedCV.notify_one();
 
 		glfwSwapBuffers(m_Window);
+		m_FramePresented.store(true, std::memory_order_release);
 	}
 
 	m_Renderer.Shutdown();

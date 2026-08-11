@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <condition_variable>
 #include <vector>
 #include <source_location>
@@ -35,7 +36,7 @@ namespace Hominem {
 			std::source_location loc = std::source_location::current())
 		{
 			HMN_CORE_ASSERT(IsOnRenderThread(),
-				"GL call '{}' made outside the render thread — will crash without a current context!",
+				"GL call '{}' made outside the render thread - will crash without a current context!",
 				loc.function_name());
 		}
 
@@ -43,6 +44,10 @@ namespace Hominem {
 
 		VulkanHandle CreateVulkanRenderTarget(uint32_t w, uint32_t h);
 		VulkanHandle CreateVulkanStorageBuffer(uint32_t capacity);
+
+		/// True once something has actually reached the screen. Window visibility is gated
+		/// on this - GLFW only allows showing from the main thread, so it polls instead.
+		bool HasPresentedFrame() const { return m_FramePresented.load(std::memory_order_acquire); }
 
 		void WaitIdle();
 		void WaitImGuiConsumed();
@@ -66,6 +71,8 @@ namespace Hominem {
 		std::mutex              m_InitMutex;
 		std::condition_variable m_InitCV;
 		bool                    m_Initialized = false;
+
+		std::atomic<bool>       m_FramePresented { false };
 
 		RecordedFrame           m_Frame;
 		bool                    m_Consumed = true;

@@ -39,12 +39,12 @@ namespace Hominem {
 		HMN_CORE_INFO("VFS: engine path from source define");
 #else
 		VFS::Mount("engine", "EngineResources/");
-		HMN_CORE_WARN("VFS: HMN_ENGINE_RESOURCES_PATH not set — relying on post-build copy");
+		HMN_CORE_WARN("VFS: HMN_ENGINE_RESOURCES_PATH not set - relying on post-build copy");
 #endif
 		VFS::Mount("game", "Resources/");
 
 #ifdef HMN_PLATFORM_WINDOWS
-		// Default Windows timer resolution is 15.6ms — sleep_for snaps to that quantum.
+		// Default Windows timer resolution is 15.6ms - sleep_for snaps to that quantum.
 		// 1ms resolution makes the frame limiter sleep accurate to ~1ms.
 		timeBeginPeriod(1);
 #endif
@@ -76,6 +76,10 @@ namespace Hominem {
 		{
 			HMN_CORE_INFO("AudioSystem initialized successfully");
 		}
+
+		// Audio is silenced until the first frame reaches the screen.
+		m_StartupVolume = m_AudioSystem.GetMasterVolume();
+		m_AudioSystem.SetMasterVolume(0.f);
 
 		auto imGuiLayer = std::make_unique<ImGuiLayer>();
 		m_ImGuiLayer = imGuiLayer.get();
@@ -144,18 +148,46 @@ namespace Hominem {
 
 	void Application::Run()
 	{
-		// Hand the GL context to the render thread — all GL calls happen there from now on.
+		// Hand the GL context to the render thread - all GL calls happen there from now on.
 		auto* nativeWindow = static_cast<GLFWwindow*>(m_Window->GetNativeWindow());
 		glfwMakeContextCurrent(nullptr); // release from main thread
 		m_RenderThread.Start(nativeWindow, m_Window->GetWidth(), m_Window->GetHeight());
+
+		// The window is created hidden so startup doesn't show a white rectangle while the
+		// render thread builds devices and compiles shaders. Audio comes up a beat after
+		// it, so the first thing heard lands against something visible.
+		constexpr auto k_AudioDelayAfterShow = std::chrono::milliseconds(1000);
+
+		bool windowShown  = false;
+		bool audioStarted = false;
+		std::chrono::steady_clock::time_point audioStartAt;
+		const auto showDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
 		while (m_Running)
 		{
 			HMN_PROFILE_FRAME("MainThread");
 
+			const auto now = std::chrono::steady_clock::now();
+
+			if (!windowShown && (m_RenderThread.HasPresentedFrame() || now > showDeadline))
+			{
+				m_Window->Show();
+				windowShown  = true;
+				audioStartAt = now + k_AudioDelayAfterShow;
+			}
+
+			if (windowShown && !audioStarted && now >= audioStartAt)
+			{
+				// Muting during the silent phase captures 0 as the pre-mute level, so hand
+				// the real one over instead of unmuting to silence later.
+				if (m_Muted) m_VolumeBeforeMute = m_StartupVolume;
+				else         m_AudioSystem.SetMasterVolume(m_StartupVolume);
+				audioStarted = true;
+			}
+
 			if (m_Minimized)
 			{
-				// Window is minimized — nothing to render or update.
+				// Window is minimized - nothing to render or update.
 				// Block until a window event wakes us so we use ~0% CPU.
 				glfwWaitEvents();
 				continue;
@@ -163,7 +195,7 @@ namespace Hominem {
 
 			float time      = (float)glfwGetTime();
 			// Clamp: a stall (asset load, window drag, breakpoint, OS scheduling) must not
-			// hand layers a huge dt — that skips animations and can blow up physics contacts.
+			// hand layers a huge dt - that skips animations and can blow up physics contacts.
 			constexpr float kMaxFrameTime = 1.0f / 20.0f;
 			Timestep timestep = std::min(time - m_LastFrameTime, kMaxFrameTime);
 			m_LastFrameTime = time;
@@ -206,7 +238,7 @@ namespace Hominem {
 			m_ImGuiLayer->Begin();
 			for (auto& layer : m_LayerStack)
 				layer->OnImGuiRender();
-			m_ImGuiLayer->End();       // ImGui::Render() — writes draw data
+			m_ImGuiLayer->End();       // ImGui::Render() - writes draw data
 			m_RenderThread.SignalImGuiReady();
 
 			// Collect draw commands
@@ -249,7 +281,7 @@ namespace Hominem {
 
 			m_RenderThread.Submit(std::move(recorded));
 
-			m_Window->OnUpdate(); // glfwPollEvents — SwapBuffers moved to render thread
+			m_Window->OnUpdate(); // glfwPollEvents - SwapBuffers moved to render thread
 
 			ProcessPendingTransitions();
 		}
@@ -257,7 +289,7 @@ namespace Hominem {
 		m_Window->Hide(); // hide before teardown to avoid black-flash on close
 		m_RenderThread.Stop();
 
-		// Re-acquire the GL context — render thread released it, but we need it
+		// Re-acquire the GL context - render thread released it, but we need it
 		// for all GL cleanup below (OnDetach, Renderer statics, layer resources).
 		glfwMakeContextCurrent(nativeWindow);
 

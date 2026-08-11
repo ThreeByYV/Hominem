@@ -77,6 +77,7 @@ namespace Hominem {
         std::vector<PendingTransition> m_PendingTransitions;
 
         AudioSystem  m_AudioSystem;
+        float        m_StartupVolume = 1.f; // restored once the window is shown
         RenderThread m_RenderThread;
 
     private:
