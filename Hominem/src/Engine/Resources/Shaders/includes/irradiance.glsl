@@ -13,6 +13,10 @@ vec3 ApplyIrradiance(vec3 N, vec3 V, vec3 albedo, float roughness, float metalne
     vec3 F  = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     vec3 kD = (1.0 - F) * (1.0 - metalness);
 
-    vec3 irradiance = texture(u_IrradianceMap, N).rgb;
+    // Explicit LOD 0. The cubemap is allocated with a full mip chain but the convolve pass
+    // only writes level 0, and texture() picks its level from the derivatives of N - which
+    // a normal map makes vary sharply, sending the sample into mips that were never
+    // written. Nothing to interpolate here anyway: the map is already fully convolved.
+    vec3 irradiance = textureLod(u_IrradianceMap, N, 0.0).rgb;
     return kD * irradiance * albedo * u_EnvMapIntensity;
 }

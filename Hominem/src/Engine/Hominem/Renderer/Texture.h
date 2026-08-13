@@ -37,19 +37,23 @@ namespace Hominem {
 	class TextureCube : public Texture
 	{
 	public:
+		// FullChain is only valid when the caller writes every level. A level that is
+		// allocated but never written is sampled as uninitialised memory.
+		enum class CubeMips { One, FullChain };
+
 		static Ref<TextureCube> Create(const std::array<std::string, 6>& faces);
-		static Ref<TextureCube> CreateEmpty(uint32_t resolution);
+
+		// No default: the caller has to state which, because guessing wrong is silent.
+		static Ref<TextureCube> CreateEmpty(uint32_t resolution, CubeMips mips);
 
 		virtual uint32_t GetRendererID() const = 0;
 
-		// Number of mip levels allocated for a CreateEmpty() cube (full chain down
-		// to 1x1). Valid only after EnsureCreated().
+		// Number of mip levels allocated. Valid only after EnsureCreated().
 		virtual uint32_t GetMipLevels() const = 0;
 
-		// Allocates the GL cubemap storage for a CreateEmpty() texture, including
-		// the full mip chain down to 1x1. Must be called on the render thread
-		// before the texture is used as a render target or sampled. Safe to call
-		// multiple times (no-op if already created).
+		// Allocates the GL cubemap storage for a CreateEmpty() texture. Must be called on
+		// the render thread before the texture is used as a render target or sampled.
+		// Safe to call multiple times (no-op if already created).
 		virtual void EnsureCreated() = 0;
 
 		// Generates a full mip chain from the current face contents (e.g. after
