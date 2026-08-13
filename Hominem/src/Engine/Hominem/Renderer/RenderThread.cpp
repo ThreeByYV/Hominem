@@ -1,6 +1,7 @@
 #include "hmnpch.h"
 #include "RenderThread.h"
 #include "Hominem/Core/Profiler.h"
+#include "Hominem/Renderer/RenderDocCapture.h"
 
 #include <GLFW/glfw3.h>
 
@@ -88,6 +89,8 @@ void RenderThread::ThreadFunc()
 			frame = std::move(m_Frame);
 		}
 
+		RenderDocCapture::BeginFrame();
+
 		ExecuteFrame(frame);
 
 		{
@@ -98,6 +101,8 @@ void RenderThread::ThreadFunc()
 
 		glfwSwapBuffers(m_Window);
 		m_FramePresented.store(true, std::memory_order_release);
+
+		RenderDocCapture::EndFrame();
 	}
 
 	m_Renderer.Shutdown();
