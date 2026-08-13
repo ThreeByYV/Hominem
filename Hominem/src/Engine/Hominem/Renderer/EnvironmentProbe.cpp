@@ -26,7 +26,7 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
 {
     RenderThread::AssertRenderThread();
 
-    auto cube = TextureCube::CreateEmpty(resolution);
+    auto cube = TextureCube::CreateEmpty(resolution, TextureCube::CubeMips::One);
     cube->EnsureCreated();
 
     // Temp FBO + depth renderbuffer
@@ -94,7 +94,7 @@ Ref<TextureCube> EnvironmentProbe::ConvolveIrradiance(const Ref<TextureCube>& so
 {
     RenderThread::AssertRenderThread();
 
-    auto cube = TextureCube::CreateEmpty(resolution);
+    auto cube = TextureCube::CreateEmpty(resolution, TextureCube::CubeMips::One);
     cube->EnsureCreated();
 
     auto shader = Renderer3D::GetShaderLibrary()->Get("irradiance_convolve");
@@ -135,7 +135,7 @@ Ref<TextureCube> EnvironmentProbe::PrefilterSpecular(const Ref<TextureCube>& sou
 {
     RenderThread::AssertRenderThread();
 
-    auto cube = TextureCube::CreateEmpty(resolution);
+    auto cube = TextureCube::CreateEmpty(resolution, TextureCube::CubeMips::FullChain);
     cube->EnsureCreated();
 
     const auto shader = Renderer3D::GetShaderLibrary()->Get("prefilter_convolve");

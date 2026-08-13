@@ -11,9 +11,9 @@ namespace Hominem {
 		return CreateRef<OpenGLTextureCube>(faces);
 	}
 
-	Ref<TextureCube> TextureCube::CreateEmpty(uint32_t resolution)
+	Ref<TextureCube> TextureCube::CreateEmpty(uint32_t resolution, CubeMips mips)
 	{
-		return CreateRef<OpenGLTextureCube>(resolution);
+		return CreateRef<OpenGLTextureCube>(resolution, mips);
 	}
 
 	Ref<Texture2D> Texture2D::Create(uint32_t width, uint32_t height)

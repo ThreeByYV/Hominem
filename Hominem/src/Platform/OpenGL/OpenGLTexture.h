@@ -10,7 +10,7 @@ namespace Hominem {
 	class OpenGLTextureCube : public TextureCube
 	{
 	public:
-		explicit OpenGLTextureCube(uint32_t resolution);
+		OpenGLTextureCube(uint32_t resolution, CubeMips mips);
 
 		explicit OpenGLTextureCube(const std::array<std::string, 6>& faces);
 
@@ -31,6 +31,7 @@ namespace Hominem {
 		mutable uint32_t m_RendererID = 0;
 		uint32_t         m_Resolution = 0;
 		uint32_t         m_MipLevels  = 1;
+		CubeMips         m_Mips       = CubeMips::One;
 	};
 
 	class OpenGLTexture2D : public Texture2D

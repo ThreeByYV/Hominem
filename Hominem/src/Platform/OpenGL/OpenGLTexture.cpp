@@ -8,8 +8,8 @@ namespace Hominem {
 
 	// ---- OpenGLTextureCube ------------------------------------------------
 
-	OpenGLTextureCube::OpenGLTextureCube(uint32_t resolution)
-		: m_Resolution(resolution)
+	OpenGLTextureCube::OpenGLTextureCube(uint32_t resolution, CubeMips mips)
+		: m_Resolution(resolution), m_Mips(mips)
 	{
 		// No GL calls — CreateGL() must be called on the render thread before use.
 	}
@@ -74,7 +74,9 @@ namespace Hominem {
 		if (m_RendererID) return;
 		HMN_CORE_ASSERT(m_Resolution > 0, "OpenGLTextureCube: resolution not set before EnsureCreated");
 
-		m_MipLevels = 1u + (uint32_t)std::floor(std::log2((float)m_Resolution));
+		m_MipLevels = (m_Mips == CubeMips::FullChain)
+		            ? 1u + (uint32_t)std::floor(std::log2((float)m_Resolution))
+		            : 1u;
 
 		glGenTextures(1, &m_RendererID);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, m_RendererID);
@@ -85,7 +87,11 @@ namespace Hominem {
 				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, mip, GL_RGBA16F,
 				             mipRes, mipRes, 0, GL_RGBA, GL_FLOAT, nullptr);
 		}
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		// MAX_LEVEL pins sampling to the levels that exist, so a single-level cube can never
+		// resolve to a mip nobody wrote.
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER,
+		                m_MipLevels > 1 ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, (GLint)m_MipLevels - 1);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
