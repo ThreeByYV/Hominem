@@ -236,6 +236,7 @@ set(VENDOR_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/volk
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/Vulkan-Headers/include
     ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/VulkanMemoryAllocator/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/renderdoc
 )
 
 # Vendor libs compiled without debug info; we never step into them in the debugger

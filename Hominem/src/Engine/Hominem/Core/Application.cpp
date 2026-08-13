@@ -10,6 +10,7 @@
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
+#include "Hominem/Renderer/RenderDocCapture.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include "Hominem/Core/Task.h"
@@ -33,6 +34,10 @@ namespace Hominem {
 	{
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
 		s_Instance = this;
+
+		// Before the window, and so before any graphics context: RenderDoc has to be in
+		// the process when the device is created or it has nothing to hook.
+		RenderDocCapture::Init();
 
 #ifdef HMN_ENGINE_RESOURCES_PATH
 		VFS::Mount("engine", HMN_ENGINE_RESOURCES_PATH "/");
