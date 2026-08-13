@@ -140,9 +140,11 @@ in vec4 v_ClipPrev;
 void main()
 {
     // Written first because main() has several early returns, and an MRT attachment left
-    // unwritten holds undefined values.
-    FragVelocity = vec4((v_ClipCurr.xy / v_ClipCurr.w - v_ClipPrev.xy / v_ClipPrev.w) * 0.5,
-                        0.0, 0.0);
+    // unwritten holds undefined values. The divides are guarded because a zero w on a
+    // vertex behind the eye produces NaN, which then poisons the history it reprojects.
+    vec2 ndcCurr = v_ClipCurr.xy / max(abs(v_ClipCurr.w), 1e-6) * sign(v_ClipCurr.w);
+    vec2 ndcPrev = v_ClipPrev.xy / max(abs(v_ClipPrev.w), 1e-6) * sign(v_ClipPrev.w);
+    FragVelocity = vec4((ndcCurr - ndcPrev) * 0.5, 0.0, 0.0);
 
     vec4 albedoSample = texture(u_Albedo, v_TexCoord);
     vec3 albedo = albedoSample.rgb;
@@ -202,7 +204,10 @@ void main()
     uint numTilesX_t  = (u_ScreenWidth + 15u) / 16u;
     uint tileIdx_t    = (uint(gl_FragCoord.y) / 16u) * numTilesX_t + (uint(gl_FragCoord.x) / 16u);
     uint lightOffset_t = lightGrid[tileIdx_t].offset;
-    uint lightCount_t  = lightGrid[tileIdx_t].count;
+    // Clamped to what the culler guarantees. An out-of-range count walks off the index
+    // list and shades with whatever memory follows, which is near impossible to read back
+    // from the resulting image.
+    uint lightCount_t  = min(lightGrid[tileIdx_t].count, 128u);
     for (uint i = 0u; i < lightCount_t; i++)
     {
         uint  idx_t    = lightIndexList[lightOffset_t + i];
