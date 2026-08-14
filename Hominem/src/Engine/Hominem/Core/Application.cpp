@@ -11,6 +11,7 @@
 #include "Hominem/Core/KeyCodes.h"
 #include "Hominem/Renderer/RenderCommand.h"
 #include "Hominem/Renderer/RenderDocCapture.h"
+#include "Hominem/Renderer/RenderSettings.h"
 #include "Hominem/Renderer/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include "Hominem/Core/Task.h"
@@ -364,6 +365,10 @@ namespace Hominem {
 	void Application::ProcessPendingTransitions()
 	{
 		if (m_PendingTransitions.empty()) return;
+
+		// A layer swap replaces the whole scene, so no pixel of the accumulated TAA history
+		// describes what is about to be drawn.
+		RenderSettings::RequestTAAHistoryReset();
 
 		// Wait for the render thread to finish the last submitted frame to avoid GL_INVALID_OPERATION
 		m_RenderThread.WaitIdle();

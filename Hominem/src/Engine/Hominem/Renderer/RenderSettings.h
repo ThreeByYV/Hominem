@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 namespace Hominem {
@@ -51,6 +52,16 @@ namespace Hominem {
 
 		/// Routes a full shader reload through the render thread. Safe to call from any thread.
 		static void RequestShaderReload();
+
+		/// Drops the accumulated TAA history at the start of the next frame. Call whenever
+		/// the image discontinues - a camera cut, a teleport, a scene swap - or the resolve
+		/// reprojects across the discontinuity and smears the old shot into the new one.
+		/// Consumed by SceneRenderer::PrepareTemporal.
+		static void RequestTAAHistoryReset() { s_TAAHistoryResetPending.store(true, std::memory_order_release); }
+		static bool ConsumeTAAHistoryReset() { return s_TAAHistoryResetPending.exchange(false, std::memory_order_acq_rel); }
+
+	private:
+		static inline std::atomic<bool> s_TAAHistoryResetPending { false };
 	};
 
 }
