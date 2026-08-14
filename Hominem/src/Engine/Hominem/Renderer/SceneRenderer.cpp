@@ -142,6 +142,9 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
     frame.taaJitter                  = glm::vec2(0.f);
     frame.taaReset                   = true;
 
+    if (RenderSettings::ConsumeTAAHistoryReset())
+        m_TAAResetPending = true;
+
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
 
     // Mirrors RenderGraph::OnResize for a scale-1.0 target. Recomputed rather than read

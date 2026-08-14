@@ -38,10 +38,6 @@ public:
     /// on the main thread after every layer has built the frame and before Record().
     void PrepareTemporal(RenderFrame& frame);
 
-    /// Drops the accumulated history. Call on camera cuts — blending across one smears the
-    /// old shot into the new.
-    void ResetTemporalHistory() { m_TAAResetPending = true; }
-
     /// Records every pass into a CommandList per pass. You should call it from the main thread.
     std::vector<CommandList> Record(const RenderFrame& frame);
 

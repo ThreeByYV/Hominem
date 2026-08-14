@@ -1,5 +1,6 @@
 #include "hmnpch.h"
 #include "CinematicCameraController.h"
+#include "Hominem/Renderer/RenderSettings.h"
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Events/ApplicationEvent.h"
 #include <nlohmann/json.hpp>
@@ -87,6 +88,10 @@ namespace Hominem {
     {
         if (m_CameraPosition)
             *m_CameraPosition = m_TargetPosition;
+
+        // Nothing on screen carries over a cut, so the accumulated history describes the
+        // previous shot entirely.
+        RenderSettings::RequestTAAHistoryReset();
     }
 
     void CinematicCameraController::OnEvent(Event& e)
