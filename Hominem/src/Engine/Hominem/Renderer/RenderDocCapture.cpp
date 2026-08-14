@@ -1,5 +1,7 @@
 #include "hmnpch.h"
 #include "RenderDocCapture.h"
+#include "RenderCommand.h"
+#include "RenderSettings.h"
 
 #include <atomic>
 
@@ -118,6 +120,22 @@ void RenderDocCapture::EndFrame()
     if (s_API->GetCapture(count - 1, path, &pathLen, nullptr))
     {
         s_LastCapture = path;
+
+        // Goes inside the .rdc, so the frame arrives with the GPU and render state that
+        // produced it instead of needing a log matched up by timestamp. Overwrites rather
+        // than appends, so it is built in one go.
+        const char* vendor   = RenderCommand::GetGPUVendor();
+        const char* renderer = RenderCommand::GetGPURenderer();
+
+        std::string notes = "GPU: ";
+        notes += renderer ? renderer : "unknown";
+        notes += "\nVendor: ";
+        notes += vendor ? vendor : "unknown";
+        notes += "\n\n";
+        notes += RenderSettings::Describe();
+
+        s_API->SetCaptureFileComments(s_LastCapture.c_str(), notes.c_str());
+
         HMN_CORE_INFO("RenderDoc: captured {0}", s_LastCapture);
     }
 #endif

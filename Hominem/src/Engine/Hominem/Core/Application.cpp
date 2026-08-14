@@ -292,6 +292,8 @@ namespace Hominem {
 			ProcessPendingTransitions();
 		}
 
+		RenderSettings::SaveTo("render.ini");
+
 		m_Window->Hide(); // hide before teardown to avoid black-flash on close
 		m_RenderThread.Stop();
 

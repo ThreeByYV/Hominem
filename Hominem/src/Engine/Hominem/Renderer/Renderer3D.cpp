@@ -125,6 +125,9 @@ void Renderer3D::InitForwardPlus()
 
     HMN_CORE_INFO("Renderer3D: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
                   MAX_LIGHTS, TILE_SIZE);
+
+    // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
+    RenderSettings::LogAll();
 }
 
 void Renderer3D::Shutdown()
