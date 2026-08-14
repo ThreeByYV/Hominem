@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 namespace Hominem {
 
@@ -59,6 +61,24 @@ namespace Hominem {
 		/// Consumed by SceneRenderer::PrepareTemporal.
 		static void RequestTAAHistoryReset() { s_TAAHistoryResetPending.store(true, std::memory_order_release); }
 		static bool ConsumeTAAHistoryReset() { return s_TAAHistoryResetPending.exchange(false, std::memory_order_acq_rel); }
+
+		/// Every setting as "Name=Value", one per line. Embedded in RenderDoc captures so the
+		/// state that produced a frame travels with it.
+		static std::string Describe();
+
+		/// One line naming only the settings that differ from their compiled-in defaults.
+		static void LogAll();
+
+		/// Assigns by name, parsing the value according to the setting's type. Returns false
+		/// and leaves the setting alone if the name is unknown or the value doesn't parse.
+		static bool Set(std::string_view name, std::string_view value);
+
+		/// Reads -Name=Value and --Name=Value, ignoring everything else on the line.
+		static void ApplyArgs(int argc, char** argv);
+
+		/// A missing file is not an error - the defaults stand and SaveTo writes one on exit.
+		static void LoadFrom(const std::string& path);
+		static void SaveTo(const std::string& path);
 
 	private:
 		static inline std::atomic<bool> s_TAAHistoryResetPending { false };
