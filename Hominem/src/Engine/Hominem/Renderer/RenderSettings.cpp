@@ -16,47 +16,54 @@ namespace Hominem {
 
 namespace {
 
+using Type = RenderSettings::Setting::Type;
+
+enum Flags : uint8_t
+{
+	None    = 0,
+	Persist = 1 << 0, // written to the config file
+	Derived = 1 << 1, // recomputed every launch, so editing it does nothing
+};
+
 struct Entry
 {
-	enum class Type { Bool, Int, Float };
-
 	const char* name;
 	void*       addr;
 	Type        type;
-	bool        persist;
+	uint8_t     flags;
 };
 
 // Adding a setting means adding a row here; the config file, the command line, the startup
 // log and the capture notes all come off this one table.
-#define HMN_SETTING(field, type) { #field, &RenderSettings::field, Entry::Type::type, true }
+#define HMN_SETTING(field, type, flags) { #field, &RenderSettings::field, Type::type, flags }
 
 const Entry s_Entries[] = {
-	HMN_SETTING(DrawNormals,      Bool),
-	HMN_SETTING(NormalLength,     Float),
-	HMN_SETTING(DrawAABB,         Bool),
-	HMN_SETTING(DrawBoneWeights,  Bool),
-	HMN_SETTING(DisplayBoneIndex, Int),
+	// Debug overlays stay out of the config file. One left on at exit coming back next
+	// launch reads as a rendering bug rather than as a setting.
+	HMN_SETTING(DrawNormals,      Bool,  None),
+	HMN_SETTING(NormalLength,     Float, None),
+	HMN_SETTING(DrawAABB,         Bool,  None),
+	HMN_SETTING(DrawBoneWeights,  Bool,  None),
+	HMN_SETTING(DisplayBoneIndex, Int,   None),
+	HMN_SETTING(DebugHeatmap,     Bool,  None),
+	HMN_SETTING(DDGIDebug,        Bool,  None),
+	HMN_SETTING(TAADebugView,     Int,   None),
 
-	HMN_SETTING(ToonShading,  Bool),
-	HMN_SETTING(DebugHeatmap, Bool),
-	HMN_SETTING(DDGIDebug,    Bool),
-	HMN_SETTING(AreaLights,   Bool),
+	HMN_SETTING(ToonShading, Bool, Persist),
+	HMN_SETTING(AreaLights,  Bool, Persist),
 
-	HMN_SETTING(StrictGLErrors,         Bool),
-	HMN_SETTING(RayTracing,             Bool),
-	HMN_SETTING(RayTracingOnIntegrated, Bool),
+	HMN_SETTING(StrictGLErrors,         Bool, Persist),
+	HMN_SETTING(RayTracing,             Bool, Persist),
+	HMN_SETTING(RayTracingOnIntegrated, Bool, Persist),
 
-	HMN_SETTING(TAA,            Bool),
-	HMN_SETTING(TAAVelocity,    Bool),
-	HMN_SETTING(TAADilation,    Bool),
-	HMN_SETTING(TAAFeedbackMin, Float),
-	HMN_SETTING(TAAFeedbackMax, Float),
-	HMN_SETTING(TAAJitterScale, Float),
-	HMN_SETTING(TAADebugView,   Int),
+	HMN_SETTING(TAA,            Bool,  Persist),
+	HMN_SETTING(TAAVelocity,    Bool,  Persist),
+	HMN_SETTING(TAADilation,    Bool,  Persist),
+	HMN_SETTING(TAAFeedbackMin, Float, Persist),
+	HMN_SETTING(TAAFeedbackMax, Float, Persist),
+	HMN_SETTING(TAAJitterScale, Float, Persist),
 
-	// Derived from GPU detection every launch, so persisting it would pin one machine's
-	// answer onto the next. Still worth reporting.
-	{ "RecommendedRenderScale", &RenderSettings::RecommendedRenderScale, Entry::Type::Float, false },
+	HMN_SETTING(RecommendedRenderScale, Float, Derived),
 };
 
 #undef HMN_SETTING
@@ -65,9 +72,9 @@ std::string ValueToString(const Entry& e)
 {
 	switch (e.type)
 	{
-		case Entry::Type::Bool: return *static_cast<bool*>(e.addr) ? "1" : "0";
-		case Entry::Type::Int:  return std::to_string(*static_cast<int*>(e.addr));
-		case Entry::Type::Float:
+		case Type::Bool: return *static_cast<bool*>(e.addr) ? "1" : "0";
+		case Type::Int:  return std::to_string(*static_cast<int*>(e.addr));
+		case Type::Float:
 		{
 			char buf[32];
 			std::snprintf(buf, sizeof(buf), "%g", *static_cast<float*>(e.addr));
@@ -78,8 +85,9 @@ std::string ValueToString(const Entry& e)
 }
 
 // The settings are all constant-initialised, so they hold their compiled-in values by the
-// time this runs. Lets LogAll and SaveTo talk about what actually changed.
-const std::vector<std::string> s_Defaults = []
+// time this runs. Lets LogAll and SaveTo talk about what actually changed. Re-taken by
+// CaptureDefaults once the game has stated its own baseline.
+std::vector<std::string> s_Defaults = []
 {
 	std::vector<std::string> defaults;
 	defaults.reserve(std::size(s_Entries));
@@ -116,7 +124,7 @@ bool Assign(const Entry& e, std::string_view value)
 {
 	if (value.empty()) return false;
 
-	if (e.type == Entry::Type::Bool)
+	if (e.type == Type::Bool)
 	{
 		const std::string v = ToLower(value);
 		if (v == "1" || v == "true"  || v == "on")  { *static_cast<bool*>(e.addr) = true;  return true; }
@@ -127,7 +135,7 @@ bool Assign(const Entry& e, std::string_view value)
 	const std::string text = std::string(value);
 	char* end = nullptr;
 
-	if (e.type == Entry::Type::Int)
+	if (e.type == Type::Int)
 	{
 		const long parsed = std::strtol(text.c_str(), &end, 10);
 		if (end == text.c_str() || *end != '\0') return false;
@@ -252,8 +260,33 @@ bool Assign(const Entry& e, std::string_view value)
 		}
 
 		for (const Entry& e : s_Entries)
-			if (e.persist)
+			if (e.flags & Persist)
 				file << e.name << '=' << ValueToString(e) << '\n';
+	}
+
+	std::vector<RenderSettings::Setting> RenderSettings::Enumerate()
+	{
+		std::vector<Setting> out;
+		out.reserve(std::size(s_Entries));
+
+		for (size_t i = 0; i < std::size(s_Entries); i++)
+			out.push_back({ s_Entries[i].name, s_Entries[i].addr, s_Entries[i].type,
+			                ValueToString(s_Entries[i]) == s_Defaults[i],
+			                (s_Entries[i].flags & Derived) != 0 });
+
+		return out;
+	}
+
+	void RenderSettings::ResetToDefaults()
+	{
+		for (size_t i = 0; i < std::size(s_Entries); i++)
+			Assign(s_Entries[i], s_Defaults[i]);
+	}
+
+	void RenderSettings::CaptureDefaults()
+	{
+		for (size_t i = 0; i < std::size(s_Entries); i++)
+			s_Defaults[i] = ValueToString(s_Entries[i]);
 	}
 
 }
