@@ -73,3 +73,17 @@ This is definitely the most difficult part of the rendering engine to date. Work
 <td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/06d75858-256a-43a6-aea2-fc8c1635dcef"></td>
 </tr>
 </table>
+
+~~September 2026~~  
+Temporal antialiasing. Toon shading makes aliasing unusually obvious: the hard bands between light steps drop a high-contrast edge right across surfaces that would otherwise be smooth, and every one of those edges crawls when the camera moves. So TAA jitters the projection each frame and accumulates the result, reprojecting the history through a velocity buffer so moving objects resolve too, not just the camera. A neighbourhood clamp in YCoCg keeps the ghosting down, and the history gets dropped on camera cuts so a hard cut does not smear into the next shot.
+
+<table>
+<tr>
+<th width="50%">Before (no AA, aliasing along the toon bands)</th>
+<th width="50%">After (TAA)</th>
+</tr>
+<tr>
+<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/74f64ded-828e-4382-8b5e-bb2d70c02e36"></td>
+<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/79562633-d4fe-4483-83cd-fbec434beb40"></td>
+</tr>
+</table>
