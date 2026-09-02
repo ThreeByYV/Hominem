@@ -7,6 +7,7 @@
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/RenderSettings.h"
 #include "Hominem/Renderer/Renderer3D.h"
 
 namespace Hominem::UI {
@@ -69,6 +70,41 @@ inline void EditPostProcess(PostProcessSettings& pp)
     {
         ImGui::SliderFloat("Bloom Strength",  &pp.bloomStrength,  0.f, 3.f);
         ImGui::SliderFloat("Bloom Threshold", &pp.bloomThreshold, 0.f, 2.f);
+    }
+}
+
+/// Every setting in the RenderSettings table, built from the table itself so a new setting
+/// needs no widget written for it. The hand-tuned panels stay where the ranges and grouping
+/// matter; this is the catch-all for the rest.
+inline void EditRenderSettings(const char* path = "render.ini")
+{
+    if (ImGui::SmallButton("Save##rset"))   RenderSettings::SaveTo(path);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reload##rset")) RenderSettings::LoadFrom(path);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset##rset"))  RenderSettings::ResetToDefaults();
+
+    using Setting = RenderSettings::Setting;
+
+    for (const Setting& s : RenderSettings::Enumerate())
+    {
+        // Greying the untouched ones makes what you have changed findable in a long list.
+        if (s.isDefault)
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::BeginDisabled(s.isDerived);
+
+        switch (s.type)
+        {
+            case Setting::Type::Bool:
+                ImGui::Checkbox (s.name, static_cast<bool*>(s.value));         break;
+            case Setting::Type::Int:
+                ImGui::DragInt  (s.name, static_cast<int*>(s.value));          break;
+            case Setting::Type::Float:
+                ImGui::DragFloat(s.name, static_cast<float*>(s.value), 0.01f); break;
+        }
+
+        ImGui::EndDisabled();
+        if (s.isDefault) ImGui::PopStyleColor();
     }
 }
 

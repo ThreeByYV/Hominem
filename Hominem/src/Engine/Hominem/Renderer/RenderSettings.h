@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Hominem {
 
@@ -79,6 +80,28 @@ namespace Hominem {
 		/// A missing file is not an error - the defaults stand and SaveTo writes one on exit.
 		static void LoadFrom(const std::string& path);
 		static void SaveTo(const std::string& path);
+
+		/// One row of the settings table, for UI that walks every setting rather than naming
+		/// them one at a time. `value` points straight at the setting, so a widget bound to
+		/// it writes through.
+		struct Setting
+		{
+			enum class Type { Bool, Int, Float };
+
+			const char* name;
+			void*       value; // bool*, int* or float*, per type
+			Type        type;
+			bool        isDefault;
+			bool        isDerived; // recomputed each launch, so editing it does nothing
+		};
+
+		static std::vector<Setting> Enumerate();
+		static void ResetToDefaults();
+
+		/// Takes the current values as the baseline that LogAll reports against and that
+		/// ResetToDefaults returns to. Call after the game has stated its own defaults and
+		/// before LoadFrom, so the config file still overrides them.
+		static void CaptureDefaults();
 
 	private:
 		static inline std::atomic<bool> s_TAAHistoryResetPending { false };
