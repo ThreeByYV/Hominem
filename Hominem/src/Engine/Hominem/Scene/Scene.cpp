@@ -25,6 +25,18 @@ namespace Hominem {
 		m_ETA             = eta;
 		m_BakedEnvMap     = std::make_shared<BakedEnvMap>();
 		m_BakeEnvPending  = true;
+		m_HasBaked        = true;
+	}
+
+	void Scene::RebakeEnvironment()
+	{
+		if (!m_HasBaked) return;
+
+		// Fresh result rather than refilling the live one, which the main thread reads
+		// every frame. Costs a few frames with no IBL while the bake runs; overwriting
+		// in place would instead race the reads in BuildRenderFrame.
+		m_BakedEnvMap    = std::make_shared<BakedEnvMap>();
+		m_BakeEnvPending = true;
 	}
 
 	void Scene::SetEnvMap(Ref<TextureCube> map, float intensity, float eta, float fresnelPower)

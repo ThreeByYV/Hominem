@@ -117,6 +117,10 @@ namespace Hominem {
 		                     float eta         = 0.667f,
 		                     uint32_t resolution = 512);
 
+		// Re-run the last bake with the same capture position and settings. No-op until
+		// BakeEnvironment has been called once.
+		void RebakeEnvironment();
+
 		// Assign a pre-loaded cubemap (e.g. TextureCube::Create from 6 files).
 		void SetEnvMap(Ref<TextureCube> map,
 		               float intensity   = 1.f,
@@ -149,7 +153,8 @@ namespace Hominem {
 
 		// Env map state
 		bool                         m_BakeEnvPending  = false;
-		glm::vec3                    m_BakeCapPos;
+		bool                         m_HasBaked        = false;
+		glm::vec3                    m_BakeCapPos      { 0.f };
 		uint32_t                     m_BakeResolution  = 512;
 		std::shared_ptr<BakedEnvMap> m_BakedEnvMap;      // result from runtime bake
 		Ref<TextureCube>             m_ExplicitEnvMap;   // assigned via SetEnvMap
