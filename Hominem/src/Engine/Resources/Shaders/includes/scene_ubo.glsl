@@ -1,5 +1,5 @@
 // Scene-wide uniforms — uploaded once per frame, shared by all shaders.
-// std140 layout must match SceneUBOData in Renderer3D.h exactly.
+// std140 layout must match SceneUBOData in ForwardPlusRenderer.h exactly.
 // vec4 used throughout to match glm::vec4 in C++ and avoid vec3 padding quirks.
 layout(std140, binding = 0) uniform SceneUBO
 {

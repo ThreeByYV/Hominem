@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
-#include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/ForwardPlusRenderer.h"
 #include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Renderer/RHI/RenderCommand.h"
 
@@ -93,11 +93,11 @@ Ref<TextureCube> EnvironmentProbe::Bake(const glm::vec3& capturePos,
         faceFrame.staticMeshes     = sceneFrame.staticMeshes;
 
         auto cmd = RenderCommand::SetPipelineState(PipelineState::DepthTestWriteCull());
-        auto scene = Renderer3D::BeginScene(faceFrame, cmd);
+        auto scene = ForwardPlusRenderer::BeginScene(faceFrame, cmd);
         for (const auto& sm : faceFrame.staticMeshes)
-            Renderer3D::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
+            ForwardPlusRenderer::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene);
         cmd.Submit();
-        Renderer3D::EndScene();
+        ForwardPlusRenderer::EndScene();
     }
 
     cube->GenerateMipmaps();

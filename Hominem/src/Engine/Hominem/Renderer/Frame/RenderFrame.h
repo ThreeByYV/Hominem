@@ -269,7 +269,7 @@ namespace Hominem {
 		Ref<Skybox> skybox;
 		float       skyboxIntensity = 1.f;
 
-		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by Renderer3D
+		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by ForwardPlusRenderer
 		Ref<TextureCube> envMap;
 		Ref<TextureCube> irradianceMap;   // diffuse IBL, sampled alongside envMap
 		Ref<TextureCube> prefilteredMap;  // specular IBL mip chain, sampled alongside envMap
