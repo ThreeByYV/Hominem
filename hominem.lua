@@ -14,28 +14,34 @@ local HMN = _SCRIPT_DIR
 HominemRoot = HMN
 
 -- Walks .gitmodules recursively, so a newly added (or nested) vendor submodule
--- that was never checked out is caught, not just the first one.
+-- that was never checked out is caught, not just the first one. `update = none`
+-- entries (DLSS) are fetched by their own step below, so they don't count.
 local function submodules_missing(dir)
     local gitmodules = dir .. "/.gitmodules"
     if not os.isfile(gitmodules) then return false end
-    for sub in io.readfile(gitmodules):gmatch("path%s*=%s*(%S+)") do
-        local subdir = dir .. "/" .. sub
-        if not (os.isfile(subdir .. "/.git") or os.isdir(subdir .. "/.git")) or submodules_missing(subdir) then
-            return true
+    for block in (io.readfile(gitmodules) .. "\n["):gmatch("%[submodule(.-)\n%f[%[]") do
+        local sub = block:match("path%s*=%s*(%S+)")
+        if sub and not block:match("update%s*=%s*none") then
+            local subdir = dir .. "/" .. sub
+            if not (os.isfile(subdir .. "/.git") or os.isdir(subdir .. "/.git")) or submodules_missing(subdir) then
+                return true
+            end
         end
     end
     return false
 end
 
 -- Mirrors the CMake configure-time behavior: init, and if that fails, deep-fetch
--- and force a retry.
+-- and force a retry. --depth 1 is explicit because `shallow = true` in .gitmodules
+-- only covers pins at their branch tip; an older pin (tracy) would otherwise be
+-- fetched with its full history.
 if submodules_missing(HMN) then
     print("Hominem: initializing git submodules...")
-    local ok = os.execute('git -C "' .. HMN .. '" submodule update --init --recursive')
+    local ok = os.execute('git -C "' .. HMN .. '" submodule update --init --recursive --depth 1 --jobs 8')
     if ok ~= true and ok ~= 0 then
         print("Hominem: submodule init incomplete; deep-fetching and retrying...")
         os.execute('git -C "' .. HMN .. '" submodule foreach --recursive git fetch --quiet --tags origin')
-        os.execute('git -C "' .. HMN .. '" submodule update --init --recursive --force')
+        os.execute('git -C "' .. HMN .. '" submodule update --init --recursive --force --depth 1 --jobs 8')
     end
 end
 

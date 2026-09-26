@@ -15,6 +15,8 @@ add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 # Auto-init git submodules at configure time so a plain clone (e.g. opened
 # straight into CLion) works without a manual `git submodule update --init`.
 # Runs only when the vendor tree looks uninitialized, so reconfigures stay fast.
+# --depth 1 is explicit because `shallow = true` in .gitmodules only covers pins at their
+# branch tip; an older pin (tracy) would otherwise be fetched with its full history.
 find_package(Git QUIET)
 # Set submodule.recurse once per clone so `git checkout`/`git pull` auto-update the
 # vendor submodules; no manual `git submodule update` after a branch switch.
@@ -26,7 +28,7 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git"
         AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/GLFW/CMakeLists.txt")
     message(STATUS "Hominem: initializing git submodules...")
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --depth 1 --jobs 8
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         RESULT_VARIABLE _hmn_submod_result
     )
@@ -41,7 +43,7 @@ if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
         execute_process(
-            COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --force
+            COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --force --depth 1 --jobs 8
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             RESULT_VARIABLE _hmn_submod_result2
         )
