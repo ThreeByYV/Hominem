@@ -1,13 +1,13 @@
 #include "hmnpch.h"
-#include "Hominem/Renderer/Renderer.h"
+#include "Hominem/Renderer/RenderSystem.h"
 #include "Platform/Vulkan/VulkanSceneRenderer.h"
 
 namespace Hominem {
 
-Renderer::Renderer()  = default;
-Renderer::~Renderer() = default;
+RenderSystem::RenderSystem()  = default;
+RenderSystem::~RenderSystem() = default;
 
-void Renderer::Init(uint32_t w, uint32_t h)
+void RenderSystem::Init(uint32_t w, uint32_t h)
 {
     auto glLUID = SharedResources::GetDeviceLUID();
     auto glName = SharedResources::GetDeviceName();
@@ -21,11 +21,11 @@ void Renderer::Init(uint32_t w, uint32_t h)
     SetupInterop(w, h, glLUID);
 }
 
-void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID)
+void RenderSystem::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID)
 {
     if (!SharedResources::IsInteropSupported())
     {
-        HMN_CORE_WARN("Renderer: driver lacks GL/VK external-memory extensions, shared texture unavailable");
+        HMN_CORE_WARN("RenderSystem: driver lacks GL/VK external-memory extensions, shared texture unavailable");
         return;
     }
 
@@ -33,11 +33,11 @@ void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>
 
     if (glLUID == std::array<uint8_t, 8>{})
     {
-        HMN_CORE_WARN("Renderer: GL LUID unavailable (GL_EXT_memory_object not exposed), skipping LUID check");
+        HMN_CORE_WARN("RenderSystem: GL LUID unavailable (GL_EXT_memory_object not exposed), skipping LUID check");
     }
     else if (vkLUID != glLUID)
     {
-        HMN_CORE_WARN("Renderer: VK and GL are on different GPUs, shared texture unavailable");
+        HMN_CORE_WARN("RenderSystem: VK and GL are on different GPUs, shared texture unavailable");
         return;
     }
 
@@ -58,7 +58,7 @@ void Renderer::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>
     m_SceneRenderer.SetSharedVulkanTexture(m_SharedResources->GetTextureID());
 }
 
-void Renderer::Shutdown()
+void RenderSystem::Shutdown()
 {
     m_SceneRenderer.SetSharedVulkanTexture(0);
     if (m_SharedResources)
@@ -71,7 +71,7 @@ void Renderer::Shutdown()
     m_SceneRenderer.Shutdown();
 }
 
-void Renderer::ExecuteFrame(RecordedFrame& frame)
+void RenderSystem::ExecuteFrame(RecordedFrame& frame)
 {
     auto& graph = m_SceneRenderer.GetRenderGraph();
     graph.SetRenderScale(frame.renderScale);
@@ -107,7 +107,7 @@ void Renderer::ExecuteFrame(RecordedFrame& frame)
         m_SharedResources->SignalGLDone();
 }
 
-void Renderer::SyncSharedImages()
+void RenderSystem::SyncSharedImages()
 {
     const uint32_t generation = m_VulkanRenderer->GetSharedImageGeneration();
     if (generation == m_SharedImageGeneration) return;
@@ -126,10 +126,10 @@ void Renderer::SyncSharedImages()
         if (tex)
         {
             m_ImportedImages.push_back(tex);
-            HMN_CORE_INFO("Renderer: imported shared image '{0}' -> GL tex {1} ({2}x{3})",
+            HMN_CORE_INFO("RenderSystem: imported shared image '{0}' -> GL tex {1} ({2}x{3})",
                           img.name, tex, img.desc.width, img.desc.height);
         }
-        else HMN_CORE_WARN("Renderer: failed to import shared image '{0}'", img.name);
+        else HMN_CORE_WARN("RenderSystem: failed to import shared image '{0}'", img.name);
 
         table->Set(img.name, tex);
         if (img.desc.memHandle) CloseHandle(img.desc.memHandle);
@@ -140,12 +140,12 @@ void Renderer::SyncSharedImages()
     m_SceneRenderer.SetSharedImages(std::move(table));
 }
 
-void Renderer::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
+void RenderSystem::RegisterRenderTarget(VulkanHandle handle, uint32_t w, uint32_t h)
 {
     m_VulkanRenderer->RegisterRenderTarget(handle, w, h);
 }
 
-void Renderer::RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity)
+void RenderSystem::RegisterStorageBuffer(VulkanHandle handle, uint32_t capacity)
 {
     m_VulkanRenderer->RegisterStorageBuffer(handle, capacity);
 }

@@ -8,7 +8,7 @@
 #include <source_location>
 #include <memory>
 
-#include "Hominem/Renderer/Renderer.h"
+#include "Hominem/Renderer/RenderSystem.h"
 #include "Hominem/Threading/JobSystem.h"
 
 struct GLFWwindow;
@@ -28,8 +28,8 @@ namespace Hominem {
 		void Stop();
 		void Submit(RecordedFrame&& frame);
 
-		Renderer&     GetRenderer()      { return m_Renderer; }
-		SceneRenderer& GetSceneRenderer() { return m_Renderer.GetSceneRenderer(); }
+		RenderSystem&  GetRenderSystem()  { return m_RenderSystem; }
+		SceneRenderer& GetSceneRenderer() { return m_RenderSystem.GetSceneRenderer(); }
 
 		static bool IsOnRenderThread() { return std::this_thread::get_id() == s_ThreadId; }
 		static void AssertRenderThread(
@@ -59,7 +59,7 @@ namespace Hominem {
 		void ThreadFunc();
 		void ExecuteFrame(RecordedFrame& frame);
 
-		Renderer    m_Renderer;
+		RenderSystem m_RenderSystem;
 
 		GLFWwindow* m_Window        = nullptr;
 		uint32_t    m_InitialWidth  = 0;
