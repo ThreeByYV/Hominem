@@ -121,8 +121,8 @@ void RenderGraph::OnResize(uint32_t w, uint32_t h)
 	for (auto& [name, entry] : m_FBOs)
 	{
 		const float res = entry.resolution == Resolution::Render ? m_RenderScale : 1.0f;
-		uint32_t fw = std::max(1u, (uint32_t)(w * entry.scale * res));
-		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale * res));
+		uint32_t fw = ScaledSize(w, entry.scale * res);
+		uint32_t fh = ScaledSize(h, entry.scale * res);
 
 		FramebufferSpecification spec;
 		spec.Width               = fw;

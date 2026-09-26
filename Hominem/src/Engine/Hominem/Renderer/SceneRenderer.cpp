@@ -136,9 +136,9 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
 
     // Mirrors RenderGraph::OnResize for a render-resolution target. Recomputed rather than read
     // off the FBO because the graph resizes on the render thread, a frame behind this.
-    const float    scale   = std::clamp(frame.renderScale, 0.25f, 1.0f);
-    const uint32_t renderW = std::max(1u, (uint32_t)(frame.viewportWidth  * scale));
-    const uint32_t renderH = std::max(1u, (uint32_t)(frame.viewportHeight * scale));
+    frame.renderScale = m_Upscaler->GetRenderScale(frame.renderScale, { frame.viewportWidth, frame.viewportHeight });
+    const uint32_t renderW = RenderGraph::ScaledSize(frame.viewportWidth,  frame.renderScale);
+    const uint32_t renderH = RenderGraph::ScaledSize(frame.viewportHeight, frame.renderScale);
 
     if (renderW != m_TAALastRenderW || renderH != m_TAALastRenderH)
     {
