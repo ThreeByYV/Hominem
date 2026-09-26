@@ -37,7 +37,14 @@ void RenderDocCapture::Init()
     // build only picks up an injection that already happened, otherwise a player with
     // RenderDoc installed gets its overlay drawn over the game.
 #ifdef HMN_DEBUG
-    if (!mod)
+    // DLSS doesn't run under RenderDoc, so with DLSS built in, loading it is opt-in.
+#ifdef HMN_ENABLE_DLSS
+    char optIn[2] = {};
+    const bool autoLoad = GetEnvironmentVariableA("HOMINEM_RENDERDOC", optIn, sizeof(optIn)) == 1 && optIn[0] == '1';
+#else
+    const bool autoLoad = true;
+#endif
+    if (!mod && autoLoad)
     {
         char        overridePath[MAX_PATH] = {};
         const DWORD len = GetEnvironmentVariableA("HOMINEM_RENDERDOC_DLL", overridePath, MAX_PATH);
@@ -48,7 +55,11 @@ void RenderDocCapture::Init()
 
     if (!mod)
     {
+#if defined(HMN_DEBUG) && defined(HMN_ENABLE_DLSS)
+        HMN_CORE_INFO("RenderDoc: not loaded (set HOMINEM_RENDERDOC=1 to capture; disables DLSS)");
+#else
         HMN_CORE_INFO("RenderDoc: not present, in-app capture disabled");
+#endif
         return;
     }
 
