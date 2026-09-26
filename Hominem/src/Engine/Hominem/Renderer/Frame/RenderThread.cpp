@@ -15,7 +15,7 @@ void RenderThread::Start(GLFWwindow* window, uint32_t initialWidth, uint32_t ini
 	m_InitialWidth  = initialWidth;
 	m_InitialHeight = initialHeight;
 
-	m_Renderer.GetSceneRenderer().SetImGuiCallbacks(
+	m_RenderSystem.GetSceneRenderer().SetImGuiCallbacks(
 		[this]
 		{
 			std::unique_lock lock(m_ImGuiMutex);
@@ -70,7 +70,7 @@ void RenderThread::ThreadFunc()
 	s_ThreadId = std::this_thread::get_id();
 	glfwMakeContextCurrent(m_Window);
 
-	m_Renderer.Init(m_InitialWidth, m_InitialHeight);
+	m_RenderSystem.Init(m_InitialWidth, m_InitialHeight);
 
 	{
 		std::lock_guard lock(m_InitMutex);
@@ -105,7 +105,7 @@ void RenderThread::ThreadFunc()
 		RenderDocCapture::EndFrame();
 	}
 
-	m_Renderer.Shutdown();
+	m_RenderSystem.Shutdown();
 	glfwMakeContextCurrent(nullptr);
 }
 
@@ -140,14 +140,14 @@ void RenderThread::QueueUpload(Job task)
 VulkanHandle RenderThread::CreateVulkanRenderTarget(uint32_t w, uint32_t h)
 {
 	VulkanHandle handle = m_NextVulkanHandle.fetch_add(1, std::memory_order_relaxed);
-	QueueUpload([this, handle, w, h] { m_Renderer.RegisterRenderTarget(handle, w, h); });
+	QueueUpload([this, handle, w, h] { m_RenderSystem.RegisterRenderTarget(handle, w, h); });
 	return handle;
 }
 
 VulkanHandle RenderThread::CreateVulkanStorageBuffer(uint32_t capacity)
 {
 	VulkanHandle handle = m_NextVulkanHandle.fetch_add(1, std::memory_order_relaxed);
-	QueueUpload([this, handle, capacity] { m_Renderer.RegisterStorageBuffer(handle, capacity); });
+	QueueUpload([this, handle, capacity] { m_RenderSystem.RegisterStorageBuffer(handle, capacity); });
 	return handle;
 }
 
@@ -164,7 +164,7 @@ void RenderThread::ExecuteFrame(RecordedFrame& frame)
 			task();
 	}
 
-	m_Renderer.ExecuteFrame(frame);
+	m_RenderSystem.ExecuteFrame(frame);
 }
 
 }

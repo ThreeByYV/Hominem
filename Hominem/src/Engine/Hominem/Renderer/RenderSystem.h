@@ -13,14 +13,14 @@ namespace Hominem {
 
 class VulkanSceneRenderer;
 
-class Renderer
+class RenderSystem
 {
 public:
-    Renderer();
-    ~Renderer();
+    RenderSystem();
+    ~RenderSystem();
 
-    Renderer(const Renderer&)            = delete;
-    Renderer& operator=(const Renderer&) = delete;
+    RenderSystem(const RenderSystem&)            = delete;
+    RenderSystem& operator=(const RenderSystem&) = delete;
 
     void Init(uint32_t w, uint32_t h);
     void Shutdown();

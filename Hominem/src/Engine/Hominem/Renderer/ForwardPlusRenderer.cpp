@@ -30,10 +30,10 @@ namespace {
 
 } 
     ForwardPlusRendererStorage*     ForwardPlusRenderer::s_Data         = nullptr;
-    uint32_t               ForwardPlusRenderer::s_DrawCalls     = 0;
-    uint64_t               ForwardPlusRenderer::s_Triangles     = 0;
-    uint32_t               ForwardPlusRenderer::s_GroupsTotal   = 0;
-    uint32_t               ForwardPlusRenderer::s_GroupsCulled  = 0;
+    uint32_t                        ForwardPlusRenderer::s_DrawCalls     = 0;
+    uint64_t                        ForwardPlusRenderer::s_Triangles     = 0;
+    uint32_t                        ForwardPlusRenderer::s_GroupsTotal   = 0;
+    uint32_t                        ForwardPlusRenderer::s_GroupsCulled  = 0;
 
 void ForwardPlusRenderer::Init()
 {
