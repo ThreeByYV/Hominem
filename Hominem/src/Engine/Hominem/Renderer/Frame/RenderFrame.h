@@ -242,6 +242,7 @@ namespace Hominem {
 		float renderScale        = 1.0f; // 0.25–1.0, scales all internal FBOs
 
 		glm::mat4 viewProjection2D {};
+		bool      overlay2D        = false; // 2D is a screen-space HUD: drawn after the upscale, untonemapped
 		glm::mat4 viewProjection3D {};
 		glm::mat4 view3D           {};   // separate view matrix — needed by Forward+ light culling
 		glm::mat4 proj3D           {};   // separate projection matrix — needed for tile frustum extraction

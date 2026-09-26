@@ -112,6 +112,12 @@ void SceneRenderer::SetupPasses()
         PassBuilder{},
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { VulkanBlitPass(f, cmd); });
 
+    // Screen-space 2D (perspective scenes) at output resolution, after the upscale.
+    m_RenderGraph.AddPass("overlay_2d",
+        PipelineState::AlphaBlendNoDepth(),
+        PassBuilder{},
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { Overlay2DPass(f, cmd); });
+
     m_RenderGraph.AddPass("imgui",
         PipelineState::AlphaBlendNoDepth(),
         PassBuilder{},
@@ -329,13 +335,31 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
         }
     }
 
-    // 2D content is screen-space static, so zero velocity is correct for it — but it is
-    // alpha-blended too, so it stays masked and keeps whatever the scene wrote beneath.
-    if (barHeight > 0)
-        cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
+    // World-space 2D (orthographic scenes) is part of the scene; a HUD is drawn later in
+    // Overlay2DPass. Zero velocity is right for it — it's alpha-blended, so it stays masked
+    // and keeps whatever the scene wrote beneath.
+    if (!frame.overlay2D)
+    {
+        if (barHeight > 0)
+            cmd.SetViewport(0, 0, hdrSpec.Width, hdrSpec.Height);
+        Draw2D(frame, cmd);
+    }
 
+    cmd.SetColorMask(1, true); // GL global state — must not leak into next frame's opaque pass
+    // FBO unbound by graph after this fn returns.
+}
+
+void SceneRenderer::Overlay2DPass(const RenderFrame& frame, CommandList& cmd)
+{
+    if (!frame.overlay2D || frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
+    cmd.SetViewport(0, 0, frame.viewportWidth, frame.viewportHeight);
+    Draw2D(frame, cmd);
+}
+
+void SceneRenderer::Draw2D(const RenderFrame& frame, CommandList& cmd)
+{
     // Captured by value: `frame` is only valid during recording, not at Submit() time.
-    cmd.Invoke([this, vp = frame.viewProjection2D, quads = frame.quads, texts = frame.texts]()
+    cmd.Invoke([vp = frame.viewProjection2D, quads = frame.quads, texts = frame.texts]()
     {
         Renderer2D::BeginScene(vp);
 
@@ -349,9 +373,6 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
 
         Renderer2D::EndScene();
     });
-
-    cmd.SetColorMask(1, true); // GL global state — must not leak into next frame's opaque pass
-    // FBO unbound by graph after this fn returns.
 }
 
 void SceneRenderer::ImGuiPass(const RenderFrame& frame, CommandList& cmd)

@@ -58,6 +58,8 @@ private:
     void BloomBlurVPass    (const RenderFrame& frame, CommandList& cmd);
     void CompositePass     (const RenderFrame& frame, CommandList& cmd);
     void VulkanBlitPass    (const RenderFrame& frame, CommandList& cmd);
+    void Overlay2DPass     (const RenderFrame& frame, CommandList& cmd);
+    void Draw2D            (const RenderFrame& frame, CommandList& cmd);
 
     RenderGraph  m_RenderGraph;
     AutoExposure m_AutoExposure;

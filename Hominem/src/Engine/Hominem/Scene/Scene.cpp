@@ -81,6 +81,7 @@ namespace Hominem {
 			constexpr float kOverlayHeight = 2.0f; // matches MenuLayer/PlayLevel ortho size
 			frame.viewProjection2D = glm::ortho(-kOverlayHeight * aspect * 0.5f, kOverlayHeight * aspect * 0.5f,
 			                                     -kOverlayHeight * 0.5f,         kOverlayHeight * 0.5f, -1.f, 1.f);
+			frame.overlay2D        = true;
 		}
 		else
 		{
