@@ -10,28 +10,10 @@
 #include "Hominem/Renderer/2D/Renderer2D.h"
 #include "Hominem/Renderer/ForwardPlusRenderer.h"
 #include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
+#include "Hominem/Renderer/PostProcess/Upscaling/TemporalJitter.h"
+#include "Hominem/Renderer/PostProcess/Upscaling/UpscalerFactory.h"
 
 namespace Hominem {
-
-namespace {
-
-// Low-discrepancy, so jitter offsets spread evenly over the pixel rather than clumping
-// and leaving parts of it unsampled.
-float Halton(uint32_t i, uint32_t base)
-{
-    float f = 1.f, r = 0.f;
-    while (i > 0)
-    {
-        f /= (float)base;
-        r += f * (float)(i % base);
-        i /= base;
-    }
-    return r;
-}
-
-constexpr uint32_t k_TAASampleCount = 16;
-
-}
 
 void SceneRenderer::SetImGuiCallbacks(std::function<void()> waitFn,
                                       std::function<void()> notifyFn)
@@ -49,6 +31,10 @@ void SceneRenderer::Init()
     // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
     RenderSettings::LogAll();
 
+    m_Upscaler = CreateUpscaler(UpscalerBackend::TAA);
+    m_Upscaler->Init();
+    HMN_CORE_INFO("Upscaler: {0}", m_Upscaler->GetName());
+
     SetupPasses();
 
     auto lib = ShaderLibrary::Engine();
@@ -59,13 +45,12 @@ void SceneRenderer::Init()
     m_FireQuadShader   = lib->Load("engine://Shaders/fire_quad.glsl");
     m_SmokeQuadShader  = lib->Load("engine://Shaders/smoke_quad.glsl");
     m_VkBlitShader     = lib->Load("engine://Shaders/vk_blit.glsl");
-    m_TAAResolveShader = lib->Load("engine://Shaders/taa_resolve.glsl");
 }
 
 void SceneRenderer::Shutdown()
 {
     m_VkBlitShader.reset();
-    m_TAAResolveShader.reset();
+    m_Upscaler.reset();
     m_ThresholdShader.reset();
     m_BlurShader.reset();
     m_CompositeShader.reset();
@@ -75,31 +60,25 @@ void SceneRenderer::SetupPasses()
 {
     // HDR has 2 color attachments: [0] = rendered scene, [1] = RG velocity in UV space
     m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
-    // Two targets: the resolve's output is next frame's input, and a pass cannot sample
-    // the texture it renders into. Record() swaps the aliases each frame.
-    m_RenderGraph.AddFBO("taa_0",      FramebufferFormat::RGBA16F, 1.0f);
-    m_RenderGraph.AddFBO("taa_1",      FramebufferFormat::RGBA16F, 1.0f);
     m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f);
     m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f);
 
-    m_RenderGraph.SetAlias("taa_curr", "taa_0");
-    m_RenderGraph.SetAlias("taa_prev", "taa_1");
+    m_Upscaler->DeclareResources(m_RenderGraph);
 
     m_RenderGraph.AddPass("scene",
         PipelineState::DepthTestWriteCull(),
         PassBuilder{}.WriteFBO("hdr"),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { GeometryPass(f, cmd); });
 
-    // Everything downstream reads taa_curr instead of hdr, auto-exposure included — it
-    // would otherwise meter an unresolved image and flicker against the resolved one.
-    m_RenderGraph.AddPass("taa_resolve",
+    // Everything downstream reads the upscaled output, auto-exposure included, so it
+    // meters the resolved image.
+    m_RenderGraph.AddPass("upscale",
         PipelineState::NoDepthNoCull(),
-        PassBuilder{}.Read("hdr.color",      Slot::Color0)
-                     .Read("taa_prev.color", Slot::Color1)
-                     .Read("hdr.color1",     Slot::Color2)
-                     .Read("hdr.depth",      Slot::Depth)
-                     .WriteFBO("taa_curr"),
-        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { TAAResolvePass(f, cmd); });
+        PassBuilder{}.Read("hdr.color",  Slot::Color0)
+                     .Read("hdr.color1", Slot::Color2)
+                     .Read("hdr.depth",  Slot::Depth)
+                     .WriteFBO(Upscaler::OutputTarget),
+        [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { UpscalePass(f, cmd); });
 
     m_RenderGraph.AddPass("auto_exposure",
         PipelineState::NoDepthNoCull(),
@@ -108,7 +87,7 @@ void SceneRenderer::SetupPasses()
 
     m_RenderGraph.AddPass("bloom_threshold",
         PipelineState::NoDepthNoCull(),
-        PassBuilder{}.Read("taa_curr.color", Slot::Color0).WriteFBO("bloom"),
+        PassBuilder{}.Read("upscaled.color", Slot::Color0).WriteFBO("bloom"),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { BloomThresholdPass(f, cmd); });
 
     m_RenderGraph.AddPass("bloom_blur_h",
@@ -123,7 +102,7 @@ void SceneRenderer::SetupPasses()
 
     m_RenderGraph.AddPass("composite",
         PipelineState::NoDepthNoCull(),
-        PassBuilder{}.Read("taa_curr.color", Slot::Color0).Read("bloom.color", Slot::Color1),
+        PassBuilder{}.Read("upscaled.color", Slot::Color0).Read("bloom.color", Slot::Color1),
         [this](RenderGraph&, const RenderFrame& f, CommandList& cmd) { CompositePass(f, cmd); });
 
     m_RenderGraph.AddPass("vk_output",
@@ -142,8 +121,10 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
     frame.viewProjection3DUnjittered = frame.viewProjection3D;
     frame.proj3DUnjittered           = frame.proj3D;
     frame.prevViewProjection3D       = m_PrevViewProjection;
-    frame.taaEnabled                 = RenderSettings::TAA;
+    const UpscalerCaps caps          = m_Upscaler->GetCaps();
+    frame.taaEnabled                 = RenderSettings::TAA && caps.temporal;
     frame.taaJitter                  = glm::vec2(0.f);
+    frame.textureLodBias             = 0.f;
     frame.taaReset                   = true;
 
     if (RenderSettings::ConsumeTAAHistoryReset())
@@ -168,11 +149,14 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
 
     if (frame.taaEnabled)
     {
-        const uint32_t n = (m_TAAFrameIndex % k_TAASampleCount) + 1;
-        const glm::vec2 jitterPx {
-            (Halton(n, 2) - 0.5f) * RenderSettings::TAAJitterScale,
-            (Halton(n, 3) - 0.5f) * RenderSettings::TAAJitterScale,
-        };
+        // Textures are sampled for the output resolution, not the render one — the jittered
+        // frames add back the detail a lower mip would have thrown away. Without temporal
+        // accumulation there is nothing to add it back, so the bias stays at zero.
+        frame.textureLodBias = TemporalJitter::MipBias(renderW, frame.viewportWidth, caps.mipBiasOffset);
+
+        const uint32_t  phases   = TemporalJitter::PhaseCount(renderW, frame.viewportWidth);
+        const glm::vec2 jitterPx = TemporalJitter::Offset(m_TAAFrameIndex, phases)
+                                 * RenderSettings::TAAJitterScale;
         frame.taaJitter = jitterPx / glm::vec2(renderW, renderH);
 
         // Sub-pixel shift of the whole projection — moves where inside each pixel the
@@ -191,50 +175,28 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
 
 std::vector<CommandList> SceneRenderer::Record(const RenderFrame& frame)
 {
-    m_TAAHistoryIdx ^= 1u;
-    m_RenderGraph.SetAlias("taa_curr", m_TAAHistoryIdx == 0 ? "taa_0" : "taa_1");
-    m_RenderGraph.SetAlias("taa_prev", m_TAAHistoryIdx == 0 ? "taa_1" : "taa_0");
+    m_Upscaler->BeginFrame(m_RenderGraph);
 
     return m_RenderGraph.Record(frame);
 }
 
-void SceneRenderer::TAAResolvePass(const RenderFrame& frame, CommandList& cmd)
+void SceneRenderer::UpscalePass(const RenderFrame& frame, CommandList& cmd)
 {
-    HMN_PROFILE_FUNCTION();
-
-    if (frame.viewportWidth == 0 || frame.viewportHeight == 0 || !m_TAAResolveShader) return;
+    if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
 
     const auto hdr = m_RenderGraph.GetFBO("hdr");
     if (!hdr) return;
     const auto& spec = hdr->GetSpecification();
 
-    // FBO bound, viewport set, texture slots bound — all from PassBuilder.
-    cmd.BindShader(m_TAAResolveShader);
-    cmd.SetInt(m_TAAResolveShader, "u_Current",  (int)Slot::Color0);
-    cmd.SetInt(m_TAAResolveShader, "u_History",  (int)Slot::Color1);
-    cmd.SetInt(m_TAAResolveShader, "u_Velocity", (int)Slot::Color2);
-    cmd.SetInt(m_TAAResolveShader, "u_Depth",    (int)Slot::Depth);
-    cmd.SetInt(m_TAAResolveShader, "u_UseVelocity", RenderSettings::TAAVelocity ? 1 : 0);
+    // The FBO's actual size; the graph resizes a frame behind PrepareTemporal.
+    UpscalerInputs in;
+    in.renderSize         = { spec.Width, spec.Height };
+    in.jitterUV           = frame.taaJitter;
+    in.viewProjUnjittered = frame.viewProjection3DUnjittered;
+    in.prevViewProj       = frame.prevViewProjection3D;
+    in.reset              = frame.taaReset;
 
-    // Packed into a vec4 — CommandList has no SetFloat2, and one uniform is cheaper than
-    // threading another setter through Shader and every backend.
-    cmd.SetFloat4(m_TAAResolveShader, "u_TexelSize",
-        glm::vec4(1.f / (float)spec.Width, 1.f / (float)spec.Height,
-                  (float)spec.Width, (float)spec.Height));
-
-    cmd.SetMat4(m_TAAResolveShader, "u_InvViewProj",
-                glm::inverse(frame.viewProjection3DUnjittered));
-    cmd.SetMat4(m_TAAResolveShader, "u_PrevViewProj", frame.prevViewProjection3D);
-
-    const float feedbackMax = glm::clamp(RenderSettings::TAAFeedbackMax, 0.f, 0.99f);
-    cmd.SetFloat(m_TAAResolveShader, "u_FeedbackMin",
-                 glm::clamp(RenderSettings::TAAFeedbackMin, 0.f, feedbackMax));
-    cmd.SetFloat(m_TAAResolveShader, "u_FeedbackMax", feedbackMax);
-    cmd.SetInt(m_TAAResolveShader, "u_Reset",       frame.taaReset ? 1 : 0);
-    cmd.SetInt(m_TAAResolveShader, "u_UseDilation", RenderSettings::TAADilation ? 1 : 0);
-    cmd.SetInt(m_TAAResolveShader, "u_DebugView",   RenderSettings::TAADebugView);
-
-    cmd.DrawFullscreenTriangle();
+    m_Upscaler->Evaluate(m_RenderGraph, in, cmd);
 }
 
 void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
@@ -413,7 +375,7 @@ void SceneRenderer::AutoExposurePass(const RenderFrame& frame, CommandList& cmd)
     HMN_PROFILE_FUNCTION();
     if (frame.toneMappingEnabled)
     {
-        auto resolved = m_RenderGraph.GetFBO("taa_curr");
+        auto resolved = m_RenderGraph.GetFBO(Upscaler::OutputTarget);
         const auto& spec = resolved->GetSpecification();
         uint32_t colorAttachment = resolved->GetColorAttachmentRendererID();
         cmd.Invoke([this, colorAttachment, width = spec.Width, height = spec.Height]()

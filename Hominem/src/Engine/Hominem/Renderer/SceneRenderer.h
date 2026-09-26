@@ -8,6 +8,7 @@
 #include "Hominem/Renderer/PostProcess/AutoExposure.h"
 #include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "Hominem/Renderer/RHI/SharedImages.h"
+#include "Hominem/Renderer/PostProcess/Upscaling/Upscaler.h"
 
 namespace Hominem {
 
@@ -34,8 +35,9 @@ public:
         m_SharedImages.store(std::move(table), std::memory_order_release);
     }
 
-    /// Applies this frame's TAA jitter. Mutates the frame's 3D camera matrices, so call it
-    /// on the main thread after every layer has built the frame and before Record().
+    /// Applies this frame's jitter and mip bias for the active upscaler. Mutates the frame's
+    /// 3D camera matrices, so call it on the main thread after every layer has built the
+    /// frame and before Record().
     void PrepareTemporal(RenderFrame& frame);
 
     /// Records every pass into a CommandList per pass. You should call it from the main thread.
@@ -48,7 +50,7 @@ private:
     void SetupPasses();
 
     void GeometryPass      (const RenderFrame& frame, CommandList& cmd);
-    void TAAResolvePass    (const RenderFrame& frame, CommandList& cmd);
+    void UpscalePass       (const RenderFrame& frame, CommandList& cmd);
     void ImGuiPass         (const RenderFrame& frame, CommandList& cmd);
     void AutoExposurePass  (const RenderFrame& frame, CommandList& cmd);
     void BloomThresholdPass(const RenderFrame& frame, CommandList& cmd);
@@ -70,12 +72,12 @@ private:
     Ref<Shader> m_FireQuadShader;
     Ref<Shader> m_SmokeQuadShader;
     Ref<Shader> m_VkBlitShader;
-    Ref<Shader> m_TAAResolveShader;
+
+    Scope<Upscaler> m_Upscaler;
 
     // Main thread only — PrepareTemporal and Record.
     glm::mat4 m_PrevViewProjection { 1.f };
     uint32_t  m_TAAFrameIndex   = 0;
-    uint32_t  m_TAAHistoryIdx   = 0;
     uint32_t  m_TAALastRenderW  = 0;
     uint32_t  m_TAALastRenderH  = 0;
     bool      m_TAAResetPending = true;

@@ -146,7 +146,7 @@ void main()
     vec2 ndcPrev = v_ClipPrev.xy / max(abs(v_ClipPrev.w), 1e-6) * sign(v_ClipPrev.w);
     FragVelocity = vec4((ndcCurr - ndcPrev) * 0.5, 0.0, 0.0);
 
-    vec4 albedoSample = texture(u_Albedo, v_TexCoord);
+    vec4 albedoSample = texture(u_Albedo, v_TexCoord, u_TextureLodBias);
     vec3 albedo = albedoSample.rgb;
 
 #ifdef SKINNED
@@ -154,7 +154,7 @@ void main()
 #endif
 
 #ifdef HAS_METALROUGHNESS_TEX
-    vec2  mr        = texture(u_MetalRoughness, v_TexCoord).gb;
+    vec2  mr        = texture(u_MetalRoughness, v_TexCoord, u_TextureLodBias).gb;
     float roughness = clamp(mr.x, 0.05, 1.0);
     float metalness = clamp(mr.y, 0.0,  1.0);
 #else
@@ -167,7 +167,7 @@ void main()
     vec3 vT = normalize(v_Tangent.xyz);
     vT      = normalize(vT - dot(vT, vN) * vN);
     vec3 vB = cross(vN, vT) * v_Tangent.w;
-    vec3 normalSample = texture(u_NormalMap, v_TexCoord).xyz * 2.0 - 1.0;
+    vec3 normalSample = texture(u_NormalMap, v_TexCoord, u_TextureLodBias).xyz * 2.0 - 1.0;
     normalSample.y = -normalSample.y; // DX -> OpenGL normal map convention
     vec3 N  = normalize(mat3(vT, vB, vN) * normalSample);
 #else

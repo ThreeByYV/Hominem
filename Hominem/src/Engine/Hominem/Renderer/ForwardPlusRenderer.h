@@ -32,9 +32,11 @@ struct alignas(16) SceneUBOData
     int32_t   DebugMode;         // offset 152
     int32_t   AreaLightsEnabled; // offset 156
     glm::mat4 ViewProjectionUnjittered; // offset 160, 64 bytes
-    glm::mat4 PrevViewProjection;       // offset 224 → total 288 bytes
+    glm::mat4 PrevViewProjection;       // offset 224, 64 bytes
+    float     TextureLodBias;           // offset 288
+    float     _Pad[3];                  // offset 292 → total 304 bytes
 };
-static_assert(sizeof(SceneUBOData) == 288, "SceneUBOData size mismatch — check std140 layout");
+static_assert(sizeof(SceneUBOData) == 304, "SceneUBOData size mismatch — check std140 layout");
 
 struct ForwardPlusRendererStorage
 {

@@ -209,6 +209,7 @@ ForwardPlusRenderer::SceneData ForwardPlusRenderer::BeginScene(const RenderFrame
         // otherwise the per-frame sample offset reads as motion and cancels the accumulation.
         ubo.ViewProjectionUnjittered = frame.viewProjection3DUnjittered;
         ubo.PrevViewProjection       = frame.prevViewProjection3D;
+        ubo.TextureLodBias           = frame.textureLodBias;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 

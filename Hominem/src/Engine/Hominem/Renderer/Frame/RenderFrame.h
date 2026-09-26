@@ -255,6 +255,7 @@ namespace Hominem {
 		glm::mat4 proj3DUnjittered           {};
 		glm::mat4 prevViewProjection3D       {};
 		glm::vec2 taaJitter                  {};  // UV units
+		float     textureLodBias             = 0.f; // mip bias for material textures, <= 0
 		bool      taaEnabled = false;
 		bool      taaReset   = true;              // history invalid — don't blend it
 
