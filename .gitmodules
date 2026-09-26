@@ -49,3 +49,7 @@
 [submodule "Hominem/vendor/Vulkan-Headers"]
 	path = Hominem/vendor/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "Hominem/vendor/DLSS"]
+	path = Hominem/vendor/DLSS
+	url = https://github.com/NVIDIA/DLSS.git
+	update = none

@@ -114,6 +114,54 @@ if not os.isfile(HMN .. "/Hominem/vendor/assimp/build/lib/Release/assimp.lib") t
     end
 end
 
+-- NVIDIA DLSS (NGX SDK). The submodule pins an SDK release but is `update = none`: the
+-- full repo is ~1.4 GB of binaries for every platform, which a recursive init would pull.
+-- Instead it is fetched here as a partial, sparse clone of just the headers, the Windows
+-- x64 libs and both nvngx_dlss.dll builds (~30 MB download). Mirrors hmn_sync_dlss in
+-- CMakeLists.txt; keep the two in step.
+local DLSS = HMN .. "/Hominem/vendor/DLSS"
+local DLSSSparsePaths = {
+    "/include/",
+    "/lib/Windows_x86_64/x64/nvsdk_ngx_d.lib",
+    "/lib/Windows_x86_64/x64/nvsdk_ngx_d_dbg.lib",
+    "/lib/Windows_x86_64/dev/nvngx_dlss.dll",
+    "/lib/Windows_x86_64/rel/nvngx_dlss.dll",
+}
+
+local function dlssGit(args)
+    local ok = os.execute('git -C "' .. DLSS .. '" ' .. args)
+    if ok ~= true and ok ~= 0 then
+        print("WARNING: Hominem: `git " .. args .. "` failed in " .. DLSS)
+    end
+end
+
+local function syncDLSS()
+    local pinned = os.outputof('git -C "' .. HMN .. '" ls-files --stage -- Hominem/vendor/DLSS')
+    pinned = pinned and pinned:match("^160000 (%x+)")
+    if not pinned then return end
+
+    if os.isdir(DLSS .. "/.git") then
+        local head = os.outputof('git -C "' .. DLSS .. '" rev-parse HEAD')
+        if head == pinned and os.isfile(DLSS .. "/include/nvsdk_ngx.h") then return end
+    else
+        local url = os.outputof('git -C "' .. HMN .. '" config -f .gitmodules --get submodule.Hominem/vendor/DLSS.url')
+        os.mkdir(DLSS)
+        dlssGit("init -q")
+        dlssGit("remote add origin " .. url)
+    end
+
+    print("Hominem: fetching DLSS SDK " .. pinned .. " (headers, Windows x64 libs, DLLs)...")
+    dlssGit("fetch -q --depth 1 --filter=blob:none origin " .. pinned)
+    dlssGit("sparse-checkout set --no-cone " .. table.concat(DLSSSparsePaths, " "))
+    dlssGit("-c advice.detachedHead=false checkout -q --detach " .. pinned)
+end
+syncDLSS()
+
+local HominemDLSSEnabled = os.isfile(DLSS .. "/include/nvsdk_ngx.h")
+if not HominemDLSSEnabled then
+    print("WARNING: DLSS SDK not found at " .. DLSS .. "; building without DLSS")
+end
+
 group "Dependencies"
     include (HMN .. "/Hominem/vendor/GLFW")
     include (HMN .. "/Hominem/vendor/Glad")
@@ -168,6 +216,27 @@ project "Hominem"
     defines { 'HMN_ENGINE_RESOURCES_PATH="' .. HMN .. '/Hominem/src/Engine/Resources"' }
 
     includedirs (table.join(HominemEngineIncludes, HominemVendorIncludes))
+
+    -- A StaticLib's links are merged into Hominem.lib, so consumers need nothing extra.
+    -- NGX loads nvngx_dlss.dll at runtime; during development it is read straight from
+    -- the submodule, like engine resources. The dev DLL carries the debug overlay and
+    -- must never ship, so only Dist points at the release one.
+    if HominemDLSSEnabled then
+        includedirs { DLSS .. "/include" }
+        libdirs     { DLSS .. "/lib/Windows_x86_64/x64" }
+        defines     { "HMN_ENABLE_DLSS" }
+
+        filter "configurations:Debug"
+            links   { "nvsdk_ngx_d_dbg" }   -- /MDd
+            defines { 'HMN_DLSS_DLL_DIR="' .. DLSS .. '/lib/Windows_x86_64/dev"' }
+        filter "configurations:Release"
+            links   { "nvsdk_ngx_d" }
+            defines { 'HMN_DLSS_DLL_DIR="' .. DLSS .. '/lib/Windows_x86_64/dev"' }
+        filter "configurations:Dist"
+            links   { "nvsdk_ngx_d" }
+            defines { 'HMN_DLSS_DLL_DIR="' .. DLSS .. '/lib/Windows_x86_64/rel"' }
+        filter {}
+    end
 
     filter "system:windows"
         systemversion "latest"

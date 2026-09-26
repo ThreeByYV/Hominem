@@ -272,6 +272,83 @@ if(WIN32)
     target_compile_definitions(volk PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 endif()
 
+# NVIDIA DLSS (NGX SDK). The submodule pins an SDK release but is `update = none`: the
+# full repo is ~1.4 GB of binaries for every platform, which a recursive init would pull.
+# Instead it is fetched here as a partial, sparse clone of just the headers, the Windows
+# x64 libs and both nvngx_dlss.dll builds (~30 MB download). Re-synced whenever the
+# pinned commit changes. To bump the SDK: check the new release out inside
+# Hominem/vendor/DLSS, then `git add Hominem/vendor/DLSS` in the engine repo.
+option(HMN_ENABLE_DLSS "Build DLSS Super Resolution support (NVIDIA RTX, Vulkan)" ON)
+set(HMN_DLSS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Hominem/vendor/DLSS)
+set(HMN_DLSS_SPARSE_PATHS
+    /include/
+    /lib/Windows_x86_64/x64/nvsdk_ngx_d.lib
+    /lib/Windows_x86_64/x64/nvsdk_ngx_d_dbg.lib
+    /lib/Windows_x86_64/dev/nvngx_dlss.dll
+    /lib/Windows_x86_64/rel/nvngx_dlss.dll
+)
+
+function(hmn_dlss_git)
+    execute_process(COMMAND ${GIT_EXECUTABLE} ${ARGN}
+                    WORKING_DIRECTORY ${HMN_DLSS_DIR} RESULT_VARIABLE _result)
+    if(NOT _result EQUAL 0)
+        message(WARNING "Hominem: `git ${ARGN}` failed in ${HMN_DLSS_DIR}")
+    endif()
+endfunction()
+
+function(hmn_sync_dlss)
+    execute_process(COMMAND ${GIT_EXECUTABLE} ls-files --stage -- Hominem/vendor/DLSS
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE _stage OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT _stage MATCHES "^160000 ([0-9a-f]+)")
+        return()
+    endif()
+    set(_pinned ${CMAKE_MATCH_1})
+
+    if(EXISTS "${HMN_DLSS_DIR}/.git")
+        execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+                        WORKING_DIRECTORY ${HMN_DLSS_DIR}
+                        OUTPUT_VARIABLE _head OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(_head STREQUAL _pinned AND EXISTS "${HMN_DLSS_DIR}/include/nvsdk_ngx.h")
+            return()
+        endif()
+    else()
+        execute_process(COMMAND ${GIT_EXECUTABLE} config -f .gitmodules
+                                --get submodule.Hominem/vendor/DLSS.url
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                        OUTPUT_VARIABLE _url OUTPUT_STRIP_TRAILING_WHITESPACE)
+        file(MAKE_DIRECTORY ${HMN_DLSS_DIR})
+        hmn_dlss_git(init -q)
+        hmn_dlss_git(remote add origin ${_url})
+    endif()
+
+    message(STATUS "Hominem: fetching DLSS SDK ${_pinned} (headers, Windows x64 libs, DLLs)...")
+    hmn_dlss_git(fetch -q --depth 1 --filter=blob:none origin ${_pinned})
+    hmn_dlss_git(sparse-checkout set --no-cone ${HMN_DLSS_SPARSE_PATHS})
+    hmn_dlss_git(-c advice.detachedHead=false checkout -q --detach ${_pinned})
+endfunction()
+
+if(HMN_ENABLE_DLSS AND NOT WIN32)
+    set(HMN_ENABLE_DLSS OFF)
+endif()
+if(HMN_ENABLE_DLSS)
+    if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+        hmn_sync_dlss()
+    endif()
+    if(EXISTS "${HMN_DLSS_DIR}/include/nvsdk_ngx.h")
+        # The project is /MD in every config (see top of file), so always the dynamic-CRT
+        # release lib; nvsdk_ngx_d_dbg.lib is only for /MDd builds.
+        add_library(ngx STATIC IMPORTED GLOBAL)
+        set_target_properties(ngx PROPERTIES
+            IMPORTED_LOCATION             "${HMN_DLSS_DIR}/lib/Windows_x86_64/x64/nvsdk_ngx_d.lib"
+            INTERFACE_INCLUDE_DIRECTORIES "${HMN_DLSS_DIR}/include"
+        )
+    else()
+        message(WARNING "Hominem: DLSS SDK not found at ${HMN_DLSS_DIR}; building without DLSS")
+        set(HMN_ENABLE_DLSS OFF)
+    endif()
+endif()
+
 add_library(stb_image STATIC Hominem/vendor/stb_image/stb_image.cpp)
 target_include_directories(stb_image PUBLIC Hominem/vendor/stb_image)
 set_target_properties(stb_image PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
@@ -323,6 +400,17 @@ target_link_libraries(Hominem PUBLIC
 
 if(TARGET shaderc_lib)
     target_link_libraries(Hominem PUBLIC shaderc_lib)
+endif()
+
+if(HMN_ENABLE_DLSS)
+    target_link_libraries(Hominem PRIVATE ngx)
+    # NGX loads nvngx_dlss.dll at runtime; during development it is read straight from
+    # the submodule, like engine resources. The dev DLL carries the debug overlay and
+    # must never ship, so only Dist points at the release one.
+    target_compile_definitions(Hominem PRIVATE
+        HMN_ENABLE_DLSS
+        HMN_DLSS_DLL_DIR="${HMN_DLSS_DIR}/lib/Windows_x86_64/$<IF:$<CONFIG:Dist>,rel,dev>"
+    )
 endif()
 
 if(WIN32)
