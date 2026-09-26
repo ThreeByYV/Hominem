@@ -30,6 +30,16 @@ namespace Hominem {
 		OpenGLShader::UnbindAll();
 	}
 
+	static Ref<ShaderLibrary> s_EngineLibrary;
+
+	void ShaderLibrary::InitEngine()     { s_EngineLibrary = CreateRef<ShaderLibrary>(); }
+	void ShaderLibrary::ShutdownEngine() { s_EngineLibrary.reset(); }
+	Ref<ShaderLibrary> ShaderLibrary::Engine()
+	{
+		HMN_CORE_ASSERT(s_EngineLibrary, "ShaderLibrary::Engine() used before InitEngine()");
+		return s_EngineLibrary;
+	}
+
 	void ShaderLibrary::Add(const std::string& name, const Ref<Shader>& shader)
 	{
 		HMN_CORE_ASSERT(!Exists(name), "Shader already exists in Shader Library!");

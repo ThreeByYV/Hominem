@@ -66,6 +66,11 @@ namespace Hominem {
 		Ref<Shader> Load(const std::string& name, const std::string& filepath);
 
 		bool Exists(const std::string& name) const;
+
+		/// Engine-wide library for pass and bake shaders; lives while the GL context does.
+		static void InitEngine();
+		static void ShutdownEngine();
+		static Ref<ShaderLibrary> Engine();
 	private:
 		std::unordered_map<std::string, Ref<Shader>> m_Shaders;
 	};

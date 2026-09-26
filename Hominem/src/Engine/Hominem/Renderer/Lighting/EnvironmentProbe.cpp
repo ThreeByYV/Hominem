@@ -8,6 +8,28 @@
 
 namespace Hominem {
 
+static Ref<Texture2D> s_BRDFLUT;
+
+void EnvironmentProbe::Init()
+{
+    auto lib = ShaderLibrary::Engine();
+    lib->Load("engine://Shaders/irradiance_convolve.glsl");
+    lib->Load("engine://Shaders/prefilter_convolve.glsl");
+    lib->Load("engine://Shaders/brdf_lut.glsl");
+
+    RenderThread::QueueUpload([] { s_BRDFLUT = BakeBRDFLUT(); });
+}
+
+void EnvironmentProbe::Shutdown()
+{
+    s_BRDFLUT.reset();
+}
+
+Ref<Texture2D> EnvironmentProbe::GetBRDFLUT()
+{
+    return s_BRDFLUT;
+}
+
 // Standard OpenGL cubemap face directions
 static const glm::vec3 s_FaceTargets[6] = {
     { 1, 0, 0}, {-1, 0, 0},   // +X, -X
@@ -97,7 +119,7 @@ Ref<TextureCube> EnvironmentProbe::ConvolveIrradiance(const Ref<TextureCube>& so
     auto cube = TextureCube::CreateEmpty(resolution, TextureCube::CubeMips::One);
     cube->EnsureCreated();
 
-    auto shader = Renderer3D::GetShaderLibrary()->Get("irradiance_convolve");
+    auto shader = ShaderLibrary::Engine()->Get("irradiance_convolve");
     HMN_CORE_ASSERT(shader, "EnvironmentProbe: irradiance_convolve shader not loaded");
 
     uint32_t fbo = RenderCommand::GenFramebuffer();
@@ -138,7 +160,7 @@ Ref<TextureCube> EnvironmentProbe::PrefilterSpecular(const Ref<TextureCube>& sou
     auto cube = TextureCube::CreateEmpty(resolution, TextureCube::CubeMips::FullChain);
     cube->EnsureCreated();
 
-    const auto shader = Renderer3D::GetShaderLibrary()->Get("prefilter_convolve");
+    const auto shader = ShaderLibrary::Engine()->Get("prefilter_convolve");
     HMN_CORE_ASSERT(shader, "EnvironmentProbe: prefilter_convolve shader not loaded");
 
     const uint32_t fbo = RenderCommand::GenFramebuffer();
@@ -188,7 +210,7 @@ Ref<Texture2D> EnvironmentProbe::BakeBRDFLUT(uint32_t resolution)
     auto lut = Texture2D::Create(resolution, resolution, TextureFormat::RG16F);
     lut->EnsureCreated();
 
-    auto shader = Renderer3D::GetShaderLibrary()->Get("brdf_lut");
+    auto shader = ShaderLibrary::Engine()->Get("brdf_lut");
     HMN_CORE_ASSERT(shader, "EnvironmentProbe: brdf_lut shader not loaded");
 
     const uint32_t fbo = RenderCommand::GenFramebuffer();

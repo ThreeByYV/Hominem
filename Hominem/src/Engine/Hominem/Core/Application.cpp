@@ -14,6 +14,7 @@
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/2D/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
 #include "Hominem/Core/Task.h"
 #include <GLFW/glfw3.h>
 #include <thread>
@@ -58,8 +59,10 @@ namespace Hominem {
 		m_Window->SetEventCallback(HMN_BIND_EVENT_FN(Application::OnEvent));
 
 		RenderCommand::Init();
+		ShaderLibrary::InitEngine();
 		Renderer2D::Init();
 		Renderer3D::Init();
+		EnvironmentProbe::Init();
 		AssetManager::Init();
 
 		// Default gameplay action bindings. Games can rebind via InputMap::Bind.
@@ -306,8 +309,10 @@ namespace Hominem {
 			layer->OnDetach();
 		m_LayerStack.Clear();
 
+		EnvironmentProbe::Shutdown();
 		Renderer3D::Shutdown();
 		Renderer2D::Shutdown();
+		ShaderLibrary::ShutdownEngine();
 	}
 
 	bool Application::OnWindowClose(WindowCloseEvent& e)

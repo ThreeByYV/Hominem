@@ -40,33 +40,11 @@ void Renderer3D::Init()
 {
     s_Data  = new Renderer3DStorage();
 
-    s_Data->ShaderLibrary = CreateRef<ShaderLibrary>();
-
-    s_Data->ShaderLibrary->Load("engine://Shaders/fog.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/debug_aabb.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/debug_sphere.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/composite.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/bloom_threshold.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/bloom_blur.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/skybox.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/silhouette.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/fire_quad.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/smoke_quad.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/irradiance_convolve.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/prefilter_convolve.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/brdf_lut.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/vk_blit.glsl");
-    s_Data->ShaderLibrary->Load("engine://Shaders/taa_resolve.glsl");
-
-    RenderThread::QueueUpload([] {
-        s_Data->BRDFLUT = EnvironmentProbe::BakeBRDFLUT();
-    });
-
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
     s_Data->BoneWeightShader     = Shader::Create("engine://Shaders/bone_weight.glsl");
-    s_Data->DebugAABBShader      = s_Data->ShaderLibrary->Get("debug_aabb");
-    s_Data->DebugSphereShader    = s_Data->ShaderLibrary->Get("debug_sphere");
+    s_Data->DebugAABBShader      = ShaderLibrary::Engine()->Load("engine://Shaders/debug_aabb.glsl");
+    s_Data->DebugSphereShader    = ShaderLibrary::Engine()->Load("engine://Shaders/debug_sphere.glsl");
 
     // StaticMeshShader is assigned by InitForwardPlus() on the render thread.
 
@@ -82,23 +60,6 @@ void Renderer3D::Init()
     s_Data->DebugVAO = VertexArray::Create();
     s_Data->DebugVAO->AddVertexBuffer(s_Data->DebugVBO);
     s_Data->DebugVAO->SetIndexBuffer(s_Data->DebugIBO);
-}
-
-static bool DetectLowEndGPU()
-{
-    const char* renderer = RenderCommand::GetGPURenderer();
-    const char* vendor   = RenderCommand::GetGPUVendor();
-    if (!renderer || !vendor) return false;
-    std::string r(renderer), v(vendor);
-    // Intel integrated (HD/UHD) — Arc is discrete and handles PBR fine
-    if (v.find("Intel") != std::string::npos)
-    {
-        if (r.find("Arc") != std::string::npos) return false;
-        if (r.find("HD ") != std::string::npos || r.find("UHD ") != std::string::npos ||
-            r.find("HD Graphics") != std::string::npos || r.find("UHD Graphics") != std::string::npos)
-            return true;
-    }
-    return false;
 }
 
 void Renderer3D::InitForwardPlus()
@@ -117,17 +78,8 @@ void Renderer3D::InitForwardPlus()
         "engine://Shaders/mesh.glsl",
         GetAllVariants());
 
-    if (DetectLowEndGPU())
-    {
-        RenderSettings::RecommendedRenderScale = 0.80f;
-        HMN_CORE_INFO("Renderer3D: low-end integrated GPU detected — recommended render scale 0.80");
-    }
-
     HMN_CORE_INFO("Renderer3D: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
                   MAX_LIGHTS, TILE_SIZE);
-
-    // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
-    RenderSettings::LogAll();
 }
 
 void Renderer3D::Shutdown()
@@ -437,7 +389,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
             cmd.BindTexture(5, scene.PrefilteredMapID);
             cmd.SetInt(shader, "u_PrefilteredMap", 5);
         }
-        cmd.BindTexture(6, s_Data->BRDFLUT->GetRendererID());
+        cmd.BindTexture(6, EnvironmentProbe::GetBRDFLUT()->GetRendererID());
         cmd.SetInt(shader, "u_BRDFLUT", 6);
     }
 
