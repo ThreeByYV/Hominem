@@ -11,11 +11,12 @@ void RenderGraph::AddPass(std::string name, PipelineState state, PassBuilder io,
 	m_Passes.push_back({ std::move(name), state, std::move(io), std::move(fn) });
 }
 
-void RenderGraph::AddFBO(std::string name, FramebufferFormat format, float scale, uint32_t numColorAttachments)
+void RenderGraph::AddFBO(std::string name, FramebufferFormat format, float scale, uint32_t numColorAttachments,
+                         Resolution resolution)
 {
 	HMN_CORE_ASSERT(m_FBOs.find(name) == m_FBOs.end(),
 		"RenderGraph: target '{}' already declared", name);
-	m_FBOs[std::move(name)] = { nullptr, format, scale, numColorAttachments };
+	m_FBOs[std::move(name)] = { nullptr, format, scale, numColorAttachments, resolution };
 }
 
 void RenderGraph::SetAlias(std::string alias, std::string target)
@@ -119,8 +120,9 @@ void RenderGraph::OnResize(uint32_t w, uint32_t h)
 	m_Height = h;
 	for (auto& [name, entry] : m_FBOs)
 	{
-		uint32_t fw = std::max(1u, (uint32_t)(w * entry.scale * m_RenderScale));
-		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale * m_RenderScale));
+		const float res = entry.resolution == Resolution::Render ? m_RenderScale : 1.0f;
+		uint32_t fw = std::max(1u, (uint32_t)(w * entry.scale * res));
+		uint32_t fh = std::max(1u, (uint32_t)(h * entry.scale * res));
 
 		FramebufferSpecification spec;
 		spec.Width               = fw;

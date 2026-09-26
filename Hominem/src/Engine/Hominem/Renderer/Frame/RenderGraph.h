@@ -60,8 +60,12 @@ public:
     // around the fn each frame — fn only needs to issue draw commands.
     void AddPass(std::string name, PipelineState state, PassBuilder io, PassFn fn);
 
-    // Registers a named render target. scale is relative to the viewport.
-    void AddFBO(std::string name, FramebufferFormat format, float scale = 1.0f, uint32_t numColorAttachments = 1);
+    // Which size an FBO follows: the scene's render resolution, or the output (window) size.
+    enum class Resolution : uint8_t { Render, Output };
+
+    // Registers a named render target. scale is relative to the chosen resolution.
+    void AddFBO(std::string name, FramebufferFormat format, float scale = 1.0f, uint32_t numColorAttachments = 1,
+                Resolution resolution = Resolution::Render);
 
     // Returns a previously declared FBO. May be null before the first valid resize.
     Ref<Framebuffer> GetFBO(const std::string& name);
@@ -107,7 +111,14 @@ private:
     std::string ResolveAlias(const std::string& name) const;
 
     struct Pass     { std::string name; PipelineState state; PassBuilder io; PassFn fn; };
-    struct FBOEntry { Ref<Framebuffer> fbo; FramebufferFormat format; float scale = 1.0f; uint32_t numColorAttachments = 1; };
+    struct FBOEntry
+    {
+        Ref<Framebuffer>  fbo;
+        FramebufferFormat format;
+        float             scale               = 1.0f;
+        uint32_t          numColorAttachments = 1;
+        Resolution        resolution          = Resolution::Render;
+    };
 
     std::vector<Pass>                            m_Passes;
     std::unordered_map<std::string, FBOEntry>    m_FBOs;

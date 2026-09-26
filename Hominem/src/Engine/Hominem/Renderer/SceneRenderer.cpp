@@ -60,8 +60,10 @@ void SceneRenderer::SetupPasses()
 {
     // HDR has 2 color attachments: [0] = rendered scene, [1] = RG velocity in UV space
     m_RenderGraph.AddFBO("hdr",        FramebufferFormat::RGBA16F, 1.0f, 2);
-    m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f);
-    m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f);
+    // Post-processing runs after the upscale, so bloom follows the output size.
+    constexpr auto Output = RenderGraph::Resolution::Output;
+    m_RenderGraph.AddFBO("bloom",      FramebufferFormat::RGBA8,   0.25f, 1, Output);
+    m_RenderGraph.AddFBO("bloom_temp", FramebufferFormat::RGBA8,   0.25f, 1, Output);
 
     m_Upscaler->DeclareResources(m_RenderGraph);
 
@@ -132,7 +134,7 @@ void SceneRenderer::PrepareTemporal(RenderFrame& frame)
 
     if (frame.viewportWidth == 0 || frame.viewportHeight == 0) return;
 
-    // Mirrors RenderGraph::OnResize for a scale-1.0 target. Recomputed rather than read
+    // Mirrors RenderGraph::OnResize for a render-resolution target. Recomputed rather than read
     // off the FBO because the graph resizes on the render thread, a frame behind this.
     const float    scale   = std::clamp(frame.renderScale, 0.25f, 1.0f);
     const uint32_t renderW = std::max(1u, (uint32_t)(frame.viewportWidth  * scale));
