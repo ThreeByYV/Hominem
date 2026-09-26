@@ -1,54 +1,65 @@
 [submodule "Hominem/vendor/Box2D"]
-    path = Hominem/vendor/Box2D
-    url  = https://github.com/ThreeByYV/box2d.git
+	path = Hominem/vendor/Box2D
+	url = https://github.com/ThreeByYV/box2d.git
+	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/GLFW"]
 	path = Hominem/vendor/GLFW
 	url = https://github.com/ThreeByYV/glfw
+	shallow = true
 [submodule "Hominem/vendor/spdlog"]
 	path = Hominem/vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
+	shallow = true
 [submodule "Hominem/vendor/glm"]
 	path = Hominem/vendor/glm
 	url = https://github.com/icaven/glm.git
+	shallow = true
 [submodule "Hominem/vendor/freetype"]
 	path = Hominem/vendor/freetype
 	url = https://github.com/ThreeByYV/freetype.git
+	shallow = true
 [submodule "Hominem/vendor/imgui"]
 	path = Hominem/vendor/imgui
 	url = https://github.com/ThreeByYV/imgui.git
 	ignore = untracked
-[submodule "Hominem/vendor/Box2D"]
-	path = Hominem/vendor/Box2D
-	url = https://github.com/ThreeByYV/box2d.git
-	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/assimp"]
 	path = Hominem/vendor/assimp
 	url = https://github.com/ThreeByYV/assimp.git
 	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/msdf-atlas-gen"]
 	path = Hominem/vendor/msdf-atlas-gen
 	url = https://github.com/ThreeByYV/msdf-atlas-gen.git
 	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/miniaudio"]
 	path = Hominem/vendor/miniaudio
 	url = https://github.com/mackron/miniaudio.git
+	shallow = true
 [submodule "Hominem/vendor/tracy"]
 	path = Hominem/vendor/tracy
 	url = https://github.com/wolfpld/tracy
 	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/meshoptimizer"]
 	path = Hominem/vendor/meshoptimizer
 	url = https://github.com/zeux/meshoptimizer.git
 	ignore = untracked
+	shallow = true
 [submodule "Hominem/vendor/volk"]
 	path = Hominem/vendor/volk
 	url = https://github.com/zeux/volk.git
+	shallow = true
 [submodule "Hominem/vendor/VulkanMemoryAllocator"]
 	path = Hominem/vendor/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+	shallow = true
 [submodule "Hominem/vendor/Vulkan-Headers"]
 	path = Hominem/vendor/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+	shallow = true
 [submodule "Hominem/vendor/DLSS"]
 	path = Hominem/vendor/DLSS
 	url = https://github.com/NVIDIA/DLSS.git
