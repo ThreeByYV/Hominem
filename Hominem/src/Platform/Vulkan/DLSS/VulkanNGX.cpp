@@ -27,13 +27,6 @@ const std::wstring& DataPath()
     return path;
 }
 
-void NVSDK_CONV LogFromNGX(const char* message, NVSDK_NGX_Logging_Level, NVSDK_NGX_Feature)
-{
-    std::string_view line(message);
-    while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.remove_suffix(1);
-    HMN_CORE_TRACE("NGX: {0}", line);
-}
-
 NVSDK_NGX_FeatureCommonInfo* CommonInfo()
 {
     static const std::wstring    dllDir  = std::filesystem::path(HMN_DLSS_DLL_DIR).make_preferred().wstring();
@@ -43,8 +36,11 @@ NVSDK_NGX_FeatureCommonInfo* CommonInfo()
         NVSDK_NGX_FeatureCommonInfo i{};
         i.PathListInfo.Path   = paths;
         i.PathListInfo.Length = 1;
-        i.LoggingInfo.LoggingCallback     = &LogFromNGX;
-        i.LoggingInfo.MinimumLoggingLevel = NVSDK_NGX_LOGGING_LEVEL_ON;
+        // NGX prints ~80 lines to stdout when logging is on, so it's opt-in: HOMINEM_NGX_LOG=1
+        // (also writes log files to DataPath()).
+        char optIn[2] = {};
+        const bool verbose = GetEnvironmentVariableA("HOMINEM_NGX_LOG", optIn, sizeof(optIn)) == 1 && optIn[0] == '1';
+        i.LoggingInfo.MinimumLoggingLevel = verbose ? NVSDK_NGX_LOGGING_LEVEL_ON : NVSDK_NGX_LOGGING_LEVEL_OFF;
         return i;
     }();
     return &info;
