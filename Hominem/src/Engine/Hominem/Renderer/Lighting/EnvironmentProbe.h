@@ -12,6 +12,13 @@ namespace Hominem {
 class EnvironmentProbe
 {
 public:
+    /// Loads the bake shaders and queues the BRDF LUT bake onto the render thread.
+    static void Init();
+    static void Shutdown();
+
+    /// Null until the render thread has run the startup bake.
+    static Ref<Texture2D> GetBRDFLUT();
+
     static Ref<TextureCube> Bake(const glm::vec3& capturePos,
                                   const RenderFrame& sceneFrame,
                                   uint32_t resolution = 512);

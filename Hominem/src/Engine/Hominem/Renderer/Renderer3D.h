@@ -38,7 +38,6 @@ static_assert(sizeof(SceneUBOData) == 288, "SceneUBOData size mismatch — check
 
 struct Renderer3DStorage
 {
-    Ref<ShaderLibrary>       ShaderLibrary;
     Ref<Shader>              OverrideShader;   // optional scene-wide override
     Ref<ShaderVariantSet>    MeshVariants;    // mesh.glsl named variants
     Ref<Shader>              NormalsShader;        // normals_debug.glsl (static)
@@ -49,8 +48,6 @@ struct Renderer3DStorage
     Ref<VertexArray>         DebugVAO;
     Ref<VertexBuffer>        DebugVBO;
     Ref<IndexBuffer>         DebugIBO;
-
-    Ref<Texture2D>     BRDFLUT;              // slot 6, RG16F split-sum (scale, bias) LUT, baked once at startup
 
     Ref<UniformBuffer> SceneUBO;             // binding 0 — SceneUBOData, uploaded once per frame
 
@@ -121,7 +118,6 @@ public:
     static void DrawStaticMesh(StaticMesh& mesh,  const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
                                 const glm::mat4* prevTransform = nullptr);
 
-    static Ref<ShaderLibrary> GetShaderLibrary() { return s_Data->ShaderLibrary; }
     static void ReloadVariants() { if (s_Data->MeshVariants) s_Data->MeshVariants->ReloadAll(); }
 
 private:

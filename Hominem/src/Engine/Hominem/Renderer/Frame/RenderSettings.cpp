@@ -3,6 +3,7 @@
 #include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Renderer/2D/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/RHI/RenderCommand.h"
 
 #include <algorithm>
 #include <cctype>
@@ -156,9 +157,26 @@ bool Assign(const Entry& e, std::string_view value)
 		RenderThread::QueueUpload([]
 		{
 			Renderer2D::GetShaderLibrary()->ReloadAll();
-			Renderer3D::GetShaderLibrary()->ReloadAll();
+			ShaderLibrary::Engine()->ReloadAll();
 			Renderer3D::ReloadVariants();
 		});
+	}
+
+	void RenderSettings::DetectRecommendedRenderScale()
+	{
+		const char* renderer = RenderCommand::GetGPURenderer();
+		const char* vendor   = RenderCommand::GetGPUVendor();
+		if (!renderer || !vendor) return;
+		const std::string r(renderer), v(vendor);
+
+		// Intel integrated (HD/UHD); Arc is discrete and handles PBR fine.
+		if (v.find("Intel") == std::string::npos || r.find("Arc") != std::string::npos) return;
+		if (r.find("HD ") != std::string::npos || r.find("UHD ") != std::string::npos ||
+		    r.find("HD Graphics") != std::string::npos || r.find("UHD Graphics") != std::string::npos)
+		{
+			RecommendedRenderScale = 0.80f;
+			HMN_CORE_INFO("RenderSettings: low-end integrated GPU detected — recommended render scale 0.80");
+		}
 	}
 
 	bool RenderSettings::Set(std::string_view name, std::string_view value)

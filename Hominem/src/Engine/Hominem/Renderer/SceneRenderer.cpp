@@ -44,18 +44,22 @@ void SceneRenderer::Init()
 {
     m_AutoExposure.Init(ComputeShader::Create("engine://Shaders/luminance.comp"));
 
+    RenderSettings::DetectRecommendedRenderScale();
     Renderer3D::InitForwardPlus();
+    // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
+    RenderSettings::LogAll();
 
     SetupPasses();
 
-    m_ThresholdShader = Renderer3D::GetShaderLibrary()->Get("bloom_threshold");
-    m_BlurShader      = Renderer3D::GetShaderLibrary()->Get("bloom_blur");
-    m_CompositeShader = Renderer3D::GetShaderLibrary()->Get("composite");
-    m_SkyboxShader    = Renderer3D::GetShaderLibrary()->Get("skybox");
-    m_FireQuadShader  = Renderer3D::GetShaderLibrary()->Get("fire_quad");
-    m_SmokeQuadShader = Renderer3D::GetShaderLibrary()->Get("smoke_quad");
-    m_VkBlitShader    = Renderer3D::GetShaderLibrary()->Get("vk_blit");
-    m_TAAResolveShader = Renderer3D::GetShaderLibrary()->Get("taa_resolve");
+    auto lib = ShaderLibrary::Engine();
+    m_ThresholdShader  = lib->Load("engine://Shaders/bloom_threshold.glsl");
+    m_BlurShader       = lib->Load("engine://Shaders/bloom_blur.glsl");
+    m_CompositeShader  = lib->Load("engine://Shaders/composite.glsl");
+    m_SkyboxShader     = lib->Load("engine://Shaders/skybox.glsl");
+    m_FireQuadShader   = lib->Load("engine://Shaders/fire_quad.glsl");
+    m_SmokeQuadShader  = lib->Load("engine://Shaders/smoke_quad.glsl");
+    m_VkBlitShader     = lib->Load("engine://Shaders/vk_blit.glsl");
+    m_TAAResolveShader = lib->Load("engine://Shaders/taa_resolve.glsl");
 }
 
 void SceneRenderer::Shutdown()
