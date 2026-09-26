@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "VulkanRenderer.h"
 #include "VulkanComputePipeline.h"
 #include "VulkanStorageBuffer.h"

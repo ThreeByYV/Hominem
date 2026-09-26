@@ -2,11 +2,11 @@
 
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Scene/Actor.h"
-#include "Hominem/Renderer/Camera.h"
+#include "Hominem/Renderer/Camera/Camera.h"
 #include "Hominem/Physics/PhysicsWorld.h"
-#include "Hominem/Renderer/RenderFrame.h"
-#include "Hominem/Renderer/Texture.h"
-#include "Hominem/Renderer/PostProcessSettings.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/RHI/Texture.h"
+#include "Hominem/Renderer/PostProcess/PostProcessSettings.h"
 
 #include <vector>
 #include <concepts>

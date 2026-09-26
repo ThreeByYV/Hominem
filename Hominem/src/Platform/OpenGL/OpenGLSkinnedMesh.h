@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Hominem/Renderer/SkinnedMesh.h"
-#include "Hominem/Renderer/StorageBuffer.h"
+#include "Hominem/Renderer/Geometry/SkinnedMesh.h"
+#include "Hominem/Renderer/RHI/StorageBuffer.h"
 #include "Hominem/Assets/SkinnedMeshData.h"
 
 namespace Hominem {

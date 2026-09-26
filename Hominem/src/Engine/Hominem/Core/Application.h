@@ -9,7 +9,7 @@
 #include "Hominem/ImGui/ImGuiLayer.h"
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Audio/AudioSystem.h"
-#include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Assets/AssetManager.h"
 
 

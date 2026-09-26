@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/SharedResources.h"
+#include "Hominem/Renderer/RHI/SharedResources.h"
 
 #include <array>
 #include <cstdint>

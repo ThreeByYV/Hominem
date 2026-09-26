@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/GraphicsContext.h"
+#include "Hominem/Renderer/RHI/GraphicsContext.h"
 
 struct GLFWwindow;
 

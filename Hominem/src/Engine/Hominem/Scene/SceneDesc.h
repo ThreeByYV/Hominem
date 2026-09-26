@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Hominem/Renderer/RenderFrame.h"
-#include "Hominem/Renderer/PostProcessSettings.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/PostProcess/PostProcessSettings.h"
 #include <functional>
 #include <glm/glm.hpp>
 #include <vector>

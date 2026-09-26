@@ -6,8 +6,8 @@
 
 #include "Hominem/Scene/Actor.h"
 #include "Hominem/Scene/Scene.h"
-#include "Hominem/Renderer/RenderFrame.h"
-#include "Hominem/Renderer/RenderSettings.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/Renderer3D.h"
 
 namespace Hominem::UI {

@@ -4,10 +4,10 @@
 #include <string>
 #include <functional>
 
-#include "RenderGraph.h"
-#include "AutoExposure.h"
-#include "RenderFrame.h"
-#include "SharedImages.h"
+#include "Hominem/Renderer/Frame/RenderGraph.h"
+#include "Hominem/Renderer/PostProcess/AutoExposure.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/RHI/SharedImages.h"
 
 namespace Hominem {
 

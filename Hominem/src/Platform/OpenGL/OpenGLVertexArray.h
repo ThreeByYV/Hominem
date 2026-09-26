@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/VertexArray.h"
+#include "Hominem/Renderer/RHI/VertexArray.h"
 
 namespace Hominem {
 

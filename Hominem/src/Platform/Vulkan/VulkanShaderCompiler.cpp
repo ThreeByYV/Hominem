@@ -2,8 +2,8 @@
 #include "VulkanShaderCompiler.h"
 #include "Hominem/Assets/AssetManager.h"
 #include "Hominem/Assets/AssetLoaders.h"
-#include "Hominem/Renderer/ShaderSource.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/RHI/ShaderSource.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 
 #include <shaderc/shaderc.hpp>
 

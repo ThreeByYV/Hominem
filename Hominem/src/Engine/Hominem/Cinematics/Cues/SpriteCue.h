@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Hominem/Cinematics/Cue.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

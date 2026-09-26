@@ -3,7 +3,7 @@
 #include "Hominem/Core/Window.h"
 #include "Hominem/Core/Log.h"
 
-#include "Hominem/Renderer/GraphicsContext.h"
+#include "Hominem/Renderer/RHI/GraphicsContext.h"
 
 #include <GLFW/glfw3.h>
 

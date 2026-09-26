@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "VulkanRenderer.h"
-#include "Hominem/Renderer/RenderSettings.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
 
 #include <set>
 

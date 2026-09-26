@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 #include <glad/glad.h>
 #include <vector>
 #include <array>

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Hominem/UI/Widget.h"
-#include "Hominem/Renderer/Font.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/2D/Font.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "Hominem/Utils/Transform.h"
 
 #include <algorithm>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Hominem/Renderer/Skeleton.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/Geometry/Skeleton.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 
 #include <glm/glm.hpp>
 #include <map>

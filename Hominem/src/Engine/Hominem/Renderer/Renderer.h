@@ -1,9 +1,9 @@
 #pragma once
 
-#include "SceneRenderer.h"
-#include "RenderFrame.h"
-#include "SharedResources.h"
-#include "SharedImages.h"
+#include "Hominem/Renderer/SceneRenderer.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/RHI/SharedResources.h"
+#include "Hominem/Renderer/RHI/SharedImages.h"
 #include <array>
 #include <cstdint>
 #include <memory>

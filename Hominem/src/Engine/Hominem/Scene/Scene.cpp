@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "Scene.h"
-#include "Hominem/Renderer/Frustum.h"
+#include "Hominem/Renderer/Camera/Frustum.h"
 
 namespace Hominem {
 

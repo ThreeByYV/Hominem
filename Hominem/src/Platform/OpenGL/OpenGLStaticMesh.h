@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/StaticMesh.h"
+#include "Hominem/Renderer/Geometry/StaticMesh.h"
 #include "Hominem/Assets/MeshData.h"
 
 #include <vector>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 
 #include <glm/glm.hpp>
 #include <cfloat>
