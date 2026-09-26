@@ -2,7 +2,7 @@
 
 #include "Hominem/Cinematics/Cue.h"
 #include "Hominem/Scene/Scene.h"
-#include "Hominem/Renderer/SkinnedMesh.h"
+#include "Hominem/Renderer/Geometry/SkinnedMesh.h"
 #include "Hominem/Utils/MathUtils.h"
 
 #include <glm/glm.hpp>

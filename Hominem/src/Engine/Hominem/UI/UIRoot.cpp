@@ -2,7 +2,7 @@
 #include "Hominem/UI/UIRoot.h"
 #include "Hominem/Core/Input.h"
 #include "Hominem/Core/MouseCodes.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 

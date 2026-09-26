@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/RendererAPI.h"
+#include "Hominem/Renderer/RHI/RendererAPI.h"
 
 namespace Hominem {
 

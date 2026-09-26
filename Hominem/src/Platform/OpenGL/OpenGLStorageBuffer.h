@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/StorageBuffer.h"
+#include "Hominem/Renderer/RHI/StorageBuffer.h"
 
 namespace Hominem {
 

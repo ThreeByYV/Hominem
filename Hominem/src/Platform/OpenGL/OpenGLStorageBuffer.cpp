@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLStorageBuffer.h"
-#include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Renderer/Frame/RenderThread.h"
 #include <glad/glad.h>
 
 namespace Hominem {

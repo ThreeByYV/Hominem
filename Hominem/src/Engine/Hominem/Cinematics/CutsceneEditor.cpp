@@ -6,7 +6,7 @@
 #include "Hominem/Cinematics/Cues/FadeCue.h"
 #include "Hominem/Cinematics/Cues/SpriteCue.h"
 #include "Hominem/Cinematics/Cues/CameraCue.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 
 #include <imgui.h>
 #include <algorithm>

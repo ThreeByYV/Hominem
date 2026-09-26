@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Shader.h"
-#include "Texture.h"
-#include "ShaderPermutation.h"
-#include "Buffer.h"
-#include "VertexArray.h"
-#include "StorageBuffer.h"
-#include "Hominem/Renderer/SkinnedMesh.h"
-#include "Hominem/Renderer/StaticMesh.h"
-#include "Hominem/Renderer/Frustum.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/RHI/Shader.h"
+#include "Hominem/Renderer/RHI/Texture.h"
+#include "Hominem/Renderer/RHI/ShaderPermutation.h"
+#include "Hominem/Renderer/RHI/Buffer.h"
+#include "Hominem/Renderer/RHI/VertexArray.h"
+#include "Hominem/Renderer/RHI/StorageBuffer.h"
+#include "Hominem/Renderer/Geometry/SkinnedMesh.h"
+#include "Hominem/Renderer/Geometry/StaticMesh.h"
+#include "Hominem/Renderer/Camera/Frustum.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 
 #include <glm/glm.hpp>
 

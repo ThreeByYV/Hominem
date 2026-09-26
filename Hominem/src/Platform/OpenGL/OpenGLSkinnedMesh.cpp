@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLSkinnedMesh.h"
-#include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Assets/SkinnedMeshImporter.h"
 
 #include <glad/glad.h>

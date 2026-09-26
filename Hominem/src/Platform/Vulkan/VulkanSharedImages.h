@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/SharedImages.h"
+#include "Hominem/Renderer/RHI/SharedImages.h"
 #include "VulkanRenderTarget.h"
 
 #include <string>

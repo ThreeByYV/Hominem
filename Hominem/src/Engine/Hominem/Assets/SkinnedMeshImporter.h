@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SkinnedMeshData.h"
-#include "Hominem/Renderer/Skeleton.h"
+#include "Hominem/Renderer/Geometry/Skeleton.h"
 
 #include <expected>
 #include <string>

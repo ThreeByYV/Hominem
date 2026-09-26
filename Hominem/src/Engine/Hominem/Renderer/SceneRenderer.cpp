@@ -1,15 +1,15 @@
 #include "hmnpch.h"
-#include "SceneRenderer.h"
+#include "Hominem/Renderer/SceneRenderer.h"
 #include "Hominem/Core/Profiler.h"
 
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
 
-#include "Hominem/Renderer/RenderCommand.h"
-#include "Hominem/Renderer/RenderSettings.h"
-#include "Hominem/Renderer/Renderer2D.h"
+#include "Hominem/Renderer/RHI/RenderCommand.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
+#include "Hominem/Renderer/2D/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
-#include "Hominem/Renderer/EnvironmentProbe.h"
+#include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
 
 namespace Hominem {
 

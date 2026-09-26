@@ -4,7 +4,7 @@
 
 #include "Hominem/Assets/AssetManager.h"
 #include "Hominem/Assets/AssetLoaders.h"
-#include "Hominem/Renderer/ShaderSource.h"
+#include "Hominem/Renderer/RHI/ShaderSource.h"
 
 namespace Hominem {
 

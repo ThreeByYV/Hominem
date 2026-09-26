@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "OpenGLRendererAPI.h"
-#include "Hominem/Renderer/RenderSettings.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
 
 #include <glad/glad.h>
 

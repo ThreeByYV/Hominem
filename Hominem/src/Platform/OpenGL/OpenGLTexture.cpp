@@ -2,7 +2,7 @@
 #include "OpenGLTexture.h"
 #include "stb_image.h"
 #include <glad/glad.h>
-#include "Hominem/Renderer/RenderThread.h"
+#include "Hominem/Renderer/Frame/RenderThread.h"
 
 namespace Hominem {
 

@@ -2,8 +2,8 @@
 
 #include "Hominem/UI/Widget.h"
 #include "Hominem/UI/UIRoot.h"
-#include "Hominem/Renderer/RenderFrame.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 #include "Hominem/Utils/Transform.h"
 
 namespace Hominem {

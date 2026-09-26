@@ -1,9 +1,9 @@
 #pragma once
 
 #include "Hominem/Scene/Actor.h"
-#include "Hominem/Renderer/SkinnedMesh.h"
-#include "Hominem/Renderer/Shader.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Geometry/SkinnedMesh.h"
+#include "Hominem/Renderer/RHI/Shader.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 
 #include <vector>
 

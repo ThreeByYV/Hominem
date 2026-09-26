@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Hominem/Scene/Actor.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 
 namespace Hominem {
 

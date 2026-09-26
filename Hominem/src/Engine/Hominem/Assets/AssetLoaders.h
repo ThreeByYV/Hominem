@@ -3,12 +3,12 @@
 #include "AssetManager.h"
 #include "MeshData.h"
 #include "StaticMeshImporter.h"
-#include "Hominem/Renderer/Texture.h"
-#include "Hominem/Renderer/StaticMesh.h"
-#include "Hominem/Renderer/SkinnedMesh.h"
-#include "Hominem/Renderer/Font.h"
-#include "Hominem/Renderer/Skybox.h"
-#include "Hominem/Renderer/ShaderSource.h"
+#include "Hominem/Renderer/RHI/Texture.h"
+#include "Hominem/Renderer/Geometry/StaticMesh.h"
+#include "Hominem/Renderer/Geometry/SkinnedMesh.h"
+#include "Hominem/Renderer/2D/Font.h"
+#include "Hominem/Renderer/Lighting/Skybox.h"
+#include "Hominem/Renderer/RHI/ShaderSource.h"
 #include "Hominem/Audio/SoundBuffer.h"
 
 #include <fstream>

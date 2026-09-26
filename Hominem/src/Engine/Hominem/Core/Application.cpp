@@ -2,17 +2,17 @@
 #include "Application.h"
 #include "VFS.h"
 #include "Core.h"
-#include "Hominem/Renderer/Buffer.h"
+#include "Hominem/Renderer/RHI/Buffer.h"
 #include "Input.h"
 #include "InputMap.h"
 #include "glm/glm.hpp"
 #include "Hominem/Events/KeyEvent.h"
 #include "Hominem/Events/MouseEvent.h"
 #include "Hominem/Core/KeyCodes.h"
-#include "Hominem/Renderer/RenderCommand.h"
-#include "Hominem/Renderer/RenderDocCapture.h"
-#include "Hominem/Renderer/RenderSettings.h"
-#include "Hominem/Renderer/Renderer2D.h"
+#include "Hominem/Renderer/RHI/RenderCommand.h"
+#include "Hominem/Renderer/Frame/RenderDocCapture.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
+#include "Hominem/Renderer/2D/Renderer2D.h"
 #include "Hominem/Renderer/Renderer3D.h"
 #include "Hominem/Core/Task.h"
 #include <GLFW/glfw3.h>
@@ -24,7 +24,7 @@
     #pragma comment(lib, "winmm.lib")
 #endif
 
-#include "Hominem/Renderer/Camera.h"
+#include "Hominem/Renderer/Camera/Camera.h"
 
 
 namespace Hominem {

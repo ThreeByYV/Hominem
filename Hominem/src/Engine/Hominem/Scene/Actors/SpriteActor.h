@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Hominem/Scene/Actor.h"
-#include "Hominem/Renderer/Renderer2D.h"
-#include "Hominem/Renderer/Texture.h"
+#include "Hominem/Renderer/2D/Renderer2D.h"
+#include "Hominem/Renderer/RHI/Texture.h"
 
 #include <glm/glm.hpp>
 

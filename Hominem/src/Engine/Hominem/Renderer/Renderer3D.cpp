@@ -1,11 +1,11 @@
 #include "hmnpch.h"
-#include "Renderer3D.h"
-#include "RenderSettings.h"
+#include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Utils/Renderer.h"
-#include "RenderCommand.h"
+#include "Hominem/Renderer/RHI/RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
-#include "EnvironmentProbe.h"
-#include "RenderThread.h"
+#include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
+#include "Hominem/Renderer/Frame/RenderThread.h"
 
 #include <glad/glad.h>
 #include <ranges>

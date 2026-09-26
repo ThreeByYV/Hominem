@@ -1,7 +1,7 @@
 #include "hmnpch.h"
 #include "VulkanSceneRenderer.h"
 #include "VulkanImage.h"
-#include "Hominem/Renderer/UvSphere.h"
+#include "Hominem/Renderer/Geometry/UvSphere.h"
 
 #include <glm/glm.hpp>
 

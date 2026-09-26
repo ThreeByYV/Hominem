@@ -3,7 +3,7 @@
 #include "Hominem/Core/Core.h"
 #include "Hominem/Core/Timestep.h"
 #include "Hominem/Events/Event.h"
-#include "Hominem/Renderer/RenderFrame.h"
+#include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Scene/FreeFlyCameraController.h"
 #include "Hominem/UI/UIRoot.h"

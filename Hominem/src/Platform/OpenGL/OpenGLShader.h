@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/Shader.h"
+#include "Hominem/Renderer/RHI/Shader.h"
 #include <unordered_map>
 #include <glm/glm.hpp>
 #include <filesystem>
