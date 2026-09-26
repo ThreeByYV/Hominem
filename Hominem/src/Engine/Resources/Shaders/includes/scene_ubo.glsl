@@ -17,7 +17,8 @@ layout(std140, binding = 0) uniform SceneUBO
     int   u_DebugMode;         // offset 152
     int   u_AreaLightsEnabled; // offset 156
     mat4  u_ViewProjectionUnjittered; // offset 160
-    mat4  u_PrevViewProjection;       // offset 224 → total 288
+    mat4  u_PrevViewProjection;       // offset 224
+    float u_TextureLodBias;           // offset 288 → total 304 (std140 rounds up)
 };
 
 uniform mat4 u_Model; // per-mesh — stays as a regular uniform
