@@ -28,6 +28,16 @@ static const std::vector<const char*> k_RayTracingExtensions =
     VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 };
 
+static bool HasInstanceExtension(const std::string& name)
+{
+    uint32_t count;
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> available(count);
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+    return std::any_of(available.begin(), available.end(),
+                       [&](const VkExtensionProperties& e) { return name == e.extensionName; });
+}
+
 static bool HasExtensions(VkPhysicalDevice dev, const std::vector<const char*>& wanted)
 {
     uint32_t extCount;
@@ -83,6 +93,7 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
     CreateDepthImage(w, h);
     CreateCommandStructures();
     CreateSyncObjects();
+    m_NGX.Init(m_Instance, m_PhysicalDevice, m_Device);
 
     HMN_CORE_INFO("Vulkan headless renderer initialised: {0}", props.deviceName);
 }
@@ -90,6 +101,7 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
 void VulkanRenderer::Shutdown()
 {
     vkDeviceWaitIdle(m_Device);
+    m_NGX.Shutdown();
 
     for (auto& f : m_Frames)
         f.deletionQueue.flush();
@@ -321,6 +333,11 @@ void VulkanRenderer::CreateInstance()
     if (k_EnableValidation)
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
+    // Only the ones present: without an NVIDIA driver NGX's list may name extensions this loader lacks.
+    const auto ngxExtensions = VulkanNGX::InstanceExtensions();
+    for (const auto& ext : ngxExtensions)
+        if (HasInstanceExtension(ext)) extensions.push_back(ext.c_str());
+
     const VkInstanceCreateInfo createInfo
     {
         .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -532,6 +549,15 @@ void VulkanRenderer::CreateLogicalDevice()
     {
         extensions.insert(extensions.end(), k_RayTracingExtensions.begin(), k_RayTracingExtensions.end());
         featureChain = &rayQuery;
+    }
+
+    const auto ngxExtensions = VulkanNGX::DeviceExtensions(m_Instance, m_PhysicalDevice);
+    for (const auto& ext : ngxExtensions)
+    {
+        const bool listed = std::any_of(extensions.begin(), extensions.end(),
+                                        [&](const char* e) { return ext == e; });
+        if (!listed && HasExtensions(m_PhysicalDevice, { ext.c_str() }))
+            extensions.push_back(ext.c_str());
     }
 
     const VkDeviceCreateInfo createInfo
