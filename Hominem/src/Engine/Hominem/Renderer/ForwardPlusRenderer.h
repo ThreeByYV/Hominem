@@ -36,7 +36,7 @@ struct alignas(16) SceneUBOData
 };
 static_assert(sizeof(SceneUBOData) == 288, "SceneUBOData size mismatch — check std140 layout");
 
-struct Renderer3DStorage
+struct ForwardPlusRendererStorage
 {
     Ref<Shader>              OverrideShader;   // optional scene-wide override
     Ref<ShaderVariantSet>    MeshVariants;    // mesh.glsl named variants
@@ -63,7 +63,7 @@ struct Renderer3DStorage
     uint32_t           ViewportH = 0;
 };
 
-class Renderer3D
+class ForwardPlusRenderer
 {
 public:
     static constexpr uint32_t TILE_SIZE           = 16u;
@@ -127,7 +127,7 @@ private:
 
     static constexpr uint32_t MAX_POINT_LIGHTS_SKINNED = 16u;
 
-    static Renderer3DStorage* s_Data;
+    static ForwardPlusRendererStorage* s_Data;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;
     static uint32_t           s_GroupsTotal;

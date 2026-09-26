@@ -2,7 +2,7 @@
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Renderer/2D/Renderer2D.h"
-#include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/ForwardPlusRenderer.h"
 #include "Hominem/Renderer/RHI/RenderCommand.h"
 
 #include <algorithm>
@@ -158,7 +158,7 @@ bool Assign(const Entry& e, std::string_view value)
 		{
 			Renderer2D::GetShaderLibrary()->ReloadAll();
 			ShaderLibrary::Engine()->ReloadAll();
-			Renderer3D::ReloadVariants();
+			ForwardPlusRenderer::ReloadVariants();
 		});
 	}
 

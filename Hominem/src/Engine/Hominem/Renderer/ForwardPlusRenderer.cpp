@@ -1,7 +1,6 @@
 #include "hmnpch.h"
-#include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/ForwardPlusRenderer.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
-#include "Hominem/Utils/Renderer.h"
 #include "Hominem/Renderer/RHI/RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
 #include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
@@ -30,15 +29,15 @@ namespace {
     };
 
 } 
-    Renderer3DStorage*     Renderer3D::s_Data         = nullptr;
-    uint32_t               Renderer3D::s_DrawCalls     = 0;
-    uint64_t               Renderer3D::s_Triangles     = 0;
-    uint32_t               Renderer3D::s_GroupsTotal   = 0;
-    uint32_t               Renderer3D::s_GroupsCulled  = 0;
+    ForwardPlusRendererStorage*     ForwardPlusRenderer::s_Data         = nullptr;
+    uint32_t               ForwardPlusRenderer::s_DrawCalls     = 0;
+    uint64_t               ForwardPlusRenderer::s_Triangles     = 0;
+    uint32_t               ForwardPlusRenderer::s_GroupsTotal   = 0;
+    uint32_t               ForwardPlusRenderer::s_GroupsCulled  = 0;
 
-void Renderer3D::Init()
+void ForwardPlusRenderer::Init()
 {
-    s_Data  = new Renderer3DStorage();
+    s_Data  = new ForwardPlusRendererStorage();
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
@@ -62,9 +61,9 @@ void Renderer3D::Init()
     s_Data->DebugVAO->SetIndexBuffer(s_Data->DebugIBO);
 }
 
-void Renderer3D::InitForwardPlus()
+void ForwardPlusRenderer::InitForwardPlus()
 {
-    HMN_CORE_ASSERT(s_Data, "Renderer3D::InitForwardPlus called before Init()");
+    HMN_CORE_ASSERT(s_Data, "ForwardPlusRenderer::InitForwardPlus called before Init()");
 
     s_Data->SceneUBO           = UniformBuffer::Create(sizeof(SceneUBOData), 0);
     s_Data->LightBuffer        = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPULight));
@@ -78,16 +77,16 @@ void Renderer3D::InitForwardPlus()
         "engine://Shaders/mesh.glsl",
         GetAllVariants());
 
-    HMN_CORE_INFO("Renderer3D: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
+    HMN_CORE_INFO("ForwardPlusRenderer: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
                   MAX_LIGHTS, TILE_SIZE);
 }
 
-void Renderer3D::Shutdown()
+void ForwardPlusRenderer::Shutdown()
 {
     delete s_Data;  s_Data  = nullptr;
 }
 
-void Renderer3D::ResizeTileBuffers(uint32_t w, uint32_t h)
+void ForwardPlusRenderer::ResizeTileBuffers(uint32_t w, uint32_t h)
 {
     if (w == s_Data->ViewportW && h == s_Data->ViewportH) return;
     s_Data->ViewportW = w;
@@ -100,7 +99,7 @@ void Renderer3D::ResizeTileBuffers(uint32_t w, uint32_t h)
     s_Data->LightGrid      = StorageBuffer::Create(numTiles * sizeof(LightGridEntry));
 }
 
-void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd,
+void ForwardPlusRenderer::CullLights(const RenderFrame& frame, CommandList& cmd,
                              uint32_t renderW, uint32_t renderH)
 {
     HMN_PROFILE_FUNCTION();
@@ -157,10 +156,10 @@ void Renderer3D::CullLights(const RenderFrame& frame, CommandList& cmd,
     });
 }
 
-Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandList& cmd,
+ForwardPlusRenderer::SceneData ForwardPlusRenderer::BeginScene(const RenderFrame& frame, CommandList& cmd,
                                                uint32_t renderW, uint32_t renderH)
 {
-    HMN_CORE_ASSERT(s_Data, "Renderer3D::BeginScene called before Init()");
+    HMN_CORE_ASSERT(s_Data, "ForwardPlusRenderer::BeginScene called before Init()");
 
     // Reset all texture slots to 0 so every draw call in this scene must explicitly
     // bind what it needs. Prevents stale bindings.
@@ -223,7 +222,7 @@ Renderer3D::SceneData Renderer3D::BeginScene(const RenderFrame& frame, CommandLi
 }
 
 
-void Renderer3D::EndScene()
+void ForwardPlusRenderer::EndScene()
 {
     Shader::UnbindAll();
     Texture::UnbindAll();
@@ -231,7 +230,7 @@ void Renderer3D::EndScene()
 
 // Ray-traced indirect diffuse. Slots 7/8 stay bound to whatever was there when the volume
 // is off — u_DDGICounts.w == 0 keeps the shader from sampling them.
-static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const Renderer3D::SceneData& scene)
+static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const ForwardPlusRenderer::SceneData& scene)
 {
     const bool active = scene.DDGI.probeNumRays > 0
                      && scene.DDGIIrradianceID != 0
@@ -267,7 +266,7 @@ static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const Renderer
     cmd.SetFloat(shader, "u_DDGIIntensity", scene.DDGI.intensity);
 }
 
-void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
                                   const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
@@ -295,7 +294,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     Ref<Shader> shader = s_Data->OverrideShader;
     if (!shader)
     {
-        HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded");
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "ForwardPlusRenderer: variants not loaded");
         const bool hasNM = mat0.NormalMap      != nullptr;
         const bool hasMR = mat0.MetalRoughnessMap != nullptr;
         const bool toon  = RenderSettings::ToonShading;
@@ -305,7 +304,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
         else if (hasMR)     name += "_mr";
         shader = s_Data->MeshVariants->Get(name);
     }
-    HMN_CORE_ASSERT(shader, "Renderer3D: no shader for skinned mesh");
+    HMN_CORE_ASSERT(shader, "ForwardPlusRenderer: no shader for skinned mesh");
 
     cmd.BindShader(shader);
     cmd.SetInt (shader, "u_Albedo", 0);
@@ -344,7 +343,7 @@ void Renderer3D::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, 
     }
 }
 
-void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
                                  const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
@@ -356,7 +355,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
     }
     else
     {
-        HMN_CORE_ASSERT(s_Data->MeshVariants, "Renderer3D: variants not loaded — was InitForwardPlus() called?");
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "ForwardPlusRenderer: variants not loaded — was InitForwardPlus() called?");
 
         const bool hasNM  = mesh.HasNormalMap();
         const bool hasMR  = mesh.HasMetalRoughness();
@@ -372,7 +371,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
         else if (hasEnv)              name += "_env";
         shader = s_Data->MeshVariants->Get(name);
     }
-    HMN_CORE_ASSERT(shader, "Renderer3D::DrawStaticMesh: no shader variant available");
+    HMN_CORE_ASSERT(shader, "ForwardPlusRenderer::DrawStaticMesh: no shader variant available");
 
     cmd.BindShader(shader);
 
@@ -450,7 +449,7 @@ void Renderer3D::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, Co
     }
 }
 
-void Renderer3D::DrawDebugLights(const std::vector<Light>& lights)
+void ForwardPlusRenderer::DrawDebugLights(const std::vector<Light>& lights)
 {
     if (lights.empty() || !s_Data->DebugSphereShader) return;
 

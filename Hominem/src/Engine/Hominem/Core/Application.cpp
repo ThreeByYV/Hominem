@@ -13,7 +13,7 @@
 #include "Hominem/Renderer/Frame/RenderDocCapture.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/2D/Renderer2D.h"
-#include "Hominem/Renderer/Renderer3D.h"
+#include "Hominem/Renderer/ForwardPlusRenderer.h"
 #include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
 #include "Hominem/Core/Task.h"
 #include <GLFW/glfw3.h>
@@ -61,7 +61,7 @@ namespace Hominem {
 		RenderCommand::Init();
 		ShaderLibrary::InitEngine();
 		Renderer2D::Init();
-		Renderer3D::Init();
+		ForwardPlusRenderer::Init();
 		EnvironmentProbe::Init();
 		AssetManager::Init();
 
@@ -310,7 +310,7 @@ namespace Hominem {
 		m_LayerStack.Clear();
 
 		EnvironmentProbe::Shutdown();
-		Renderer3D::Shutdown();
+		ForwardPlusRenderer::Shutdown();
 		Renderer2D::Shutdown();
 		ShaderLibrary::ShutdownEngine();
 	}

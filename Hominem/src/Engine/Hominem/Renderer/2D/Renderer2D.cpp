@@ -9,7 +9,6 @@
 #include "Hominem/Renderer/RHI/StorageBuffer.h"
 
 #include "glm/gtc/matrix_transform.hpp"
-#include "Hominem/Utils/Renderer.h"
 
 #include "Hominem/Renderer/2D/MSDFData.h"
 
