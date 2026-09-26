@@ -77,6 +77,8 @@ This is definitely the most difficult part of the rendering engine to date. Work
 ~~September 2026~~  
 Temporal antialiasing. Toon shading makes aliasing unusually obvious: the hard bands between light steps drop a high-contrast edge right across surfaces that would otherwise be smooth, and every one of those edges crawls when the camera moves. So TAA jitters the projection each frame and accumulates the result, reprojecting the history through a velocity buffer so moving objects resolve too, not just the camera. A neighbourhood clamp in YCoCg keeps the ghosting down, and the history gets dropped on camera cuts so a hard cut does not smear into the next shot.
 
+The resolve is heavily inspired by Playdead's TAA from INSIDE, which fits a fixed-camera side-on game like this one almost exactly. The YCoCg clipping, the velocity dilation from the closest depth, and the luminance-based history feedback all follow Lasse Jon Fuglsang Pedersen's talk [Temporal Reprojection Anti-Aliasing in INSIDE](https://www.gdcvault.com/play/1022970/Temporal-Reprojection-Anti-Aliasing-in) (GDC 2016) and Playdead's open-source [reference implementation](https://github.com/playdeadgames/temporal) (MIT).
+
 <table>
 <tr>
 <th width="50%">Before (no AA, aliasing along the toon bands)</th>
