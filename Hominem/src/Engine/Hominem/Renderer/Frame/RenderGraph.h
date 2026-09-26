@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <optional>
 #include <any>
+#include <algorithm>
+#include <cmath>
 
 #include "Hominem/Renderer/RHI/Framebuffer.h"
 #include "Hominem/Renderer/RHI/CommandList.h"
@@ -80,6 +82,12 @@ public:
 
     void  Resize(uint32_t w, uint32_t h);
     void  SetRenderScale(float scale);
+
+    /// Rounds to nearest, so a scale taken from an exact size (DLSS) gives that size back.
+    static uint32_t ScaledSize(uint32_t size, float scale)
+    {
+        return std::max(1u, (uint32_t)std::lround(size * scale));
+    }
     float GetRenderScale() const { return m_RenderScale; }
 
     // ── Typed blackboard — inter-pass CPU-side data (matrices, scalars, etc.) ──

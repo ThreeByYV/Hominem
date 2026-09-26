@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <glm/glm.hpp>
 
@@ -7,9 +8,6 @@ namespace Hominem {
 
 class RenderGraph;
 class CommandList;
-
-// Temporal upscaler port (TAA, DLSS, FSR). Vendor SDK headers stay in each backend's folder.
-// The engine owns render resolution, jitter, velocity and mip bias; the upscaler owns its history.
 
 enum class UpscalerBackend : uint8_t { TAA, DLSS, FSR };
 
@@ -41,6 +39,13 @@ public:
     virtual const char*  GetName() const = 0;
     virtual bool         IsSupported() const = 0;
     virtual UpscalerCaps GetCaps() const = 0;
+
+    /// `requested` is the scene's render-scale setting; DLSS overrides this with its quality mode.
+    virtual float GetRenderScale(float requested, glm::uvec2 outputSize) const
+    {
+        const UpscalerCaps caps = GetCaps();
+        return std::clamp(requested, caps.minRenderScale, caps.maxRenderScale);
+    }
 
     virtual void Init() = 0;
     /// Declares the upscaler's targets and aliases OutputTarget to its output.
