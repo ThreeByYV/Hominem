@@ -15,10 +15,11 @@ void RenderSystem::Init(uint32_t w, uint32_t h)
     m_VulkanRenderer = std::make_unique<VulkanSceneRenderer>();
     m_VulkanRenderer->Init(w, h, glLUID, glName);
 
-    m_SceneRenderer.Init();
-    m_SceneRenderer.GetRenderGraph().Resize(w, h);
-
+    // Interop first: SceneRenderer::Init creates the upscaler, which may run through it.
     SetupInterop(w, h, glLUID);
+
+    m_SceneRenderer.Init({ m_VulkanRenderer.get(), m_SharedResources.get() });
+    m_SceneRenderer.GetRenderGraph().Resize(w, h);
 }
 
 void RenderSystem::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t, 8>& glLUID)
@@ -60,6 +61,8 @@ void RenderSystem::SetupInterop(uint32_t w, uint32_t h, const std::array<uint8_t
 
 void RenderSystem::Shutdown()
 {
+    // First: the upscaler holds Vulkan images and GL imports of them.
+    m_SceneRenderer.Shutdown();
     m_SceneRenderer.SetSharedVulkanTexture(0);
     if (m_SharedResources)
     {
@@ -68,7 +71,6 @@ void RenderSystem::Shutdown()
     }
     m_VulkanRenderer->Shutdown();
     m_VulkanRenderer.reset();
-    m_SceneRenderer.Shutdown();
 }
 
 void RenderSystem::ExecuteFrame(RecordedFrame& frame)

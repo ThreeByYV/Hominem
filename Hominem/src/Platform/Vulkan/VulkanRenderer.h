@@ -39,6 +39,7 @@ public:
     VkInstance       GetInstance()      const { return m_Instance; }
     VmaAllocator     GetAllocator()     const { return m_Allocator; }
     VkQueue          GetGraphicsQueue() const { return m_GraphicsQueue; }
+    uint32_t         GetGraphicsFamily() const { return m_GraphicsFamily; }
 
     VkImageView  GetDrawImageView()    const { return m_DrawImage.view; }
     VkExtent2D   GetDrawExtent()       const { return m_DrawExtent; }

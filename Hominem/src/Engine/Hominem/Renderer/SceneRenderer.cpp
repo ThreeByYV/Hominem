@@ -22,7 +22,7 @@ void SceneRenderer::SetImGuiCallbacks(std::function<void()> waitFn,
     m_NotifyImGui = std::move(notifyFn);
 }
 
-void SceneRenderer::Init()
+void SceneRenderer::Init(const UpscalerContext& upscalerContext)
 {
     m_AutoExposure.Init(ComputeShader::Create("engine://Shaders/luminance.comp"));
 
@@ -31,7 +31,7 @@ void SceneRenderer::Init()
     // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
     RenderSettings::LogAll();
 
-    m_Upscaler = CreateUpscaler(UpscalerBackend::TAA);
+    m_Upscaler = CreateUpscaler(UpscalerBackendFromEnvironment(), upscalerContext);
     m_Upscaler->Init();
     HMN_CORE_INFO("Upscaler: {0}", m_Upscaler->GetName());
 
@@ -203,6 +203,7 @@ void SceneRenderer::UpscalePass(const RenderFrame& frame, CommandList& cmd)
     in.viewProjUnjittered = frame.viewProjection3DUnjittered;
     in.prevViewProj       = frame.prevViewProjection3D;
     in.reset              = frame.taaReset;
+    in.sceneTarget        = hdr;
 
     m_Upscaler->Evaluate(m_RenderGraph, in, cmd);
 }
