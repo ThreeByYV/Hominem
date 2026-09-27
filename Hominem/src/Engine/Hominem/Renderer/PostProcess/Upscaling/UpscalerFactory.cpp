@@ -4,6 +4,9 @@
 
 #include "Platform/Vulkan/VulkanSceneRenderer.h"
 #include "Platform/Vulkan/VulkanPassthroughUpscaler.h"
+#ifdef HMN_ENABLE_DLSS
+    #include "Platform/Vulkan/DLSS/VulkanDLSSUpscaler.h"
+#endif
 
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 
@@ -33,8 +36,22 @@ Scope<Upscaler> CreateUpscaler(UpscalerBackend preferred, const UpscalerContext&
             HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
             break;
         case UpscalerBackend::DLSS:
+#ifdef HMN_ENABLE_DLSS
+            if (!bridge)
+            {
+                HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
+                break;
+            }
+            if (auto dlss = CreateScope<VulkanDLSSUpscaler>(context.vulkan->GetRenderer(), *context.interop);
+                dlss->IsSupported())
+                return dlss;
+            HMN_CORE_WARN("Upscaler: DLSS unavailable on this system, using TAA");
+#else
+            HMN_CORE_WARN("Upscaler: built without DLSS (HMN_ENABLE_DLSS), using TAA");
+#endif
+            break;
         case UpscalerBackend::FSR:
-            HMN_CORE_WARN("Upscaler backend {0} is not built in yet, using TAA", (int)preferred);
+            HMN_CORE_WARN("Upscaler: FSR is not built in yet, using TAA");
             break;
         case UpscalerBackend::TAA:
             break;

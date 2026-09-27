@@ -55,6 +55,14 @@ namespace Hominem {
 		static inline int Upscaler = 0;
 		static constexpr const char* UpscalerNames[] = { "taa", "dlss", "fsr", "passthrough", nullptr };
 
+		// With Upscaler=dlss: off renders at native resolution with no anti-aliasing at all,
+		// for comparing against DLSS. Not saved, so every launch starts with DLSS on.
+		static inline bool DLSS = true;
+
+		// DLSS quality mode; dlaa renders at full resolution (anti-aliasing only).
+		static inline int DLSSQuality = 1;
+		static constexpr const char* DLSSQualityNames[] = { "dlaa", "quality", "balanced", "performance", "ultraperformance", nullptr };
+
 		// Set by the renderer during Init based on GPU detection; read by game code.
 		static inline float RecommendedRenderScale = 1.0f;
 

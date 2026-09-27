@@ -73,6 +73,17 @@ inline void EditPostProcess(PostProcessSettings& pp)
     }
 }
 
+/// DLSS on/off for A/B comparison. Off is native resolution with no anti-aliasing.
+inline void UpscalerControls()
+{
+    const bool dlss = RenderSettings::UpscalerNames[RenderSettings::Upscaler] == std::string_view("dlss");
+    ImGui::BeginDisabled(!dlss);
+    ImGui::Checkbox("DLSS", &RenderSettings::DLSS);
+    ImGui::EndDisabled();
+    if (!dlss)
+        ImGui::TextDisabled("Set Upscaler=dlss in render.ini");
+}
+
 /// Every setting in the RenderSettings table, built from the table itself so a new setting
 /// needs no widget written for it. The hand-tuned panels stay where the ranges and grouping
 /// matter; this is the catch-all for the rest.

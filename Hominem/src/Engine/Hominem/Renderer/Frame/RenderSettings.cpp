@@ -66,7 +66,9 @@ const Entry s_Entries[] = {
 	HMN_SETTING(TAAFeedbackMax, Float, Persist),
 	HMN_SETTING(TAAJitterScale, Float, Persist),
 
-	HMN_CHOICE(Upscaler, UpscalerNames, Persist),
+	HMN_SETTING(DLSS,       Bool,             None),
+	HMN_CHOICE(Upscaler,    UpscalerNames,    Persist),
+	HMN_CHOICE(DLSSQuality, DLSSQualityNames, Persist),
 
 	HMN_SETTING(RecommendedRenderScale, Float, Derived),
 };
