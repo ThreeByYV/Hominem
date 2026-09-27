@@ -72,6 +72,7 @@ namespace Hominem {
 		// tracks correctly. m_SkinPosIdx selects which half is current.
 		Ref<StorageBuffer> m_OutPosSSBO[2];
 		uint32_t           m_SkinPosIdx = 0;
+		bool               m_HasPrevPose = false; // false until the first skinning dispatch
 		Ref<StorageBuffer> m_OutNormSSBO;
 		Ref<ComputeShader> m_ComputeShader;
 

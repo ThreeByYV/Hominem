@@ -204,9 +204,12 @@ namespace Hominem {
 		cmd.BindStorageBufferBase(m_InBoneDataSSBO,          3);
 		cmd.BindStorageBufferBase(m_OutPosSSBO[m_SkinPosIdx], 4);
 		cmd.BindStorageBufferBase(m_OutNormSSBO,             5);
-		cmd.BindStorageBufferBase(m_OutPosSSBO[m_SkinPosIdx ^ 1u], 6);
+		// First dispatch: the other buffer is the rest pose, never drawn, so reuse this one (zero velocity).
+		const bool firstDispatch = !bones.empty() && !m_HasPrevPose;
+		cmd.BindStorageBufferBase(m_OutPosSSBO[firstDispatch ? m_SkinPosIdx : m_SkinPosIdx ^ 1u], 6);
 
 		if (bones.empty()) return;
+		m_HasPrevPose = true;
 
 		cmd.SetStorageBufferData(m_BoneSSBO, bones.data(), (uint32_t)(bones.size() * sizeof(glm::mat4)));
 
