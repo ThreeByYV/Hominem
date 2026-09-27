@@ -12,7 +12,13 @@ namespace Hominem {
 
 	void OpenGLFramebuffer::Invalidate()
 	{
-		GLenum internalFmt = (m_Spec.Format == FramebufferFormat::RGBA16F) ? GL_RGBA16F : GL_RGBA8;
+		GLenum internalFmt = GL_RGBA8;
+		switch (m_Spec.Format)
+		{
+			case FramebufferFormat::RGBA8:   internalFmt = GL_RGBA8;   break;
+			case FramebufferFormat::RGBA16F: internalFmt = GL_RGBA16F; break;
+			case FramebufferFormat::R32F:    internalFmt = GL_R32F;    break;
+		}
 		uint32_t n = std::clamp(m_Spec.NumColorAttachments, 1u, 4u);
 
 		glCreateFramebuffers(1, &m_RendererID);

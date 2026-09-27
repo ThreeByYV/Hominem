@@ -24,6 +24,12 @@ public:
     void ImportGLDoneSemaphore(HANDLE semHandle) override;
     void WaitSemaphore(uint32_t frameIdx) override;
     void SignalGLDone() override;
+
+    uint32_t ImportSemaphoreHandle(HANDLE semHandle) override;
+    void     DeleteSemaphore(uint32_t semaphore) override;
+    void     WaitOn(uint32_t semaphore, std::span<const uint32_t> textures) override;
+    void     SignalOn(uint32_t semaphore, std::span<const uint32_t> textures) override;
+    void     CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height) override;
     void Destroy() override;
 
     uint32_t GetTextureID() const override { return m_Texture; }
@@ -41,9 +47,11 @@ private:
         uint32_t memObject = 0;
         uint32_t texture   = 0;
         uint32_t layout    = 0;
+        bool     frameSync = true;
     };
 
     void RebuildSyncLists();
+    std::vector<uint32_t> LayoutsFor(std::span<const uint32_t> textures) const;
 
     std::vector<ImportedImage> m_Images;
     std::vector<uint32_t>      m_SyncTextures;  // rebuilt on import/release, used every frame

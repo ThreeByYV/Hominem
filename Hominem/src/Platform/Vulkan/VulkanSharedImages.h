@@ -57,8 +57,10 @@ public:
         for (const auto& e : m_Entries)
         {
             const VkExtent2D extent = e.target->GetExtent();
+            const auto format = e.target->GetFormat() == VK_FORMAT_R32_SFLOAT ? SharedImageFormat::R32F
+                                                                              : SharedImageFormat::RGBA16F;
             out.push_back({ e.name, { e.target->GetWin32Handle(device), e.target->GetMemorySize(),
-                                      extent.width, extent.height, e.generalLayout } });
+                                      extent.width, extent.height, e.generalLayout, format } });
         }
         return out;
     }

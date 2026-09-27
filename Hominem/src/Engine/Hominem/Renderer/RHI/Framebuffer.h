@@ -4,7 +4,7 @@
 
 namespace Hominem {
 
-	enum class FramebufferFormat { RGBA8, RGBA16F };
+	enum class FramebufferFormat { RGBA8, RGBA16F, R32F };
 
 	struct FramebufferSpecification
 	{
