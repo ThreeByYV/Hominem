@@ -56,7 +56,7 @@ namespace Hominem {
 	{
 		Ref<SkinnedMesh>        mesh;
 		glm::mat4               transform { 1.f };
-		std::span<glm::mat4>    bones;     // points into FrameArena, zero-cost to copy
+		std::span<glm::mat4>    bones;     // points into the frame arena; valid until the frame is recorded
 		Ref<Shader>             overrideShader; // null = use scene default
 		glm::mat4               prevTransform { 1.f }; // filled by Scene, not the actor
 	};
@@ -227,8 +227,7 @@ namespace Hominem {
 	 * Plain-data snapshot of everything one frame needs to render.
 	 * Built on the main thread, consumed by the render thread.
 	 *
-	 * arena / arenaIdx are set by RenderThread before OnBuildRenderFrame runs.
-	 * Use AllocBones() to bump-allocate bone matrices into the arena.
+	 * Use AllocBones() to bump-allocate bone matrices into the frame arena.
 	 */
 	struct RenderFrame
 	{
@@ -297,7 +296,7 @@ namespace Hominem {
 		std::vector<VulkanSphereInstance> vulkanDebugSpheres;
 		VulkanDDGIParams               vulkanDDGI;
 
-		// Arena backing — set by Application before OnBuildRenderFrame. Reset after Record().
+		// Scratch memory, set by Application before the frame is built and reset after Record().
 		FrameArena* arena = nullptr;
 
 		// Allocate count bone matrices from the arena and return a span.

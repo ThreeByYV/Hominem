@@ -79,6 +79,7 @@ namespace Hominem {
         AudioSystem  m_AudioSystem;
         float        m_StartupVolume = 1.f; // restored once the window is shown
         RenderThread m_RenderThread;
+        FrameArena   m_FrameArena;   // main-thread scratch for building and recording a frame
 
     private:
         static Application* s_Instance;

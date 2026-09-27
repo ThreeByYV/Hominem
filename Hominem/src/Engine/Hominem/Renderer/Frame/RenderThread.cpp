@@ -60,7 +60,6 @@ void RenderThread::Submit(RecordedFrame&& frame)
 
 	m_Frame    = std::move(frame);
 	m_Consumed = false;
-	m_WriteArenaIdx ^= 1;
 	lock.unlock();
 	m_ReadyCV.notify_one();
 }
