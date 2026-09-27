@@ -16,7 +16,10 @@ public:
     UpscalerCaps GetCaps() const override     { return { .temporal = false }; }
 
 protected:
-    void RecordUpscale(VkCommandBuffer cmd, const VulkanUpscalerBridge& bridge, const UpscalerInputs& in) override;
+    void RecordUpscale(VkCommandBuffer cmd, const VulkanUpscalerBridge& bridge, const UpscalerInputs&) override
+    {
+        bridge.RecordBlit(cmd);
+    }
 };
 
 }

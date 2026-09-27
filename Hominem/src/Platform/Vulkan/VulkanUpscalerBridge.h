@@ -29,6 +29,9 @@ public:
     /// Hands the images to Vulkan, records `work`, and hands them back to GL.
     void Run(const std::function<void(VkCommandBuffer)>& work);
 
+    /// Bilinear blit of Color into Output.
+    void RecordBlit(VkCommandBuffer cmd) const;
+
     const VulkanRenderTarget& Target(Image i) const    { return m_Targets[i]; }
     uint32_t                  GLTexture(Image i) const { return m_GLTextures[i]; }
     glm::uvec2                RenderSize() const       { return m_RenderSize; }

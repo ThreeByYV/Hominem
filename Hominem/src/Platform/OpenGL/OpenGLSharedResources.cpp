@@ -285,14 +285,42 @@ void OpenGLSharedResources::SignalOn(uint32_t semaphore, std::span<const uint32_
     pfn_SignalSemaphore(semaphore, 0, nullptr, (GLuint)textures.size(), textures.data(), layouts.data());
 }
 
-void OpenGLSharedResources::CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height)
+void OpenGLSharedResources::CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height, bool flipY)
 {
-    glCopyImageSubData(src, GL_TEXTURE_2D, 0, 0, 0, 0,
-                       dst, GL_TEXTURE_2D, 0, 0, 0, 0, (GLsizei)width, (GLsizei)height, 1);
+    if (!flipY)
+    {
+        glCopyImageSubData(src, GL_TEXTURE_2D, 0, 0, 0, 0,
+                           dst, GL_TEXTURE_2D, 0, 0, 0, 0, (GLsizei)width, (GLsizei)height, 1);
+        return;
+    }
+
+    if (!m_CopyReadFBO)
+    {
+        glCreateFramebuffers(1, &m_CopyReadFBO);
+        glCreateFramebuffers(1, &m_CopyDrawFBO);
+    }
+    glNamedFramebufferTexture(m_CopyReadFBO, GL_COLOR_ATTACHMENT0, src, 0);
+    glNamedFramebufferTexture(m_CopyDrawFBO, GL_COLOR_ATTACHMENT0, dst, 0);
+
+    // Blits honour the scissor test; ImGui leaves it on.
+    const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glBlitNamedFramebuffer(m_CopyReadFBO, m_CopyDrawFBO,
+                           0, 0, (GLint)width, (GLint)height,
+                           0, (GLint)height, (GLint)width, 0,   // destination rows reversed
+                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
 }
 
 void OpenGLSharedResources::Destroy()
 {
+    if (m_CopyReadFBO)
+    {
+        glDeleteFramebuffers(1, &m_CopyReadFBO);
+        glDeleteFramebuffers(1, &m_CopyDrawFBO);
+        m_CopyReadFBO = m_CopyDrawFBO = 0;
+    }
+
     for (auto& img : m_Images)
     {
         glDeleteTextures(1, &img.texture);

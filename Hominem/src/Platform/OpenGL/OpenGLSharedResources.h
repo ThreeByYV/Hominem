@@ -29,7 +29,7 @@ public:
     void     DeleteSemaphore(uint32_t semaphore) override;
     void     WaitOn(uint32_t semaphore, std::span<const uint32_t> textures) override;
     void     SignalOn(uint32_t semaphore, std::span<const uint32_t> textures) override;
-    void     CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height) override;
+    void     CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height, bool flipY) override;
     void Destroy() override;
 
     uint32_t GetTextureID() const override { return m_Texture; }
@@ -61,6 +61,8 @@ private:
     uint32_t m_Texture         = 0;
     uint32_t m_Semaphores[2]   = {};
     uint32_t m_GLDoneSemaphore = 0;
+    uint32_t m_CopyReadFBO     = 0; // re-pointed at each flipped copy's textures
+    uint32_t m_CopyDrawFBO     = 0;
 };
 
 }
