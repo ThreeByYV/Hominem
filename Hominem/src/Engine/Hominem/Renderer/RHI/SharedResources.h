@@ -36,8 +36,9 @@ public:
     virtual void     WaitOn(uint32_t semaphore, std::span<const uint32_t> textures) = 0;
     virtual void     SignalOn(uint32_t semaphore, std::span<const uint32_t> textures) = 0;
 
-    /// Same-format copy between two GL textures.
-    virtual void CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height) = 0;
+    /// Same-format copy between two GL textures. flipY turns rows upside down on the way,
+    /// between GL's bottom-up rows and the top-down rows Vulkan-side code expects.
+    virtual void CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height, bool flipY = false) = 0;
     virtual void Destroy() = 0;
 
     virtual uint32_t GetTextureID() const = 0;

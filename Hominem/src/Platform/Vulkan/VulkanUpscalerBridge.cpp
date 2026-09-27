@@ -191,6 +191,20 @@ void VulkanUpscalerBridge::SubmitAndWait(const std::function<void(VkCommandBuffe
     VK_CHECK(vkWaitForFences(device, 1, &m_Fence, VK_TRUE, UINT64_MAX));
 }
 
+void VulkanUpscalerBridge::RecordBlit(VkCommandBuffer cmd) const
+{
+    const VkImageBlit region
+    {
+        .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .srcOffsets     = { { 0, 0, 0 }, { (int32_t)m_RenderSize.x, (int32_t)m_RenderSize.y, 1 } },
+        .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .dstOffsets     = { { 0, 0, 0 }, { (int32_t)m_OutputSize.x, (int32_t)m_OutputSize.y, 1 } },
+    };
+    vkCmdBlitImage(cmd, m_Targets[Color].GetImage(),  VK_IMAGE_LAYOUT_GENERAL,
+                        m_Targets[Output].GetImage(), VK_IMAGE_LAYOUT_GENERAL,
+                        1, &region, VK_FILTER_LINEAR);
+}
+
 void VulkanUpscalerBridge::Run(const std::function<void(VkCommandBuffer)>& work)
 {
     const VkDevice device = m_Vulkan->GetDevice();

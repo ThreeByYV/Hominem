@@ -10,12 +10,14 @@ void main()
 #type fragment
 #version 450 core
 
-// Scene depth (D24S8) to an R32F colour target, which can be shared with Vulkan.
+// Scene depth (D24S8) to an R32F color target, which can be shared with Vulkan. Rows are i
+// flipped to top-down, like the color and velocity copies. Shader bc D24S8 format isoptional some GPUs, like many AMD ones, don't support it)
 out float o_Depth;
 
 uniform sampler2D u_Depth;
 
 void main()
 {
-    o_Depth = texelFetch(u_Depth, ivec2(gl_FragCoord.xy), 0).r;
+    const ivec2 p = ivec2(gl_FragCoord.xy);
+    o_Depth = texelFetch(u_Depth, ivec2(p.x, textureSize(u_Depth, 0).y - 1 - p.y), 0).r;
 }

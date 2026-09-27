@@ -55,13 +55,15 @@ void VulkanBridgedUpscaler::Evaluate(RenderGraph& graph, const UpscalerInputs& i
         const glm::uvec2 os { outSpec.Width,   outSpec.Height };
         m_Bridge.Resize(rs, os);
 
-        m_GL.CopyTexture(in.sceneTarget->GetColorAttachmentRendererID(0), m_Bridge.GLTexture(B::Color),    rs.x, rs.y);
-        m_GL.CopyTexture(in.sceneTarget->GetColorAttachmentRendererID(1), m_Bridge.GLTexture(B::Velocity), rs.x, rs.y);
+        // Flipped so the Vulkan side sees the frame upright (row 0 at the top); depth was
+        // already flipped by the copy shader.
+        m_GL.CopyTexture(in.sceneTarget->GetColorAttachmentRendererID(0), m_Bridge.GLTexture(B::Color),    rs.x, rs.y, true);
+        m_GL.CopyTexture(in.sceneTarget->GetColorAttachmentRendererID(1), m_Bridge.GLTexture(B::Velocity), rs.x, rs.y, true);
         m_GL.CopyTexture(depth->GetColorAttachmentRendererID(0),          m_Bridge.GLTexture(B::Depth),    rs.x, rs.y);
 
         m_Bridge.Run([&](VkCommandBuffer vkCmd) { RecordUpscale(vkCmd, m_Bridge, in); });
 
-        m_GL.CopyTexture(m_Bridge.GLTexture(B::Output), output->GetColorAttachmentRendererID(0), os.x, os.y);
+        m_GL.CopyTexture(m_Bridge.GLTexture(B::Output), output->GetColorAttachmentRendererID(0), os.x, os.y, true);
     });
 }
 
