@@ -2,6 +2,7 @@
 #include "OpenGLSharedResources.h"
 
 #include <glad/glad.h>
+#include <algorithm>
 #include <cstring>
 
 namespace Hominem {
@@ -144,14 +145,22 @@ uint32_t OpenGLSharedResources::ImportSharedImage(const SharedImageDesc& desc)
     }
 
     ImportedImage img;
-    img.layout = desc.generalLayout ? k_LayoutGeneral : k_LayoutShaderReadOnly;
+    img.layout    = desc.generalLayout ? k_LayoutGeneral : k_LayoutShaderReadOnly;
+    img.frameSync = desc.frameSync;
+
+    GLenum internalFmt = GL_RGBA16F;
+    switch (desc.format)
+    {
+        case SharedImageFormat::RGBA16F: internalFmt = GL_RGBA16F; break;
+        case SharedImageFormat::R32F:    internalFmt = GL_R32F;    break;
+    }
 
     pfn_CreateMemoryObjects(1, &img.memObject);
     pfn_ImportMemoryWin32(img.memObject, (GLuint64)desc.memSize, k_HandleTypeOpaqueWin32, desc.memHandle);
 
     while (glGetError() != GL_NO_ERROR) {}
     glCreateTextures(GL_TEXTURE_2D, 1, &img.texture);
-    pfn_TextureStorageMem2D(img.texture, 1, GL_RGBA16F, (GLsizei)desc.width, (GLsizei)desc.height,
+    pfn_TextureStorageMem2D(img.texture, 1, internalFmt, (GLsizei)desc.width, (GLsizei)desc.height,
                             img.memObject, 0);
     if (const GLenum err = glGetError(); err != GL_NO_ERROR)
     {
@@ -200,6 +209,7 @@ void OpenGLSharedResources::RebuildSyncLists()
     m_SyncLayouts.reserve(m_Images.size());
     for (const auto& img : m_Images)
     {
+        if (!img.frameSync) continue;
         m_SyncTextures.push_back(img.texture);
         m_SyncLayouts.push_back(img.layout);
     }
@@ -233,6 +243,52 @@ void OpenGLSharedResources::SignalGLDone()
     if (m_SyncTextures.empty()) return;
     pfn_SignalSemaphore(m_GLDoneSemaphore, 0, nullptr,
                         (GLuint)m_SyncTextures.size(), m_SyncTextures.data(), m_SyncLayouts.data());
+}
+
+uint32_t OpenGLSharedResources::ImportSemaphoreHandle(HANDLE semHandle)
+{
+    LoadProcs();
+
+    GLuint semaphore = 0;
+    pfn_GenSemaphores(1, &semaphore);
+    pfn_ImportSemaphoreWin32(semaphore, k_HandleTypeOpaqueWin32, semHandle);
+    return semaphore;
+}
+
+void OpenGLSharedResources::DeleteSemaphore(uint32_t semaphore)
+{
+    if (semaphore) pfn_DeleteSemaphores(1, &semaphore);
+}
+
+std::vector<uint32_t> OpenGLSharedResources::LayoutsFor(std::span<const uint32_t> textures) const
+{
+    std::vector<uint32_t> layouts;
+    layouts.reserve(textures.size());
+    for (uint32_t tex : textures)
+    {
+        const auto it = std::find_if(m_Images.begin(), m_Images.end(),
+                                     [tex](const ImportedImage& img) { return img.texture == tex; });
+        layouts.push_back(it != m_Images.end() ? it->layout : k_LayoutGeneral);
+    }
+    return layouts;
+}
+
+void OpenGLSharedResources::WaitOn(uint32_t semaphore, std::span<const uint32_t> textures)
+{
+    const auto layouts = LayoutsFor(textures);
+    pfn_WaitSemaphore(semaphore, 0, nullptr, (GLuint)textures.size(), textures.data(), layouts.data());
+}
+
+void OpenGLSharedResources::SignalOn(uint32_t semaphore, std::span<const uint32_t> textures)
+{
+    const auto layouts = LayoutsFor(textures);
+    pfn_SignalSemaphore(semaphore, 0, nullptr, (GLuint)textures.size(), textures.data(), layouts.data());
+}
+
+void OpenGLSharedResources::CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height)
+{
+    glCopyImageSubData(src, GL_TEXTURE_2D, 0, 0, 0, 0,
+                       dst, GL_TEXTURE_2D, 0, 0, 0, 0, (GLsizei)width, (GLsizei)height, 1);
 }
 
 void OpenGLSharedResources::Destroy()

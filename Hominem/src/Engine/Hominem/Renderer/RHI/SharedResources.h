@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 
 #define WIN32_LEAN_AND_MEAN
@@ -28,6 +29,15 @@ public:
     virtual void ImportGLDoneSemaphore(HANDLE semHandle) = 0;
     virtual void WaitSemaphore(uint32_t frameIdx) = 0;
     virtual void SignalGLDone() = 0;
+
+    /// Explicit mid-frame handoff for images imported with frameSync = false.
+    virtual uint32_t ImportSemaphoreHandle(HANDLE semHandle) = 0;
+    virtual void     DeleteSemaphore(uint32_t semaphore) = 0;
+    virtual void     WaitOn(uint32_t semaphore, std::span<const uint32_t> textures) = 0;
+    virtual void     SignalOn(uint32_t semaphore, std::span<const uint32_t> textures) = 0;
+
+    /// Same-format copy between two GL textures.
+    virtual void CopyTexture(uint32_t src, uint32_t dst, uint32_t width, uint32_t height) = 0;
     virtual void Destroy() = 0;
 
     virtual uint32_t GetTextureID() const = 0;

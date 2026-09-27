@@ -19,6 +19,8 @@ inline constexpr const char* DDGIDistance   = "ddgi.distance";
 
 }
 
+enum class SharedImageFormat : uint8_t { RGBA16F, R32F };
+
 /// A Vulkan image to bind as a GL texture over the same device memory.
 struct SharedImageDesc
 {
@@ -31,6 +33,12 @@ struct SharedImageDesc
     /// image) rather than shader-read-only. Must match, or the semaphore wait describes
     /// a transition that never happened.
     bool     generalLayout = false;
+
+    SharedImageFormat format = SharedImageFormat::RGBA16F;
+
+    /// Joins the once-per-frame Vulkan->GL semaphore handoff. False for images that are
+    /// handed over explicitly mid-frame (SharedResources::WaitOn / SignalOn).
+    bool     frameSync = true;
 };
 
 struct SharedImageExport
