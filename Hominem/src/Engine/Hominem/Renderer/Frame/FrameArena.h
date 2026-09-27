@@ -8,14 +8,11 @@
 namespace Hominem {
 
 	/**
-	 * Bump allocator for per-frame render data.
+	 * Bump allocator for scratch data while a frame is built and recorded, main thread only.
+	 * Recording copies what the render thread needs into the command lists, so Application
+	 * resets it right after Record().
 	 *
-	 * All allocations live until Reset() — call it at the start of each frame.
-	 * Two instances are double-buffered in RenderThread so main thread writes
-	 * into one while the render thread reads the other.
-	 *
-	 * Default 2MB covers: ~30k mat4 bones, thousands of draw command payloads.
-	 * Increase k_Size if HMN_CORE_ASSERT fires on overflow.
+	 * Default 2MB covers ~30k mat4 bones. Increase k_Size if the overflow assert fires.
 	 */
 	class FrameArena
 	{

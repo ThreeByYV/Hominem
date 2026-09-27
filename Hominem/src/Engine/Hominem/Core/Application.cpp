@@ -256,7 +256,7 @@ namespace Hominem {
 			// Collect draw commands
 			// Wire the write arena so actors can bump-allocate bone matrices.
 			RenderFrame frame;
-			frame.arena = &m_RenderThread.GetWriteArena();
+			frame.arena = &m_FrameArena;
 			for (auto& layer : m_LayerStack)
 			{
 				if (Scene* scene = layer->GetScene())

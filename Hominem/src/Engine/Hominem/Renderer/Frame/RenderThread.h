@@ -53,8 +53,6 @@ namespace Hominem {
 		void WaitImGuiConsumed();
 		void SignalImGuiReady();
 
-		FrameArena& GetWriteArena() { return m_Arenas[m_WriteArenaIdx]; }
-
 	private:
 		void ThreadFunc();
 		void ExecuteFrame(RecordedFrame& frame);
@@ -80,9 +78,6 @@ namespace Hominem {
 		std::mutex              m_Mutex;
 		std::condition_variable m_ReadyCV;
 		std::condition_variable m_ConsumedCV;
-
-		FrameArena m_Arenas[2];
-		uint8_t    m_WriteArenaIdx = 0;
 
 		std::mutex              m_ImGuiMutex;
 		std::condition_variable m_ImGuiReadyCV;
