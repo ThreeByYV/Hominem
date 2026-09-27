@@ -28,15 +28,17 @@ enum Flags : uint8_t
 
 struct Entry
 {
-	const char* name;
-	void*       addr;
-	Type        type;
-	uint8_t     flags;
+	const char*        name;
+	void*              addr;
+	Type               type;
+	uint8_t            flags;
+	const char* const* choices = nullptr;
 };
 
 // Adding a setting means adding a row here; the config file, the command line, the startup
 // log and the capture notes all come off this one table.
 #define HMN_SETTING(field, type, flags) { #field, &RenderSettings::field, Type::type, flags }
+#define HMN_CHOICE(field, names, flags) { #field, &RenderSettings::field, Type::Choice, flags, RenderSettings::names }
 
 const Entry s_Entries[] = {
 	// Debug overlays stay out of the config file. One left on at exit coming back next
@@ -64,10 +66,13 @@ const Entry s_Entries[] = {
 	HMN_SETTING(TAAFeedbackMax, Float, Persist),
 	HMN_SETTING(TAAJitterScale, Float, Persist),
 
+	HMN_CHOICE(Upscaler, UpscalerNames, Persist),
+
 	HMN_SETTING(RecommendedRenderScale, Float, Derived),
 };
 
 #undef HMN_SETTING
+#undef HMN_CHOICE
 
 std::string ValueToString(const Entry& e)
 {
@@ -75,6 +80,13 @@ std::string ValueToString(const Entry& e)
 	{
 		case Type::Bool: return *static_cast<bool*>(e.addr) ? "1" : "0";
 		case Type::Int:  return std::to_string(*static_cast<int*>(e.addr));
+		case Type::Choice:
+		{
+			const int index = *static_cast<int*>(e.addr);
+			for (int i = 0; e.choices[i]; i++)
+				if (i == index) return e.choices[i];
+			return std::to_string(index);
+		}
 		case Type::Float:
 		{
 			char buf[32];
@@ -130,6 +142,14 @@ bool Assign(const Entry& e, std::string_view value)
 		const std::string v = ToLower(value);
 		if (v == "1" || v == "true"  || v == "on")  { *static_cast<bool*>(e.addr) = true;  return true; }
 		if (v == "0" || v == "false" || v == "off") { *static_cast<bool*>(e.addr) = false; return true; }
+		return false;
+	}
+
+	if (e.type == Type::Choice)
+	{
+		const std::string v = ToLower(value);
+		for (int i = 0; e.choices[i]; i++)
+			if (v == e.choices[i]) { *static_cast<int*>(e.addr) = i; return true; }
 		return false;
 	}
 
@@ -290,7 +310,7 @@ bool Assign(const Entry& e, std::string_view value)
 		for (size_t i = 0; i < std::size(s_Entries); i++)
 			out.push_back({ s_Entries[i].name, s_Entries[i].addr, s_Entries[i].type,
 			                ValueToString(s_Entries[i]) == s_Defaults[i],
-			                (s_Entries[i].flags & Derived) != 0 });
+			                (s_Entries[i].flags & Derived) != 0, s_Entries[i].choices });
 
 		return out;
 	}

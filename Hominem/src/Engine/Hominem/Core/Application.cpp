@@ -37,6 +37,9 @@ namespace Hominem {
 		HMN_CORE_ASSERT(!s_Instance, "Application already exists!");
 		s_Instance = this;
 
+		// Saved on exit; loaded first so every setting is in place before the renderer starts.
+		RenderSettings::LoadFrom("render.ini");
+
 		// Before the window, and so before any graphics context: RenderDoc has to be in
 		// the process when the device is created or it has nothing to hook.
 		RenderDocCapture::Init();

@@ -101,6 +101,13 @@ inline void EditRenderSettings(const char* path = "render.ini")
                 ImGui::DragInt  (s.name, static_cast<int*>(s.value));          break;
             case Setting::Type::Float:
                 ImGui::DragFloat(s.name, static_cast<float*>(s.value), 0.01f); break;
+            case Setting::Type::Choice:
+            {
+                int count = 0;
+                while (s.choices[count]) count++;
+                ImGui::Combo(s.name, static_cast<int*>(s.value), s.choices, count);
+                break;
+            }
         }
 
         ImGui::EndDisabled();

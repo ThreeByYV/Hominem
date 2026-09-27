@@ -5,7 +5,7 @@
 namespace Hominem {
 
 /// Debug backend: a plain bilinear blit through the bridge. Tests the GL<->Vulkan handoff
-/// without any vendor SDK; select with HOMINEM_UPSCALER=passthrough.
+/// without any vendor SDK; select with Upscaler=passthrough in render.ini.
 class VulkanPassthroughUpscaler final : public VulkanBridgedUpscaler
 {
 public:

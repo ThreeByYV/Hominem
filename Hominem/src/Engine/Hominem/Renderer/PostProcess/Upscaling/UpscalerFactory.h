@@ -15,8 +15,8 @@ struct UpscalerContext
     SharedResources*     interop = nullptr;
 };
 
-/// HOMINEM_UPSCALER=taa|passthrough|dlss; TAA when unset or unknown.
-UpscalerBackend UpscalerBackendFromEnvironment();
+/// RenderSettings::Upscaler (`Upscaler=` in render.ini).
+UpscalerBackend UpscalerBackendFromSettings();
 
 /// Falls back down the chain to TAA when the preferred backend is unavailable.
 Scope<Upscaler> CreateUpscaler(UpscalerBackend preferred, const UpscalerContext& context);

@@ -50,6 +50,11 @@ namespace Hominem {
 		static inline float TAAJitterScale  = 1.0f;  // 0 keeps the sample at the pixel centre (no AA)
 		static inline int   TAADebugView    = 0;     // 0 off, 1 motion, 2 clamped history, 3 rejection
 
+		// Temporal upscaler, by name in render.ini. Read once when the renderer starts.
+		// Order matches UpscalerBackend.
+		static inline int Upscaler = 0;
+		static constexpr const char* UpscalerNames[] = { "taa", "dlss", "fsr", "passthrough", nullptr };
+
 		// Set by the renderer during Init based on GPU detection; read by game code.
 		static inline float RecommendedRenderScale = 1.0f;
 
@@ -89,13 +94,14 @@ namespace Hominem {
 		/// it writes through.
 		struct Setting
 		{
-			enum class Type { Bool, Int, Float };
+			enum class Type { Bool, Int, Float, Choice };
 
 			const char* name;
-			void*       value; // bool*, int* or float*, per type
+			void*       value; // bool*, int* or float*, per type; int* (an index) for Choice
 			Type        type;
 			bool        isDefault;
 			bool        isDerived; // recomputed each launch, so editing it does nothing
+			const char* const* choices; // Choice only: null-terminated names
 		};
 
 		static std::vector<Setting> Enumerate();
