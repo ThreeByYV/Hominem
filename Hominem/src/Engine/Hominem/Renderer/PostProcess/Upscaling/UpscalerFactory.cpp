@@ -5,19 +5,20 @@
 #include "Platform/Vulkan/VulkanSceneRenderer.h"
 #include "Platform/Vulkan/VulkanPassthroughUpscaler.h"
 
-#include <string_view>
+#include "Hominem/Renderer/Frame/RenderSettings.h"
+
+#include <iterator>
 
 namespace Hominem {
 
-UpscalerBackend UpscalerBackendFromEnvironment()
-{
-    char value[32] = {};
-    const DWORD len = GetEnvironmentVariableA("HOMINEM_UPSCALER", value, sizeof(value));
-    const std::string_view name(value, len < sizeof(value) ? len : 0);
+static_assert(std::size(RenderSettings::UpscalerNames) - 1 == (size_t)UpscalerBackend::Passthrough + 1,
+              "RenderSettings::UpscalerNames must list every UpscalerBackend, in order");
 
-    if (name == "passthrough") return UpscalerBackend::Passthrough;
-    if (name == "dlss")        return UpscalerBackend::DLSS;
-    return UpscalerBackend::TAA;
+UpscalerBackend UpscalerBackendFromSettings()
+{
+    const int index = RenderSettings::Upscaler;
+    return index >= 0 && index <= (int)UpscalerBackend::Passthrough ? (UpscalerBackend)index
+                                                                    : UpscalerBackend::TAA;
 }
 
 Scope<Upscaler> CreateUpscaler(UpscalerBackend preferred, const UpscalerContext& context)

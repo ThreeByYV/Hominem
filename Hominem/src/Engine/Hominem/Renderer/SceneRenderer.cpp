@@ -31,7 +31,7 @@ void SceneRenderer::Init(const UpscalerContext& upscalerContext)
     // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
     RenderSettings::LogAll();
 
-    m_Upscaler = CreateUpscaler(UpscalerBackendFromEnvironment(), upscalerContext);
+    m_Upscaler = CreateUpscaler(UpscalerBackendFromSettings(), upscalerContext);
     m_Upscaler->Init();
     HMN_CORE_INFO("Upscaler: {0}", m_Upscaler->GetName());
 
