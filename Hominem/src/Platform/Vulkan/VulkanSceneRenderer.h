@@ -30,6 +30,8 @@ public:
     VulkanSceneRenderer()  = default;
     ~VulkanSceneRenderer() = default;
 
+    VulkanRenderer& GetRenderer() { return *m_Renderer; }
+
     VulkanSceneRenderer(const VulkanSceneRenderer&)            = delete;
     VulkanSceneRenderer& operator=(const VulkanSceneRenderer&) = delete;
 

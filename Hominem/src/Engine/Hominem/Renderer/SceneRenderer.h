@@ -8,7 +8,7 @@
 #include "Hominem/Renderer/PostProcess/AutoExposure.h"
 #include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "Hominem/Renderer/RHI/SharedImages.h"
-#include "Hominem/Renderer/PostProcess/Upscaling/Upscaler.h"
+#include "Hominem/Renderer/PostProcess/Upscaling/UpscalerFactory.h"
 
 namespace Hominem {
 
@@ -20,7 +20,7 @@ struct ExposureOutput { float value; };
 class SceneRenderer
 {
 public:
-    void Init();
+    void Init(const UpscalerContext& upscalerContext);
 
     void Shutdown();
 

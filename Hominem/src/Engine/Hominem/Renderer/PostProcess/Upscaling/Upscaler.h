@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
+#include "Hominem/Core/Ref.h"
+#include "Hominem/Renderer/RHI/Framebuffer.h"
+
 namespace Hominem {
 
 class RenderGraph;
 class CommandList;
 
-enum class UpscalerBackend : uint8_t { TAA, DLSS, FSR };
+enum class UpscalerBackend : uint8_t { TAA, DLSS, FSR, Passthrough };
 
 struct UpscalerCaps
 {
@@ -27,6 +30,11 @@ struct UpscalerInputs
     glm::mat4  viewProjUnjittered { 1.f };
     glm::mat4  prevViewProj       { 1.f };
     bool       reset = true;
+
+    // The target behind the bound slots (color 0, color 1 = velocity, depth), for backends
+    // that copy rather than sample. Read its size and IDs when the commands execute: the
+    // graph can resize it after recording.
+    Ref<Framebuffer> sceneTarget;
 };
 
 class Upscaler
