@@ -26,7 +26,7 @@ namespace Hominem {
 		void OnBuildRenderFrame(RenderFrame& frame) override
 		{
 			QuadDraw q;
-			q.transform = GetTransform();
+			q.transform = GetWorldTransform();
 			q.color     = Color;
 			q.texture   = Texture;
 			frame.quads.push_back(std::move(q));

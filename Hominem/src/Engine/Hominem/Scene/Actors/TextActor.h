@@ -29,7 +29,7 @@ namespace Hominem {
 		void OnBuildRenderFrame(RenderFrame& frame) override
 		{
 			if (!FontRef || Text.empty()) return;
-			frame.texts.push_back({ Text, FontRef, GetTransform(), Color });
+			frame.texts.push_back({ Text, FontRef, GetWorldTransform(), Color });
 		}
 
 		std::string  Text;

@@ -4,7 +4,11 @@
 
 namespace Hominem {
 
-	Scene::Scene()  = default;
+	Scene::Scene()
+	{
+		AddToGraph(m_CameraNode);
+	}
+
 	Scene::~Scene() = default;
 
 	void Scene::OnUpdate(Timestep ts)
@@ -14,6 +18,43 @@ namespace Hominem {
 
 		for (auto& actor : m_Actors)
 			actor->OnUpdate(ts);
+
+		UpdateWorldTransforms();
+	}
+
+	void Scene::AddToGraph(Actor& actor)
+	{
+		actor.m_Node           = m_Graph.Add(&actor);
+		actor.m_WorldTransform = actor.GetTransform();
+	}
+
+	void Scene::SetParent(Actor& child, Actor* parent)
+	{
+		m_Graph.SetParent(child.m_Node, parent ? parent->m_Node : SceneGraph::Null);
+	}
+
+	Actor* Scene::GetParent(const Actor& actor) const
+	{
+		const SceneGraph::NodeId parent = m_Graph.GetParent(actor.m_Node);
+		return parent == SceneGraph::Null ? nullptr : m_Graph[parent];
+	}
+
+	void Scene::UpdateWorldTransforms()
+	{
+		m_CameraNode.m_World = glm::inverse(ViewMatrix());
+
+		m_Graph.VisitDepthFirst([this](SceneGraph::NodeId node, SceneGraph::NodeId parent)
+		{
+			Actor& actor = *m_Graph[node];
+			actor.m_WorldTransform = parent == SceneGraph::Null
+				? actor.GetTransform()
+				: m_Graph[parent]->m_WorldTransform * actor.GetTransform();
+		});
+	}
+
+	glm::mat4 Scene::ViewMatrix() const
+	{
+		return glm::lookAt(m_CameraPosition, m_CameraPosition + m_CameraFront, glm::vec3(0.f, 1.f, 0.f));
 	}
 
 	void Scene::BakeEnvironment(const glm::vec3& capturePos, float intensity,
@@ -68,7 +109,10 @@ namespace Hominem {
 		if (m_ViewportWidth == 0 || m_ViewportHeight == 0)
 			return;
 
-		glm::mat4 view           = glm::lookAt(m_CameraPosition, m_CameraPosition + m_CameraFront, glm::vec3(0.f, 1.f, 0.f));
+		// Layers can move actors or the camera after Scene::OnUpdate; draw where they are now.
+		UpdateWorldTransforms();
+
+		glm::mat4 view           = ViewMatrix();
 		glm::mat4 proj           = m_Camera.GetProjectionMatrix();
 		glm::mat4 viewProjection = proj * view;
 
