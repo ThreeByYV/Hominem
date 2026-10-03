@@ -1,6 +1,6 @@
 #include "hmnpch.h"
 #include "VulkanRenderer.h"
-#include "NVIDIA/DLSS.h"
+#include "NVIDIA/NGX.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 
 #include <set>
@@ -94,7 +94,7 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
     CreateDepthImage(w, h);
     CreateCommandStructures();
     CreateSyncObjects();
-    DLSS::InitRuntime(m_Instance, m_PhysicalDevice, m_Device);
+    NGX::Init(m_Instance, m_PhysicalDevice, m_Device);
 
     HMN_CORE_INFO("Vulkan headless renderer initialised: {0}", props.deviceName);
 }
@@ -102,7 +102,7 @@ void VulkanRenderer::Init(uint32_t w, uint32_t h, std::array<uint8_t, 8> preferr
 void VulkanRenderer::Shutdown()
 {
     vkDeviceWaitIdle(m_Device);
-    DLSS::ShutdownRuntime();
+    NGX::Shutdown();
 
     for (auto& f : m_Frames)
         f.deletionQueue.flush();
@@ -335,7 +335,7 @@ void VulkanRenderer::CreateInstance()
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     // Only the ones present: without an NVIDIA driver NGX's list may name extensions this loader lacks.
-    const auto ngxExtensions = DLSS::InstanceExtensions();
+    const auto ngxExtensions = NGX::InstanceExtensions();
     for (const auto& ext : ngxExtensions)
         if (HasInstanceExtension(ext)) extensions.push_back(ext.c_str());
 
@@ -552,7 +552,7 @@ void VulkanRenderer::CreateLogicalDevice()
         featureChain = &rayQuery;
     }
 
-    const auto ngxExtensions = DLSS::DeviceExtensions(m_Instance, m_PhysicalDevice);
+    const auto ngxExtensions = NGX::DeviceExtensions(m_Instance, m_PhysicalDevice);
     for (const auto& ext : ngxExtensions)
     {
         const bool listed = std::any_of(extensions.begin(), extensions.end(),

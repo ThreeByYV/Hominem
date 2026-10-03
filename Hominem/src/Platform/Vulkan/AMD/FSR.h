@@ -13,7 +13,7 @@ public:
     UpscalerCaps GetCaps() const override                 { return {}; }
     float        GetRenderScale(glm::uvec2) const override { return 1.f; }
 
-    bool Evaluate(VkCommandBuffer, const VulkanUpscalerBridge&, const UpscalerInputs&) override { return false; }
+    bool Evaluate(VkCommandBuffer, const UpscaleImages&, const UpscalerInputs&) override { return false; }
 };
 
 }

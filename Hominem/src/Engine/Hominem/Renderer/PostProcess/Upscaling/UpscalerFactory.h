@@ -5,14 +5,12 @@
 
 namespace Hominem {
 
-class VulkanSceneRenderer;
-class SharedResources;
+class GpuInterop;
 
-/// What the Vulkan-based backends need; either being null rules them out.
+/// What the Vulkan-based backends need; null rules them out.
 struct UpscalerContext
 {
-    VulkanSceneRenderer* vulkan  = nullptr;
-    SharedResources*     interop = nullptr;
+    GpuInterop* interop = nullptr;
 };
 
 /// RenderSettings::Upscaler (`Upscaler=` in render.ini).
