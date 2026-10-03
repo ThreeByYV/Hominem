@@ -2,7 +2,8 @@
 #include "UpscalerFactory.h"
 #include "Hominem/Renderer/PostProcess/Upscaling/TAA/TAAUpscaler.h"
 
-#include "Platform/Vulkan/VulkanSceneRenderer.h"
+#include "Platform/Interop/GpuInterop.h"
+#include "Platform/Vulkan/VulkanRenderer.h"
 #include "Platform/Vulkan/VulkanUpscaler.h"
 #include "Platform/Vulkan/NVIDIA/DLSS.h"
 #include "Platform/Vulkan/AMD/FSR.h"
@@ -26,16 +27,16 @@ UpscalerBackend UpscalerBackendFromSettings()
 Scope<Upscaler> CreateUpscaler(UpscalerBackend preferred, const UpscalerContext& context)
 {
     if (preferred == UpscalerBackend::TAA) return CreateScope<TAAUpscaler>();
-    if (!context.vulkan || !context.interop)
+    if (!context.interop)
     {
         HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
         return CreateScope<TAAUpscaler>();
     }
 
-    VulkanRenderer& vk = context.vulkan->GetRenderer();
+    VulkanRenderer& vk = context.interop->GetVulkan();
     auto vulkan = [&](Scope<IUpscalerStrategy> strategy)
     {
-        return CreateScope<VulkanUpscaler>(vk, *context.interop, std::move(strategy));
+        return CreateScope<VulkanUpscaler>(*context.interop, std::move(strategy));
     };
 
     if (preferred == UpscalerBackend::Passthrough)

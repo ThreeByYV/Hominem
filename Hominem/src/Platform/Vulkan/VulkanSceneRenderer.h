@@ -56,13 +56,7 @@ public:
         return m_SharedImages.Collect(m_Renderer->GetDevice());
     }
 
-    HANDLE       GetDrawImageWin32Handle()                       { return m_Renderer->GetDrawImageWin32Handle(); }
-    HANDLE       GetComputeDoneSemaphoreWin32Handle(uint32_t i)  { return m_Renderer->GetComputeDoneSemaphoreWin32Handle(i); }
-    HANDLE       GetGLDoneSemaphoreWin32Handle()                 { return m_Renderer->GetGLDoneSemaphoreWin32Handle(); }
-    VkDeviceSize GetDrawImageMemorySize()                  const { return m_Renderer->GetDrawImageMemorySize(); }
-    VkExtent2D   GetDrawExtent()                           const { return m_Renderer->GetDrawExtent(); }
-    uint32_t     GetCurrentFrameIndex()                    const { return m_Renderer->GetCurrentFrameIndex(); }
-    std::array<uint8_t, 8> GetDeviceLUID()                 const { return m_Renderer->GetDeviceLUID(); }
+    std::array<uint8_t, 8> GetDeviceLUID() const { return m_Renderer->GetDeviceLUID(); }
 
 private:
     struct RenderTargetSlot { VulkanRenderTarget renderTarget; bool needsTransition = true; bool valid = false; };
