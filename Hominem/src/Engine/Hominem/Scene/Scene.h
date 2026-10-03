@@ -15,6 +15,18 @@
 
 namespace Hominem {
 
+	/// The scene camera as a root of the scene graph, so actors can ride it (view models,
+	/// flashlights): Scene::SetParent(actor, &GetCameraNode()). Local -Z is the view direction.
+	class CameraNode final : public Actor
+	{
+	public:
+		glm::mat4 GetTransform() const override { return m_World; }
+
+	private:
+		glm::mat4 m_World{ 1.f };
+		friend class Scene;
+	};
+
 	class Scene : public RefCounted
 	{
 	public:
@@ -33,6 +45,7 @@ namespace Hominem {
 			actor->m_Scene = this;
 			actor->Position = glm::vec3(m_WorldTransform * glm::vec4(actor->Position, 1.f));
 			T& ref = *actor;
+			AddToGraph(ref);
 			m_Actors.push_back(std::move(actor));
 			ref.OnCreate();
 			return ref;
@@ -60,6 +73,13 @@ namespace Hominem {
 		const Camera& GetCamera() const   { return m_Camera; }
 		glm::vec3&         GetCameraPosition() { return m_CameraPosition; }
 		glm::vec3&         GetCameraFront()    { return m_CameraFront; }
+		Actor&             GetCameraNode()     { return m_CameraNode; }
+
+		/// Hangs `child` under `parent` (null: back to a root). Its Position/Rotation/Scale
+		/// become relative to the parent from then on.
+		void SetParent(Actor& child, Actor* parent);
+		Actor* GetParent(const Actor& actor) const;
+		const SceneGraph& GetGraph() const { return m_Graph; }
 
 		/// Position + orthographic zoom, bundled so callers don't need two separate
 		/// members and two separate get/set calls to snapshot and restore camera state.
@@ -130,7 +150,13 @@ namespace Hominem {
 		void SetEnvMapIntensity(float intensity) { m_EnvMapIntensity = intensity; }
 
 	private:
+		glm::mat4 ViewMatrix() const;
+		void      AddToGraph(Actor& actor);
+		/// Camera node first, then world = parent world * local, top-down.
+		void      UpdateWorldTransforms();
+
 		std::vector<Scope<Actor>> m_Actors;
+		SceneGraph                m_Graph;
 
 		// Last frame's draw transforms per actor, in the order that actor pushed them.
 		std::unordered_map<const Actor*, std::vector<glm::mat4>> m_PrevDrawTransforms;
@@ -138,6 +164,7 @@ namespace Hominem {
 		Camera m_Camera;
 		glm::vec3   m_CameraPosition{ 0.f };
 		glm::vec3   m_CameraFront{ 0.f, 0.f, -1.f }; // default: looking down -Z
+		CameraNode  m_CameraNode;                     // follows the two above
 		uint32_t    m_ViewportWidth  = 0;
 		uint32_t    m_ViewportHeight = 0;
 

@@ -13,7 +13,7 @@ namespace Hominem {
 
 		void OnBuildRenderFrame(RenderFrame& frame) override
 		{
-			light.Position = Position;
+			light.Position = GetWorldPosition();
 			frame.lights.push_back(light);
 		}
 	};
