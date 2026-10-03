@@ -3,10 +3,9 @@
 #include "Hominem/Renderer/PostProcess/Upscaling/TAA/TAAUpscaler.h"
 
 #include "Platform/Vulkan/VulkanSceneRenderer.h"
-#include "Platform/Vulkan/VulkanPassthroughUpscaler.h"
-#ifdef HMN_ENABLE_DLSS
-    #include "Platform/Vulkan/DLSS/VulkanDLSSUpscaler.h"
-#endif
+#include "Platform/Vulkan/VulkanUpscaler.h"
+#include "Platform/Vulkan/NVIDIA/DLSS.h"
+#include "Platform/Vulkan/AMD/FSR.h"
 
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 
@@ -26,36 +25,32 @@ UpscalerBackend UpscalerBackendFromSettings()
 
 Scope<Upscaler> CreateUpscaler(UpscalerBackend preferred, const UpscalerContext& context)
 {
-    const bool bridge = context.vulkan && context.interop;
-
-    switch (preferred)
+    if (preferred == UpscalerBackend::TAA) return CreateScope<TAAUpscaler>();
+    if (!context.vulkan || !context.interop)
     {
-        case UpscalerBackend::Passthrough:
-            if (bridge)
-                return CreateScope<VulkanPassthroughUpscaler>(context.vulkan->GetRenderer(), *context.interop);
-            HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
-            break;
-        case UpscalerBackend::DLSS:
-#ifdef HMN_ENABLE_DLSS
-            if (!bridge)
-            {
-                HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
-                break;
-            }
-            if (auto dlss = CreateScope<VulkanDLSSUpscaler>(context.vulkan->GetRenderer(), *context.interop);
-                dlss->IsSupported())
-                return dlss;
-            HMN_CORE_WARN("Upscaler: DLSS unavailable on this system, using TAA");
-#else
-            HMN_CORE_WARN("Upscaler: built without DLSS (HMN_ENABLE_DLSS), using TAA");
-#endif
-            break;
-        case UpscalerBackend::FSR:
-            HMN_CORE_WARN("Upscaler: FSR is not built in yet, using TAA");
-            break;
-        case UpscalerBackend::TAA:
-            break;
+        HMN_CORE_WARN("Upscaler: GL/Vulkan interop unavailable, using TAA");
+        return CreateScope<TAAUpscaler>();
     }
+
+    VulkanRenderer& vk = context.vulkan->GetRenderer();
+    auto vulkan = [&](Scope<IUpscalerStrategy> strategy)
+    {
+        return CreateScope<VulkanUpscaler>(vk, *context.interop, std::move(strategy));
+    };
+
+    if (preferred == UpscalerBackend::Passthrough)
+        return vulkan(nullptr);
+
+    // Strategies in fallback order: DLSS on NVIDIA, FSR elsewhere, then TAA.
+    if (preferred == UpscalerBackend::DLSS)
+    {
+        if (auto dlss = vulkan(CreateScope<DLSS>(vk.GetDevice())); dlss->IsSupported())
+            return dlss;
+        HMN_CORE_WARN("Upscaler: DLSS unavailable, trying FSR");
+    }
+    if (auto fsr = vulkan(CreateScope<FSR>()); fsr->IsSupported())
+        return fsr;
+    HMN_CORE_WARN("Upscaler: FSR unavailable, using TAA");
     return CreateScope<TAAUpscaler>();
 }
 
