@@ -18,9 +18,11 @@ struct ViewModelFit
     std::string FacingSource;     // which bones the facing came from
 };
 
-/// Poses the actor's current clip, then looks for, in order: a bone named like "camera",
-/// the eye bones' midpoint, the head bone. Facing comes from a left/right eye or shoulder pair,
-/// else the hands. Null when the rig has no camera/eye/head bone.
-std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor);
+/// Metres the camera sits behind the eyes (head centre). A camera bone overrides it.
+inline constexpr float k_ViewModelEyeToCamera = 0.14f;
+
+/// Eye point from a camera bone, else the eye bones, else the head; facing from a left/right
+/// pair, else the hands. Null when the rig has none of those.
+std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor, float eyeToCamera = k_ViewModelEyeToCamera);
 
 }

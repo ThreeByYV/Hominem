@@ -34,28 +34,44 @@ char Side(const std::string& n)
     return 0;
 }
 
-// Average mesh-space position of the bones whose lowercase name passes `match`.
-std::optional<glm::vec3> Average(const SkinnedMesh& mesh, const std::vector<std::string>& names,
-                                 const auto& match)
+std::vector<glm::vec3> Positions(const SkinnedMesh& mesh, const std::vector<std::string>& names, const auto& match)
 {
-    glm::vec3 sum{ 0.f };
-    int       count = 0;
+    std::vector<glm::vec3> out;
     for (const auto& name : names)
+        if (match(Lower(name)))
+            if (auto m = mesh.GetBoneWorldTransform(name))
+                out.push_back(glm::vec3((*m)[3]));
+    return out;
+}
+
+std::optional<glm::vec3> Average(const SkinnedMesh& mesh, const std::vector<std::string>& names, const auto& match)
+{
+    const auto points = Positions(mesh, names, match);
+    if (points.empty()) return std::nullopt;
+    glm::vec3 sum{ 0.f };
+    for (const auto& p : points) sum += p;
+    return sum / (float)points.size();
+}
+
+// Median: helper bones (controls, look-at targets) would drag an average.
+std::optional<glm::vec3> Median(const SkinnedMesh& mesh, const std::vector<std::string>& names, const auto& match)
+{
+    auto points = Positions(mesh, names, match);
+    if (points.empty()) return std::nullopt;
+    glm::vec3 m;
+    for (int axis = 0; axis < 3; axis++)
     {
-        if (!match(Lower(name))) continue;
-        if (auto m = mesh.GetBoneWorldTransform(name))
-        {
-            sum += glm::vec3((*m)[3]);
-            count++;
-        }
+        std::vector<float> v;
+        for (const auto& p : points) v.push_back(p[axis]);
+        std::ranges::nth_element(v, v.begin() + v.size() / 2);
+        m[axis] = v[v.size() / 2];
     }
-    if (count == 0) return std::nullopt;
-    return sum / (float)count;
+    return m;
 }
 
 }
 
-std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor)
+std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor, float eyeToCamera)
 {
     if (!actor.Mesh || !actor.Mesh->HasSkeleton()) return std::nullopt;
     SkinnedMesh& mesh = *actor.Mesh;
@@ -74,9 +90,10 @@ std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor)
     ViewModelFit fit;
     std::optional<glm::vec3> eye = Average(mesh, names, [](const std::string& n) { return Contains(n, "camera"); });
     fit.EyeSource = "camera bone";
+    const bool cameraBone = eye.has_value();
     if (!eye)
     {
-        eye           = Average(mesh, names, isEye);
+        eye           = Median(mesh, names, isEye);
         fit.EyeSource = "eye bones";
     }
     if (!eye)
@@ -114,6 +131,7 @@ std::optional<ViewModelFit> FitViewModel(SkinnedMeshActor& actor)
     const glm::quat rot = glm::quat(glm::vec3(0.f, yaw, 0.f));
     fit.Rotation = { 0.f, yaw, 0.f };
     fit.Position = -(rot * *eye);
+    if (!cameraBone) fit.Position.z -= eyeToCamera;
     return fit;
 }
 
