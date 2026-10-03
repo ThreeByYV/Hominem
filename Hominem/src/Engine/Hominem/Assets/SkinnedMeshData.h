@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Hominem/Renderer/Geometry/Material.h"
+
 #include "Hominem/Renderer/Geometry/Skeleton.h"
 #include "Hominem/Renderer/RHI/Texture.h"
 
@@ -26,18 +28,14 @@ struct SkinnedMeshData
     // geometry
     std::vector<glm::vec3>      Positions;
     std::vector<glm::vec3>      Normals;
+    std::vector<glm::vec4>      Tangents;   // w: bitangent sign
     std::vector<glm::vec2>      TexCoords;
     std::vector<uint32_t>       Indices;
     std::vector<SkinnedSubmesh> Submeshes;
     std::vector<uint32_t>       SubmeshBaseVertices;
     std::vector<VertexBoneData> VertexBoneData;
 
-    // materials
-    std::vector<Ref<Texture2D>> MaterialAlbedo;   // per material index
-    std::vector<Ref<Texture2D>> MaterialMetalRoughness; // per material index; null = factors only
-    std::vector<glm::vec2>      MaterialMRFactors;      // per material index: x metallic, y roughness
-    Ref<Texture2D>              NormalMap;         // material 0
-    Ref<Texture2D>              MetalRoughnessMap; // first material that has one
+    std::vector<Material>       Materials;
 
     // skeleton (fed to Skeleton::SetData / SetMainAnimation)
     std::vector<SkeletonNode>  Nodes;             // root at index 0

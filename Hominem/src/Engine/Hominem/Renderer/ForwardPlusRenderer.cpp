@@ -271,8 +271,6 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
                                   const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
-    const Material& mat0 = mesh.GetMaterial();
-
     if (RenderSettings::DrawBoneWeights && s_Data->BoneWeightShader)
     {
         // Debug shader writes no velocity — mask the attachment so it keeps whatever the
@@ -296,8 +294,8 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
     if (!shader)
     {
         HMN_CORE_ASSERT(s_Data->MeshVariants, "ForwardPlusRenderer: variants not loaded");
-        const bool hasNM = mat0.NormalMap      != nullptr;
-        const bool hasMR = mat0.MetalRoughnessMap != nullptr;
+        const bool hasNM = mesh.HasNormalMap() && RenderSettings::SkinnedNormalMaps;
+        const bool hasMR = mesh.HasMetalRoughness();
         const bool toon  = RenderSettings::ToonShading;
         std::string name = toon ? "skinned_toon" : "skinned_pbr";
         if (hasNM && hasMR) name += "_nm_mr";
@@ -312,9 +310,6 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
     cmd.SetMat4(shader, "u_Model", transform);
     cmd.SetMat4(shader, "u_PrevM", prevTransform ? *prevTransform : transform);
     BindDDGI(cmd, shader, scene);
-    const Material& mat = mat0;
-    cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
-    cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
 
     const int lightCount = (int)std::min(scene.Lights.size(), (size_t)MAX_POINT_LIGHTS_SKINNED);
     cmd.SetInt(shader, "u_PointLightCount", lightCount);
@@ -395,9 +390,6 @@ void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& tran
 
     BindDDGI(cmd, shader, scene);
 
-    const Material& mat = mesh.GetMaterial();
-    cmd.SetFloat(shader, "u_Roughness", mat.Roughness);
-    cmd.SetFloat(shader, "u_Metalness", mat.Metalness);
 
     auto [calls, tris] = mesh.Draw(shader, transform, cmd, &scene.CameraFrustum, prevTransform);
     s_DrawCalls   += calls;

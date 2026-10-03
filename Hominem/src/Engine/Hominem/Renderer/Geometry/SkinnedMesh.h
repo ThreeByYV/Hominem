@@ -65,13 +65,13 @@ namespace Hominem {
 		virtual std::optional<glm::mat4>  GetBoneWorldTransform(const std::string& name) const = 0;
 		virtual std::vector<std::string>  GetBoneNames() const = 0;
 
-		const Material& GetMaterial() const              { return m_Material; }
-		void            SetMaterial(const Material& mat) { m_Material = mat; }
+		/// Any material has the map; picks the shader variant.
+		virtual bool HasNormalMap()      const = 0;
+		virtual bool HasMetalRoughness() const = 0;
 
 		static Ref<SkinnedMesh> Create();
 
 	protected:
-		Material m_Material;
 	};
 
 }

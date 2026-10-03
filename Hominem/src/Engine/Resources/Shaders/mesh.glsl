@@ -9,6 +9,7 @@
     // Last frame's skinned output, kept so velocity picks up limb motion and not just the
     // actor's transform. Written by the same compute pass, one frame behind.
     layout(std430, binding = 6) readonly buffer PrevSkinnedPositions { vec4 u_PrevSkinnedPos[]; };
+    layout(std430, binding = 7) readonly buffer SkinnedTangents      { vec4 u_SkinnedTan[];     };
     layout(location = 1) in vec2 a_TexCoord;
 #else
     // Model matrices uploaded once per draw call batch; gl_DrawID indexes within the batch,
@@ -31,7 +32,7 @@ out vec2 v_TexCoord;
 out vec4 v_ClipCurr;
 out vec4 v_ClipPrev;
 
-#if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
+#ifdef HAS_NORMAL_MAP
     out vec4 v_Tangent;
 #endif
 
@@ -41,6 +42,9 @@ void main()
     vec4 worldPos     = u_Model * u_SkinnedPos[gl_VertexID];
     vec4 prevWorldPos = u_PrevM * u_PrevSkinnedPos[gl_VertexID];
     v_Normal          = normalize(mat3(u_Model) * u_SkinnedNorm[gl_VertexID].xyz);
+#ifdef HAS_NORMAL_MAP
+    v_Tangent         = vec4(mat3(u_Model) * u_SkinnedTan[gl_VertexID].xyz, u_SkinnedTan[gl_VertexID].w);
+#endif
 #else
     uint modelIdx     = uint(u_BaseModelIndex) + uint(gl_DrawID);
     mat4 model        = b_Models[modelIdx];
@@ -73,7 +77,7 @@ in vec3 v_Normal;
 in vec2 v_TexCoord;
 in vec4 v_ClipCurr;
 in vec4 v_ClipPrev;
-#if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
+#ifdef HAS_NORMAL_MAP
     in vec4 v_Tangent;
 #endif
 
@@ -114,12 +118,15 @@ in vec4 v_ClipPrev;
     }
 
     uniform sampler2D u_Albedo;      // slot 0
-    uniform float     u_Roughness;   // scalar fallback when no MR texture
+    uniform vec4      u_BaseColorFactor;
+    uniform float     u_Roughness;
     uniform float     u_Metalness;
+    uniform sampler2D u_Emissive;    // slot 9
+    uniform vec3      u_EmissiveFactor;
 #ifdef HAS_METALROUGHNESS_TEX
     uniform sampler2D u_MetalRoughness; // slot 1
 #endif
-#if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
+#ifdef HAS_NORMAL_MAP
     uniform sampler2D u_NormalMap;      // slot 2
 #endif
 
@@ -146,14 +153,11 @@ void main()
     vec2 ndcPrev = v_ClipPrev.xy / max(abs(v_ClipPrev.w), 1e-6) * sign(v_ClipPrev.w);
     FragVelocity = vec4((ndcCurr - ndcPrev) * 0.5, 0.0, 0.0);
 
-    vec4 albedoSample = texture(u_Albedo, v_TexCoord, u_TextureLodBias);
+    vec4 albedoSample = texture(u_Albedo, v_TexCoord, u_TextureLodBias) * u_BaseColorFactor;
     vec3 albedo = albedoSample.rgb;
 
 #ifdef HAS_METALROUGHNESS_TEX
-    vec2  mr        = texture(u_MetalRoughness, v_TexCoord, u_TextureLodBias).gb;
-#ifdef SKINNED
-    mr *= vec2(u_Roughness, u_Metalness); // glTF: the map is scaled by the material's factors
-#endif
+    vec2  mr        = texture(u_MetalRoughness, v_TexCoord, u_TextureLodBias).gb * vec2(u_Roughness, u_Metalness);
     float roughness = clamp(mr.x, 0.05, 1.0);
     float metalness = clamp(mr.y, 0.0,  1.0);
 #else
@@ -161,7 +165,7 @@ void main()
     float metalness = clamp(u_Metalness, 0.0,  1.0);
 #endif
 
-#if defined(HAS_NORMAL_MAP) && !defined(SKINNED)
+#ifdef HAS_NORMAL_MAP
     vec3 vN = normalize(v_Normal);
     vec3 vT = normalize(v_Tangent.xyz);
     vT      = normalize(vT - dot(vT, vN) * vN);
@@ -342,5 +346,6 @@ void main()
     }
 #endif
 
+    color += texture(u_Emissive, v_TexCoord, u_TextureLodBias).rgb * u_EmissiveFactor;
     FragColor = vec4(color, albedoSample.a);
 }

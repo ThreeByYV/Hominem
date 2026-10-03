@@ -31,7 +31,7 @@ namespace Hominem {
 			memset(m_Buffers, 0, sizeof(m_Buffers));
 		}
 
-		m_Positions.clear(); m_Normals.clear(); m_TexCoords.clear();
+		m_Positions.clear(); m_Normals.clear(); m_Tangents.clear(); m_TexCoords.clear();
 		m_Indices.clear();   m_Submeshes.clear();
 		m_Materials.clear(); m_VertexBoneData.clear();
 	}
@@ -45,16 +45,13 @@ namespace Hominem {
 
 		m_Positions      = std::move(data.Positions);
 		m_Normals        = std::move(data.Normals);
+		m_Tangents       = std::move(data.Tangents);
 		m_TexCoords      = std::move(data.TexCoords);
 		m_Indices        = std::move(data.Indices);
 		m_Submeshes      = std::move(data.Submeshes);
 		m_VertexBoneData = std::move(data.VertexBoneData);
-		m_Materials      = std::move(data.MaterialAlbedo);
-		m_MaterialMR        = std::move(data.MaterialMetalRoughness);
-		m_MaterialMRFactors = std::move(data.MaterialMRFactors);
+		m_Materials      = std::move(data.Materials);
 
-		m_Material.NormalMap         = data.NormalMap;
-		m_Material.MetalRoughnessMap = data.MetalRoughnessMap;
 
 		m_Skeleton.SetData(std::move(data.Nodes), std::move(data.BoneNameToIndex),
 			std::move(data.BoneOffsets), data.GlobalInverse);
@@ -119,7 +116,6 @@ namespace Hominem {
 		HMN_CORE_ASSERT(active, "SkinnedMesh::Render called without a shader");
 
 		cmd.BindShader(active);
-		cmd.SetInt(active, "u_MetalRoughness", 1);
 		cmd.BindVAORaw(m_VAO);
 		DrawSubmeshes(active, cmd);
 		cmd.BindVAORaw(0);
@@ -135,17 +131,9 @@ namespace Hominem {
 
 		for (const auto& submesh : m_Submeshes)
 		{
+			static const Material k_NoMaterial;
 			const uint32_t m = submesh.MaterialIndex;
-			// No colour texture: white, so the material reads as untextured rather than black.
-			const Ref<Texture2D>& albedo = m < m_Materials.size() && m_Materials[m] ? m_Materials[m] : WhiteTexture();
-			cmd.BindTexture(0, albedo->GetRendererID());
-
-			// Each submesh its own metal/roughness: one rig mixes cloth, skin and gun metal.
-			const Ref<Texture2D>& mr = m < m_MaterialMR.size() && m_MaterialMR[m] ? m_MaterialMR[m] : WhiteTexture();
-			const glm::vec2 factors  = m < m_MaterialMRFactors.size() ? m_MaterialMRFactors[m] : glm::vec2(1.f);
-			cmd.BindTexture(1, mr->GetRendererID());
-			cmd.SetFloat(shader, "u_Metalness", factors.x);
-			cmd.SetFloat(shader, "u_Roughness", factors.y);
+			BindMaterial(cmd, shader, m < m_Materials.size() ? m_Materials[m] : k_NoMaterial);
 
 			cmd.DrawElementsBaseVertex(
 				submesh.NumIndices,
@@ -154,10 +142,21 @@ namespace Hominem {
 		}
 	}
 
+	bool OpenGLSkinnedMesh::HasNormalMap() const
+	{
+		return std::ranges::any_of(m_Materials, [](const Material& m) { return m.Normal != nullptr; });
+	}
+
+	bool OpenGLSkinnedMesh::HasMetalRoughness() const
+	{
+		return std::ranges::any_of(m_Materials, [](const Material& m) { return m.MetalRoughness != nullptr; });
+	}
+
 	void OpenGLSkinnedMesh::CreateComputeSSBOs()
 	{
 		// Reset existing SSBOs before recreating (safe on reload - Ref<> drops the old GL object).
 		m_InPosSSBO = m_InNormSSBO = m_InBoneDataSSBO = m_BoneSSBO = m_OutNormSSBO = nullptr;
+		m_InTanSSBO = m_OutTanSSBO = nullptr;
 		m_OutPosSSBO[0] = m_OutPosSSBO[1] = nullptr;
 
 		uint32_t vertCount = static_cast<uint32_t>(m_Positions.size());
@@ -201,6 +200,14 @@ namespace Hominem {
 		m_OutNormSSBO = StorageBuffer::Create(vertBytes);
 		m_OutNormSSBO->SetData(norm4.data(), vertBytes);
 
+		// Meshes without tangents get +U.
+		std::vector<glm::vec4> tan4 = m_Tangents;
+		tan4.resize(vertCount, glm::vec4(1.f, 0.f, 0.f, 1.f));
+		m_InTanSSBO = StorageBuffer::Create(vertBytes);
+		m_InTanSSBO->SetData(tan4.data(), vertBytes);
+		m_OutTanSSBO = StorageBuffer::Create(vertBytes);
+		m_OutTanSSBO->SetData(tan4.data(), vertBytes);
+
 		m_ComputeShader = ComputeShader::Create("engine://Shaders/skinning.comp");
 		m_BoneCache.reserve(boneCount);
 	}
@@ -217,6 +224,7 @@ namespace Hominem {
 		cmd.BindStorageBufferBase(m_InBoneDataSSBO,          3);
 		cmd.BindStorageBufferBase(m_OutPosSSBO[m_SkinPosIdx], 4);
 		cmd.BindStorageBufferBase(m_OutNormSSBO,             5);
+		cmd.BindStorageBufferBase(m_OutTanSSBO,              7);
 		// First dispatch: the other buffer is the rest pose, never drawn, so reuse this one (zero velocity).
 		const bool firstDispatch = !bones.empty() && !m_HasPrevPose;
 		cmd.BindStorageBufferBase(m_OutPosSSBO[firstDispatch ? m_SkinPosIdx : m_SkinPosIdx ^ 1u], 6);
@@ -229,6 +237,7 @@ namespace Hominem {
 		cmd.BindStorageBufferBase(m_BoneSSBO,   0);
 		cmd.BindStorageBufferBase(m_InPosSSBO,  1);
 		cmd.BindStorageBufferBase(m_InNormSSBO, 2);
+		cmd.BindStorageBufferBase(m_InTanSSBO,  8);
 
 		cmd.ComputeSetUint(m_ComputeShader, "u_VertexCount", static_cast<uint32_t>(m_Positions.size()));
 

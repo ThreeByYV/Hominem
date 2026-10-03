@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Hominem/Renderer/RHI/Texture.h"
+#include "Hominem/Renderer/Geometry/Material.h"
 
 #include <glm/glm.hpp>
 #include <cfloat>
@@ -18,14 +18,10 @@ struct StaticVertex
     glm::vec4 Tangent; ///< xyz = tangent, w = handedness
 };
 
-/// One material's worth of geometry within a mesh: an index range plus its textures.
+/// One material's worth of geometry within a mesh: an index range plus which material.
 struct MeshDrawGroup
 {
-    Ref<Texture2D> Albedo;
-    Ref<Texture2D> MetalRoughness;
-    Ref<Texture2D> NormalMap;
-    bool      HasRealMetalRoughness = false;
-    bool      HasRealNormalMap      = false;
+    uint32_t  MaterialIndex   = 0; ///< into MeshData::Materials
     uint32_t  IndexByteOffset = 0;
     uint32_t  IndexCount      = 0;
     int32_t   BaseVertex      = 0;
@@ -40,6 +36,7 @@ struct MeshData
     std::vector<StaticVertex>  Vertices;
     std::vector<uint32_t>      Indices;
     std::vector<MeshDrawGroup> Groups;
+    std::vector<Material>      Materials;
     glm::vec3 AABBMin { 0.f };
     glm::vec3 AABBMax { 0.f };
 };

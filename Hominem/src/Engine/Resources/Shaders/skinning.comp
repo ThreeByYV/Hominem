@@ -9,6 +9,8 @@ struct VertexBoneData { ivec4 BoneIDs; vec4 Weights; };
 layout(std430, binding = 3) readonly  buffer InBoneData    { VertexBoneData u_BoneData[]; };
 layout(std430, binding = 4) writeonly buffer OutPositions  { vec4           u_OutPos[];   };
 layout(std430, binding = 5) writeonly buffer OutNormals    { vec4           u_OutNorm[];  };
+layout(std430, binding = 7) writeonly buffer OutTangents   { vec4           u_OutTan[];   };
+layout(std430, binding = 8) readonly  buffer InTangents    { vec4           u_InTan[];    };
 
 uniform uint u_VertexCount;
 
@@ -29,4 +31,5 @@ void main()
 
     u_OutPos[i]  = skin * u_InPos[i];
     u_OutNorm[i] = vec4(mat3(skin) * u_InNorm[i].xyz, 0.0);
+    u_OutTan[i]  = vec4(mat3(skin) * u_InTan[i].xyz, u_InTan[i].w);
 }

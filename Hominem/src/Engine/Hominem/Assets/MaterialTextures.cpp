@@ -2,12 +2,15 @@
 #include "MaterialTextures.h"
 
 #include "Hominem/Core/Log.h"
+#include "Hominem/Utils/FileUtils.h"
 
 #include <assimp/scene.h>
 #include <glm/common.hpp>
 
 #include <algorithm>
 #include <filesystem>
+#include <istream>
+#include <ostream>
 
 namespace Hominem {
 
@@ -52,69 +55,6 @@ std::string ResolveTexturePath(const std::string& rawPath, const std::string& ba
     return "";
 }
 
-Ref<Texture2D> LoadEmbeddedTexture(const aiScene* scene, const std::string& rawPath)
-{
-    if (!scene || rawPath.empty() || rawPath[0] != '*') return nullptr;
-
-    const aiTexture* emb = scene->GetEmbeddedTexture(rawPath.c_str());
-    if (!emb) return nullptr;
-
-    if (emb->mHeight == 0)
-    {
-        // Compressed blob (PNG/JPG) - mWidth holds the byte count. Auto-uploads.
-        return Texture2D::CreateFromMemory(
-            reinterpret_cast<const uint8_t*>(emb->pcData), emb->mWidth);
-    }
-
-    // Raw ARGB8888 - convert to RGBA and upload.
-    const uint32_t numPixels = emb->mWidth * emb->mHeight;
-    std::vector<uint8_t> rgba(numPixels * 4);
-    for (uint32_t p = 0; p < numPixels; p++)
-    {
-        rgba[p * 4 + 0] = emb->pcData[p].r;
-        rgba[p * 4 + 1] = emb->pcData[p].g;
-        rgba[p * 4 + 2] = emb->pcData[p].b;
-        rgba[p * 4 + 3] = emb->pcData[p].a;
-    }
-    auto tex = Texture2D::Create(emb->mWidth, emb->mHeight, TextureFormat::RGBA8);
-    tex->SetData(rgba.data(), (uint32_t)rgba.size());
-    tex->QueueUpload();
-    return tex;
-}
-
-Ref<Texture2D> MakeColorTexture(const aiColor4D& color)
-{
-    uint8_t pixel[4] = {
-        (uint8_t)(glm::clamp(color.r, 0.f, 1.f) * 255),
-        (uint8_t)(glm::clamp(color.g, 0.f, 1.f) * 255),
-        (uint8_t)(glm::clamp(color.b, 0.f, 1.f) * 255),
-        (uint8_t)(glm::clamp(color.a, 0.f, 1.f) * 255)
-    };
-    uint32_t packed;
-    memcpy(&packed, pixel, 4);
-    auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
-    tex->SetData(&packed, 4);
-    tex->QueueUpload();
-    return tex;
-}
-
-Ref<Texture2D> LoadMaterialTexture(const aiScene* scene, const aiMaterial* mat,
-                                   aiTextureType type, const std::string& baseDir)
-{
-    if (!mat || mat->GetTextureCount(type) == 0) return nullptr;
-
-    aiString texPath;
-    if (mat->GetTexture(type, 0, &texPath) != AI_SUCCESS) return nullptr;
-
-    std::string raw = texPath.C_Str();
-    if (!raw.empty() && raw[0] == '*')
-        return LoadEmbeddedTexture(scene, raw);
-
-    std::string resolved = ResolveTexturePath(raw, baseDir);
-    if (resolved.empty()) return nullptr;
-    return Texture2D::Create(resolved);
-}
-
 namespace {
     Ref<Texture2D> MakeSolid(uint32_t rgba)
     {
@@ -131,17 +71,225 @@ Ref<Texture2D> WhiteTexture()
     return s;
 }
 
-Ref<Texture2D> DefaultMetalRoughness()
-{
-    // R=0, G=128 (roughness 0.5), B=0 (metal 0), A=255
-    static Ref<Texture2D> s = MakeSolid(0xFF008000u);
-    return s;
-}
-
 Ref<Texture2D> FlatNormalMap()
 {
     // (128,128,255) decodes to normal (0,0,1)
     static Ref<Texture2D> s = MakeSolid(0xFFFF8080u);
+    return s;
+}
+
+namespace {
+
+TextureSource DescribeRaw(const aiScene* scene, const std::string& raw, const std::string& dir)
+{
+    TextureSource t;
+    if (raw.empty()) return t;
+
+    if (raw[0] == '*')
+    {
+        const aiTexture* emb = scene->GetEmbeddedTexture(raw.c_str());
+        if (!emb) return t;
+
+        if (emb->mHeight == 0)
+        {
+            // Compressed blob (PNG/JPG) - mWidth is the byte count.
+            t.kind = TextureSource::Kind::EmbeddedCompressed;
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(emb->pcData);
+            t.bytes.assign(p, p + emb->mWidth);
+        }
+        else
+        {
+            // Raw ARGB8888 -> RGBA.
+            t.kind   = TextureSource::Kind::EmbeddedRaw;
+            t.width  = emb->mWidth;
+            t.height = emb->mHeight;
+            const uint32_t n = emb->mWidth * emb->mHeight;
+            t.bytes.resize(n * 4);
+            for (uint32_t i = 0; i < n; i++)
+            {
+                t.bytes[i * 4 + 0] = emb->pcData[i].r;
+                t.bytes[i * 4 + 1] = emb->pcData[i].g;
+                t.bytes[i * 4 + 2] = emb->pcData[i].b;
+                t.bytes[i * 4 + 3] = emb->pcData[i].a;
+            }
+        }
+        return t;
+    }
+
+    const std::string resolved = ResolveTexturePath(raw, dir);
+    if (resolved.empty()) return t;
+    t.kind = TextureSource::Kind::Path;
+    t.path = resolved;
+    return t;
+}
+
+bool GetColor(const aiMaterial* mat, const char* key, unsigned type, unsigned index, aiColor4D& out)
+{
+    return aiGetMaterialColor(mat, key, type, index, &out) == AI_SUCCESS;
+}
+
+}
+
+TextureSource DescribeTexture(const aiScene* scene, const aiMaterial* mat, aiTextureType type, const std::string& dir)
+{
+    if (!mat || mat->GetTextureCount(type) == 0) return {};
+    aiString texPath;
+    if (mat->GetTexture(type, 0, &texPath) != AI_SUCCESS) return {};
+    return DescribeRaw(scene, texPath.C_Str(), dir);
+}
+
+Ref<Texture2D> Realize(const TextureSource& t)
+{
+    switch (t.kind)
+    {
+        case TextureSource::Kind::Path:
+            return Texture2D::Create(t.path);
+        case TextureSource::Kind::Color:
+        {
+            auto tex = Texture2D::Create(1, 1, TextureFormat::RGBA8);
+            tex->SetData(&t.color, 4);
+            tex->QueueUpload();
+            return tex;
+        }
+        case TextureSource::Kind::EmbeddedCompressed:
+            return Texture2D::CreateFromMemory(t.bytes.data(), static_cast<uint32_t>(t.bytes.size()));
+        case TextureSource::Kind::EmbeddedRaw:
+        {
+            auto tex = Texture2D::Create(t.width, t.height, TextureFormat::RGBA8);
+            tex->SetData(t.bytes.data(), static_cast<uint32_t>(t.bytes.size()));
+            tex->QueueUpload();
+            return tex;
+        }
+        case TextureSource::Kind::None:
+        default:
+            return nullptr;
+    }
+}
+
+void Write(std::ostream& os, const TextureSource& t)
+{
+    FileUtils::WriteValue(os, static_cast<uint32_t>(t.kind));
+    switch (t.kind)
+    {
+        case TextureSource::Kind::Path:  FileUtils::WriteString(os, t.path); break;
+        case TextureSource::Kind::Color: FileUtils::WriteValue(os, t.color); break;
+        case TextureSource::Kind::EmbeddedCompressed:
+            FileUtils::WriteValue(os, static_cast<uint32_t>(t.bytes.size()));
+            FileUtils::WriteArray(os, t.bytes);
+            break;
+        case TextureSource::Kind::EmbeddedRaw:
+            FileUtils::WriteValue(os, t.width);
+            FileUtils::WriteValue(os, t.height);
+            FileUtils::WriteValue(os, static_cast<uint32_t>(t.bytes.size()));
+            FileUtils::WriteArray(os, t.bytes);
+            break;
+        case TextureSource::Kind::None:
+        default: break;
+    }
+}
+
+TextureSource ReadTextureSource(std::istream& is)
+{
+    TextureSource t;
+    uint32_t k = 0;
+    FileUtils::ReadValue(is, k);
+    t.kind = static_cast<TextureSource::Kind>(k);
+    switch (t.kind)
+    {
+        case TextureSource::Kind::Path:  t.path = FileUtils::ReadString(is); break;
+        case TextureSource::Kind::Color: FileUtils::ReadValue(is, t.color);  break;
+        case TextureSource::Kind::EmbeddedCompressed:
+        {
+            uint32_t n = 0; FileUtils::ReadValue(is, n);
+            FileUtils::ReadArray(is, t.bytes, n);
+            break;
+        }
+        case TextureSource::Kind::EmbeddedRaw:
+        {
+            FileUtils::ReadValue(is, t.width);
+            FileUtils::ReadValue(is, t.height);
+            uint32_t n = 0; FileUtils::ReadValue(is, n);
+            FileUtils::ReadArray(is, t.bytes, n);
+            break;
+        }
+        case TextureSource::Kind::None:
+        default: break;
+    }
+    return t;
+}
+
+MaterialSource DescribeMaterial(const aiScene* scene, const aiMaterial* mat, const std::string& dir)
+{
+    MaterialSource m;
+    if (!mat) return m;
+
+    // glTF uses BASE_COLOR, other formats DIFFUSE.
+    m.BaseColor = DescribeTexture(scene, mat, aiTextureType_BASE_COLOR, dir);
+    if (!m.BaseColor.Present())
+        m.BaseColor = DescribeTexture(scene, mat, aiTextureType_DIFFUSE, dir);
+
+    aiColor4D c;
+    if (GetColor(mat, AI_MATKEY_BASE_COLOR, c))
+        m.BaseColorFactor = { c.r, c.g, c.b, c.a };
+    else if (!m.BaseColor.Present())
+    {
+        m.BaseColorFactor = GetColor(mat, AI_MATKEY_COLOR_DIFFUSE, c) ? glm::vec4(c.r, c.g, c.b, c.a)
+                                                                      : glm::vec4(0.7f, 0.7f, 0.7f, 1.f);
+    }
+
+    // No factors (FBX): the map alone, or dielectric without one.
+    m.MetalRoughness = DescribeTexture(scene, mat, aiTextureType_METALNESS, dir);
+    m.Metallic  = m.MetalRoughness.Present() ? 1.f : 0.f;
+    m.Roughness = m.MetalRoughness.Present() ? 1.f : 0.5f;
+    mat->Get(AI_MATKEY_METALLIC_FACTOR,  m.Metallic);
+    mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, m.Roughness);
+
+    m.Normal = DescribeTexture(scene, mat, aiTextureType_NORMALS, dir);
+
+    m.Emissive       = DescribeTexture(scene, mat, aiTextureType_EMISSIVE, dir);
+    m.EmissiveFactor = m.Emissive.Present() ? glm::vec3(1.f) : glm::vec3(0.f);
+    if (GetColor(mat, AI_MATKEY_COLOR_EMISSIVE, c))
+        m.EmissiveFactor = { c.r, c.g, c.b };
+    return m;
+}
+
+Material Realize(const MaterialSource& s)
+{
+    Material m;
+    m.BaseColor       = Realize(s.BaseColor);
+    m.MetalRoughness  = Realize(s.MetalRoughness);
+    m.Normal          = Realize(s.Normal);
+    m.Emissive        = Realize(s.Emissive);
+    m.BaseColorFactor = s.BaseColorFactor;
+    m.Metallic        = s.Metallic;
+    m.Roughness       = s.Roughness;
+    m.EmissiveFactor  = s.EmissiveFactor;
+    return m;
+}
+
+void Write(std::ostream& os, const MaterialSource& s)
+{
+    Write(os, s.BaseColor);
+    Write(os, s.MetalRoughness);
+    Write(os, s.Normal);
+    Write(os, s.Emissive);
+    FileUtils::WriteValue(os, s.BaseColorFactor);
+    FileUtils::WriteValue(os, s.Metallic);
+    FileUtils::WriteValue(os, s.Roughness);
+    FileUtils::WriteValue(os, s.EmissiveFactor);
+}
+
+MaterialSource ReadMaterialSource(std::istream& is)
+{
+    MaterialSource s;
+    s.BaseColor      = ReadTextureSource(is);
+    s.MetalRoughness = ReadTextureSource(is);
+    s.Normal         = ReadTextureSource(is);
+    s.Emissive       = ReadTextureSource(is);
+    FileUtils::ReadValue(is, s.BaseColorFactor);
+    FileUtils::ReadValue(is, s.Metallic);
+    FileUtils::ReadValue(is, s.Roughness);
+    FileUtils::ReadValue(is, s.EmissiveFactor);
     return s;
 }
 

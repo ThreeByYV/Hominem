@@ -49,6 +49,7 @@ const Entry s_Entries[] = {
 	HMN_SETTING(DrawBoneWeights,  Bool,  None),
 	HMN_SETTING(DisplayBoneIndex, Int,   None),
 	HMN_SETTING(DebugHeatmap,     Bool,  None),
+	HMN_SETTING(SkinnedNormalMaps, Bool, None),
 	HMN_SETTING(DDGIDebug,        Bool,  None),
 	HMN_SETTING(TAADebugView,     Int,   None),
 

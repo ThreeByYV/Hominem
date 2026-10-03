@@ -52,6 +52,7 @@ private:
 	uint32_t                   m_PrevModelSSBO     = 0;
 	uint32_t                   m_DrawCommandBuffer = 0;
 	std::vector<MeshDrawGroup> m_DrawGroups;
+	std::vector<Material>      m_Materials;
 	glm::vec3                  m_AABBMin { 0.f };
 	glm::vec3                  m_AABBMax { 0.f };
 

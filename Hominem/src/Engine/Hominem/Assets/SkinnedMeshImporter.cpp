@@ -19,6 +19,7 @@ namespace {
 constexpr unsigned int k_LoadFlags =
 	aiProcess_Triangulate      |
 	aiProcess_GenSmoothNormals |
+	aiProcess_CalcTangentSpace |
 	aiProcess_FlipUVs          |
 	aiProcess_JoinIdenticalVertices |
 	aiProcess_GlobalScale; // FBX UnitScaleFactor -> metres; scales verts, bones AND anim keys
@@ -107,6 +108,7 @@ void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 
 	data.Positions.reserve(totalVertices);
 	data.Normals.reserve(totalVertices);
+	data.Tangents.reserve(totalVertices);
 	data.TexCoords.reserve(totalVertices);
 	data.Indices.reserve(totalIndices);
 	data.VertexBoneData.resize(totalVertices);
@@ -124,6 +126,17 @@ void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 			const aiVector3D& u = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0][i] : zero;
 			data.Positions.emplace_back(p.x, p.y, p.z); // already metres (aiProcess_GlobalScale)
 			data.Normals.emplace_back(n.x, n.y, n.z);
+
+			// The shader rebuilds B = cross(N, T) * w.
+			glm::vec4 tangent(1.f, 0.f, 0.f, 1.f);
+			if (mesh->mTangents && mesh->mBitangents)
+			{
+				const aiVector3D& t = mesh->mTangents[i];
+				const aiVector3D& b = mesh->mBitangents[i];
+				const glm::vec3 T(t.x, t.y, t.z), N(n.x, n.y, n.z), B(b.x, b.y, b.z);
+				tangent = glm::vec4(T, glm::dot(glm::cross(N, T), B) < 0.f ? -1.f : 1.f);
+			}
+			data.Tangents.push_back(tangent);
 			data.TexCoords.emplace_back(u.x, u.y);
 		}
 		for (uint32_t f = 0; drawn(mesh) && f < mesh->mNumFaces; f++)
@@ -167,6 +180,7 @@ void ParseBones(const aiScene* scene, SkinnedMeshData& data)
 			for (uint32_t w = 0; w < bone->mNumWeights; w++)
 			{
 				const aiVertexWeight& vw = bone->mWeights[w];
+				if (vw.mWeight <= 0.f) continue; // glTF importer pads unused bones with a 0-weight on vertex 0
 				uint32_t globalVertexId = data.SubmeshBaseVertices[m] + vw.mVertexId;
 				if (globalVertexId >= data.VertexBoneData.size())
 				{
@@ -187,25 +201,10 @@ void LoadMaterials(const aiScene* scene, const std::string& path, SkinnedMeshDat
 	                 : (lastSlash == 0)                 ? "/"
 	                 : path.substr(0, lastSlash);
 
-	data.MaterialAlbedo.resize(scene->mNumMaterials);
-	data.MaterialMetalRoughness.resize(scene->mNumMaterials);
-	data.MaterialMRFactors.resize(scene->mNumMaterials);
+	data.Materials.clear();
+	data.Materials.reserve(scene->mNumMaterials);
 	for (uint32_t i = 0; i < scene->mNumMaterials; i++)
-	{
-		const aiMaterial* mat = scene->mMaterials[i];
-		data.MaterialAlbedo[i]         = LoadMaterialTexture(scene, mat, aiTextureType_DIFFUSE, dir);
-		data.MaterialMetalRoughness[i] = LoadMaterialTexture(scene, mat, aiTextureType_METALNESS, dir);
-		// glTF scales the map by these (cloth often has a map but metallic 0). Formats without
-		// them (FBX): the map alone, or the engine's dielectric default when there's no map.
-		data.MaterialMRFactors[i] = data.MaterialMetalRoughness[i] ? glm::vec2(1.f) : glm::vec2(0.f, 0.5f);
-		mat->Get(AI_MATKEY_METALLIC_FACTOR,  data.MaterialMRFactors[i].x);
-		mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, data.MaterialMRFactors[i].y);
-		if (i == 0)
-			data.NormalMap = LoadMaterialTexture(scene, mat, aiTextureType_NORMALS, dir);
-		// Any map picks the metal/roughness shader; submeshes without one bind white.
-		if (!data.MetalRoughnessMap)
-			data.MetalRoughnessMap = data.MaterialMetalRoughness[i];
-	}
+		data.Materials.push_back(Realize(DescribeMaterial(scene, scene->mMaterials[i], dir)));
 }
 
 } // namespace
