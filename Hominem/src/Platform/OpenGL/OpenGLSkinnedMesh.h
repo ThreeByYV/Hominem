@@ -31,6 +31,8 @@ namespace Hominem {
 		Ref<Shader> GetShader() const override                    { return m_Shader; }
 
 		bool     HasSkeleton()       const override { return m_Skeleton.HasBones(); }
+		bool     HasNormalMap()      const override;
+		bool     HasMetalRoughness() const override;
 		int      GetBoneCount()      const override { return m_Skeleton.GetBoneCount(); }
 		uint32_t GetAnimationCount() const override { return m_Skeleton.GetAnimationCount(); }
 		std::optional<uint32_t> FindAnimation(std::string_view name) const override { return m_Skeleton.FindAnimation(name); }
@@ -76,18 +78,19 @@ namespace Hominem {
 		uint32_t           m_SkinPosIdx = 0;
 		bool               m_HasPrevPose = false; // false until the first skinning dispatch
 		Ref<StorageBuffer> m_OutNormSSBO;
+		Ref<StorageBuffer> m_InTanSSBO;
+		Ref<StorageBuffer> m_OutTanSSBO;
 		Ref<ComputeShader> m_ComputeShader;
 
 		// CPU geometry kept resident for SSBO creation and submesh draw.
 		std::vector<glm::vec3>      m_Positions;
 		std::vector<glm::vec3>      m_Normals;
+		std::vector<glm::vec4>      m_Tangents;
 		std::vector<glm::vec2>      m_TexCoords;
 		std::vector<uint32_t>       m_Indices;
 		std::vector<SkinnedSubmesh> m_Submeshes;
 		std::vector<VertexBoneData> m_VertexBoneData;
-		std::vector<Ref<Texture2D>> m_Materials;
-		std::vector<Ref<Texture2D>> m_MaterialMR;        // per material; null binds white
-		std::vector<glm::vec2>      m_MaterialMRFactors; // per material: metallic, roughness
+		std::vector<Material>       m_Materials;
 		std::vector<glm::mat4>      m_BoneCache;
 
 		Skeleton    m_Skeleton;

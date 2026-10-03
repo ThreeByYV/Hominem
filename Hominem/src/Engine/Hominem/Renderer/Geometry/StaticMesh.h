@@ -51,13 +51,10 @@ public:
 	virtual GroupBounds GetDrawGroupBounds(size_t i)    const = 0;
 	virtual glm::mat4   GetDrawGroupTransform(size_t i) const = 0;
 
-	const Material& GetMaterial() const              { return m_Material; }
-	void            SetMaterial(const Material& mat) { m_Material = mat; }
 
 	static Ref<StaticMesh> Create();
 
 protected:
-	Material m_Material;
 };
 
 }

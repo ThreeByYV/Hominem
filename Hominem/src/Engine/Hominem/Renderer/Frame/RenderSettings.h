@@ -19,6 +19,8 @@ namespace Hominem {
 		static inline bool  DrawBoneWeights  = false;
 		static inline int   DisplayBoneIndex = 0;
 
+		static inline bool  SkinnedNormalMaps = true; // off: vertex normals only
+
 		// Shading modes
 		static inline bool ToonShading  = false;
 		static inline bool DebugHeatmap = false;

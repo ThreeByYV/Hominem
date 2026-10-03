@@ -17,6 +17,7 @@ namespace Hominem {
 
         MeshData data    = std::move(*result);
         m_DrawGroups     = std::move(data.Groups);
+        m_Materials      = std::move(data.Materials);
         m_AABBMin        = data.AABBMin;
         m_AABBMax        = data.AABBMax;
         m_PendingVerts   = std::move(data.Vertices);
@@ -33,6 +34,7 @@ namespace Hominem {
     void OpenGLStaticMesh::BuildFromData(MeshData data)
     {
         m_DrawGroups     = std::move(data.Groups);
+        m_Materials      = std::move(data.Materials);
         m_AABBMin        = data.AABBMin;
         m_AABBMax        = data.AABBMax;
         m_PendingVerts   = std::move(data.Vertices);
@@ -89,15 +91,15 @@ namespace Hominem {
 
     bool OpenGLStaticMesh::HasNormalMap() const
     {
-        for (const auto& g : m_DrawGroups)
-            if (g.HasRealNormalMap) return true;
+        for (const auto& m : m_Materials)
+            if (m.Normal) return true;
         return false;
     }
 
     bool OpenGLStaticMesh::HasMetalRoughness() const
     {
-        for (const auto& g : m_DrawGroups)
-            if (g.HasRealMetalRoughness) return true;
+        for (const auto& m : m_Materials)
+            if (m.MetalRoughness) return true;
         return false;
     }
 
@@ -119,10 +121,8 @@ namespace Hominem {
 
         // Thread-local scratch avoids per-frame heap allocation after first call.
         struct BatchInfo {
-            const Texture2D* albedo;
-            const Texture2D* mr;
-            const Texture2D* normal;
-            uint32_t         tris;
+            uint32_t material;
+            uint32_t tris;
         };
         thread_local static std::vector<glm::mat4> tl_matrices;
         thread_local static std::vector<glm::mat4> tl_prevMatrices;
@@ -150,12 +150,7 @@ namespace Hominem {
                 (uint32_t)group.BaseVertex,
                 0u
             });
-            tl_batches.push_back({
-                (group.Albedo         ? group.Albedo         : WhiteTexture()).get(),
-                (group.MetalRoughness ? group.MetalRoughness : DefaultMetalRoughness()).get(),
-                (group.NormalMap      ? group.NormalMap      : FlatNormalMap()).get(),
-                group.IndexCount / 3
-            });
+            tl_batches.push_back({ group.MaterialIndex, group.IndexCount / 3 });
         }
 
         if (tl_cmds.empty()) return { 0, 0 };
@@ -181,29 +176,19 @@ namespace Hominem {
         uint32_t drawCalls = 0;
         uint64_t triangles = 0;
 
-        // Batch by unique texture triple, bind before each batch.
-        cmd.SetInt(shader, "u_Albedo",         0);
-        cmd.SetInt(shader, "u_MetalRoughness", 1);
-        cmd.SetInt(shader, "u_NormalMap",      2);
-
-        const Texture2D* lastAlbedo = nullptr;
-        const Texture2D* lastMR     = nullptr;
-        const Texture2D* lastNormal = nullptr;
+        // Sorted by material at import: each run is one batch.
+        static const Material k_NoMaterial;
 
         uint32_t batchStart = 0;
         const uint32_t total = (uint32_t)tl_batches.size();
         while (batchStart < total)
         {
             uint32_t batchEnd = batchStart + 1;
-            while (batchEnd < total &&
-                   tl_batches[batchEnd].albedo == tl_batches[batchStart].albedo &&
-                   tl_batches[batchEnd].mr     == tl_batches[batchStart].mr     &&
-                   tl_batches[batchEnd].normal == tl_batches[batchStart].normal)
+            const uint32_t material = tl_batches[batchStart].material;
+            while (batchEnd < total && tl_batches[batchEnd].material == material)
                 batchEnd++;
 
-            if (tl_batches[batchStart].albedo != lastAlbedo) { cmd.BindTexture(0, tl_batches[batchStart].albedo->GetRendererID()); lastAlbedo = tl_batches[batchStart].albedo; }
-            if (tl_batches[batchStart].mr     != lastMR)     { cmd.BindTexture(1, tl_batches[batchStart].mr->GetRendererID());     lastMR     = tl_batches[batchStart].mr;     }
-            if (tl_batches[batchStart].normal != lastNormal)  { cmd.BindTexture(2, tl_batches[batchStart].normal->GetRendererID()); lastNormal = tl_batches[batchStart].normal; }
+            BindMaterial(cmd, shader, material < m_Materials.size() ? m_Materials[material] : k_NoMaterial);
 
             cmd.SetInt(shader, "u_BaseModelIndex", (int)batchStart);
 
