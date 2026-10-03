@@ -85,7 +85,7 @@ The resolve is heavily inspired by Playdead's TAA from INSIDE, which fits a fixe
 <th width="50%">After (TAA)</th>
 </tr>
 <tr>
-<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/79562633-d4fe-4483-83cd-fbec434beb40"></td>
 <td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/74f64ded-828e-4382-8b5e-bb2d70c02e36"></td>
+<td width="50%"><img width="100%" src="https://github.com/user-attachments/assets/79562633-d4fe-4483-83cd-fbec434beb40"></td>
 </tr>
 </table>
