@@ -3,6 +3,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 
 #include <cmath>
 
@@ -128,7 +129,18 @@ namespace Hominem {
 		for (const auto& offset : boneOffsets)
 			m_BoneInfo.emplace_back(offset);
 
-		HMN_CORE_INFO("Skeleton: {} bones, {} nodes", m_BoneInfo.size(), m_Nodes.size());
+		m_RootMotionNode = FindRootMotionNode();
+
+		m_BindLocal.resize(m_Nodes.size());
+		for (size_t i = 0; i < m_Nodes.size(); i++)
+		{
+			glm::vec3 skew; glm::vec4 perspective;
+			auto& b = m_BindLocal[i];
+			glm::decompose(m_Nodes[i].LocalTransform, b.Scaling, b.Rotation, b.Translation, skew, perspective);
+		}
+
+		HMN_CORE_INFO("Skeleton: {} bones, {} nodes, root motion on '{}'", m_BoneInfo.size(), m_Nodes.size(),
+			m_RootMotionNode >= 0 ? m_Nodes[m_RootMotionNode].Name : "none");
 	}
 
 	void Skeleton::SetMainAnimation(Animation anim) { m_MainAnim = std::move(anim); }
@@ -139,7 +151,46 @@ namespace Hominem {
 		auto it = m_BoneNameToIndexMap.find(name);
 		if (it == m_BoneNameToIndexMap.end())
 			return std::nullopt;
-		return m_BoneInfo[it->second].GlobalTransform;
+		return m_GlobalInverseTransform * m_BoneInfo[it->second].GlobalTransform; // mesh space, like the skinned vertices
+	}
+
+	std::optional<uint32_t> Skeleton::FindAnimation(std::string_view name) const
+	{
+		for (uint32_t i = 0; i < GetAnimationCount(); i++)
+			if (const Animation* anim = GetAnim(i); anim && anim->Name == name)
+				return i;
+		return std::nullopt;
+	}
+
+	float Skeleton::GetAnimationDuration(uint32_t slot) const
+	{
+		const Animation* anim = GetAnim(slot);
+		return anim && anim->TicksPerSecond > 0.f ? anim->Duration / anim->TicksPerSecond : 0.f;
+	}
+
+	int Skeleton::FindRootMotionNode() const
+	{
+		if (m_Nodes.empty() || m_BoneNameToIndexMap.empty()) return -1;
+
+		// Bones in each node's subtree; children come after their parent in m_Nodes.
+		std::vector<int> bones(m_Nodes.size(), 0);
+		for (int i = (int)m_Nodes.size() - 1; i >= 0; i--)
+		{
+			bones[i] = m_BoneNameToIndexMap.contains(m_Nodes[i].Name) ? 1 : 0;
+			for (int child : m_Nodes[i].Children) bones[i] += bones[child];
+		}
+
+		// Walk down while a single child still holds every bone.
+		const int total = bones[0];
+		int node = 0;
+		while (!m_BoneNameToIndexMap.contains(m_Nodes[node].Name))
+		{
+			const auto& children = m_Nodes[node].Children;
+			const auto  it = std::ranges::find_if(children, [&](int c) { return bones[c] == total; });
+			if (it == children.end()) break;
+			node = *it;
+		}
+		return node;
 	}
 
 	// Animation slot 0 = main; 1.. = additional
@@ -176,6 +227,17 @@ namespace Hominem {
 		out.Translation = InterpVec3(channel.Positions, animTimeTicks);
 	}
 
+	Skeleton::LocalTransform Skeleton::SampleLocal(const Animation& anim, int nodeIndex, float animTimeTicks) const
+	{
+		if (const AnimChannel* channel = FindChannel(anim, m_Nodes[nodeIndex].Name))
+		{
+			LocalTransform t;
+			CalcLocalTransform(t, animTimeTicks, *channel);
+			return t;
+		}
+		return m_BindLocal[nodeIndex];
+	}
+
 	void Skeleton::GetBoneTransforms(float animationTimeSec, std::vector<glm::mat4>& transforms, bool disableRootMotion)
 	{
 		if (!m_MainAnim || m_Nodes.empty())
@@ -203,7 +265,7 @@ namespace Hominem {
 		const std::string& nodeName = node.Name;
 
 		glm::mat4 nodeTransform = node.LocalTransform;
-		bool isRootNode = (parentTransform == glm::mat4(1.0f));
+		const bool isRootNode = nodeIndex == m_RootMotionNode;
 
 		const AnimChannel* channel = FindChannel(*m_MainAnim, nodeName);
 		if (channel)
@@ -247,6 +309,14 @@ namespace Hominem {
 	void Skeleton::GetBoneTransformsBlended(float timeInSeconds, std::vector<glm::mat4>& blendedTransforms,
 		uint32_t startAnimIndex, uint32_t endAnimIndex, float blendFactor, bool disableRootMotion)
 	{
+		GetBoneTransformsBlended(timeInSeconds, timeInSeconds, blendedTransforms,
+			startAnimIndex, endAnimIndex, blendFactor, disableRootMotion);
+	}
+
+	void Skeleton::GetBoneTransformsBlended(float startTimeInSeconds, float endTimeInSeconds,
+		std::vector<glm::mat4>& blendedTransforms, uint32_t startAnimIndex, uint32_t endAnimIndex,
+		float blendFactor, bool disableRootMotion)
+	{
 		const Animation* startAnim = GetAnim(startAnimIndex);
 		const Animation* endAnim   = GetAnim(endAnimIndex);
 
@@ -257,8 +327,8 @@ namespace Hominem {
 			return;
 		}
 
-		float startAnimTimeTicks = CalcAnimationTimeTicks(timeInSeconds, startAnimIndex);
-		float endAnimTimeTicks   = CalcAnimationTimeTicks(timeInSeconds, endAnimIndex);
+		float startAnimTimeTicks = CalcAnimationTimeTicks(startTimeInSeconds, startAnimIndex);
+		float endAnimTimeTicks   = CalcAnimationTimeTicks(endTimeInSeconds,   endAnimIndex);
 
 		ReadNodeHierarchyBlended(startAnimTimeTicks, endAnimTimeTicks, 0, glm::mat4(1.0f),
 			*startAnim, *endAnim, blendFactor, disableRootMotion);
@@ -277,19 +347,13 @@ namespace Hominem {
 		const std::string& nodeName = node.Name;
 
 		glm::mat4 nodeTransformation = node.LocalTransform;
-		bool isRootNode = (parentTransform == glm::mat4(1.0f));
+		const bool isRootNode = nodeIndex == m_RootMotionNode;
 
-		const AnimChannel* startChannel = FindChannel(startAnim, nodeName);
-		const AnimChannel* endChannel   = FindChannel(endAnim,   nodeName);
-
-		HMN_CORE_ASSERT((startChannel && endChannel) || (!startChannel && !endChannel),
-			"Node {} has animation in only one of the blended clips - not supported", nodeName.c_str());
-
-		if (startChannel && endChannel)
+		// A clip that doesn't animate this node holds it at its bind pose.
+		if (FindChannel(startAnim, nodeName) || FindChannel(endAnim, nodeName))
 		{
-			LocalTransform startT{}, endT{};
-			CalcLocalTransform(startT, startAnimTimeTicks, *startChannel);
-			CalcLocalTransform(endT,   endAnimTimeTicks,   *endChannel);
+			const LocalTransform startT = SampleLocal(startAnim, nodeIndex, startAnimTimeTicks);
+			const LocalTransform endT   = SampleLocal(endAnim,   nodeIndex, endAnimTimeTicks);
 
 			glm::vec3 blendedScaling = (1.0f - blendFactor) * startT.Scaling + endT.Scaling * blendFactor;
 			glm::mat4 scalingM = glm::scale(glm::mat4(1.0f), blendedScaling);
@@ -342,7 +406,7 @@ namespace Hominem {
 		{
 			float total = samples[0].weight + samples[1].weight;
 			float factor = total > 0.f ? samples[1].weight / total : 0.f;
-			GetBoneTransformsBlended(samples[0].time, transforms,
+			GetBoneTransformsBlended(samples[0].time, samples[1].time, transforms,
 				samples[0].animIndex, samples[1].animIndex, factor, disableRootMotion);
 			return;
 		}
@@ -384,22 +448,25 @@ namespace Hominem {
 		const std::string& nodeName = node.Name;
 
 		glm::mat4 nodeTransformation = node.LocalTransform;
-		bool isRootNode = (parentTransform == glm::mat4(1.f));
+		const bool isRootNode = nodeIndex == m_RootMotionNode;
 
 		glm::vec3 blendedScale{ 1.f };
 		glm::quat blendedRot{ 1.f, 0.f, 0.f, 0.f };
 		glm::vec3 blendedTranslation{ 0.f };
 		float     accumWeight = 0.f;
 
-		for (size_t i = 0; i < animsAndTimes.size(); i++)
+		bool animated = false;
+		for (const auto& [anim, time] : animsAndTimes)
+			animated = animated || FindChannel(*anim, nodeName);
+
+		for (size_t i = 0; animated && i < animsAndTimes.size(); i++)
 		{
-			const AnimChannel* channel = FindChannel(*animsAndTimes[i].first, nodeName);
-			if (!channel) continue;
+			const float w = normWeights[i];
+			if (w <= 0.f) continue;
 
-			LocalTransform t;
-			CalcLocalTransform(t, animsAndTimes[i].second, *channel);
+			// A clip that doesn't animate this node holds it at its bind pose.
+			const LocalTransform t = SampleLocal(*animsAndTimes[i].first, nodeIndex, animsAndTimes[i].second);
 
-			float w = normWeights[i];
 			if (accumWeight == 0.f)
 			{
 				blendedScale       = t.Scaling;

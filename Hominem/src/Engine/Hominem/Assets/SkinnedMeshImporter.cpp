@@ -10,6 +10,8 @@
 #include <assimp/postprocess.h>
 #include <glm/gtc/matrix_inverse.hpp>
 
+#include <optional>
+
 namespace Hominem {
 
 namespace {
@@ -22,6 +24,17 @@ constexpr unsigned int k_LoadFlags =
 	aiProcess_GlobalScale; // FBX UnitScaleFactor -> metres; scales verts, bones AND anim keys
 
 // Flatten the aiNode tree into a POD array (pre-order, root at index 0).
+// World transform of the first node that draws a skinned mesh, or null if none does.
+std::optional<aiMatrix4x4> SkinnedMeshNodeTransform(const aiScene* scene, const aiNode* node, const aiMatrix4x4& parent)
+{
+	const aiMatrix4x4 world = parent * node->mTransformation;
+	for (uint32_t i = 0; i < node->mNumMeshes; i++)
+		if (scene->mMeshes[node->mMeshes[i]]->HasBones()) return world;
+	for (uint32_t i = 0; i < node->mNumChildren; i++)
+		if (auto found = SkinnedMeshNodeTransform(scene, node->mChildren[i], world)) return found;
+	return std::nullopt;
+}
+
 int FlattenNode(const aiNode* node, std::vector<SkeletonNode>& out)
 {
 	int myIndex = static_cast<int>(out.size());
@@ -42,6 +55,7 @@ int FlattenNode(const aiNode* node, std::vector<SkeletonNode>& out)
 Animation BuildAnimation(const aiAnimation* a)
 {
 	Animation anim;
+	anim.Name           = a->mName.C_Str();
 	anim.TicksPerSecond = static_cast<float>(a->mTicksPerSecond != 0 ? a->mTicksPerSecond : 25.0);
 	anim.Duration       = static_cast<float>(a->mDuration);
 
@@ -69,6 +83,10 @@ Animation BuildAnimation(const aiAnimation* a)
 
 void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 {
+	// Unskinned meshes in a skinned file (Sketchfab's baked backdrop, helper meshes) have no
+	// bone to follow, so they keep their vertex slots but draw nothing.
+	auto drawn = [scene](const aiMesh* mesh) { return mesh->HasBones(); };
+
 	uint32_t totalVertices = 0, totalIndices = 0;
 	data.Submeshes.resize(scene->mNumMeshes);
 	data.SubmeshBaseVertices.resize(scene->mNumMeshes);
@@ -77,12 +95,14 @@ void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 	{
 		const aiMesh* mesh = scene->mMeshes[i];
 		data.Submeshes[i].MaterialIndex = mesh->mMaterialIndex;
-		data.Submeshes[i].NumIndices    = mesh->mNumFaces * 3;
+		data.Submeshes[i].NumIndices    = drawn(mesh) ? mesh->mNumFaces * 3 : 0;
 		data.Submeshes[i].BaseVertex    = totalVertices;
 		data.Submeshes[i].BaseIndex     = totalIndices;
 		data.SubmeshBaseVertices[i]     = totalVertices;
 		totalVertices += mesh->mNumVertices;
 		totalIndices  += data.Submeshes[i].NumIndices;
+		if (!drawn(mesh))
+			HMN_CORE_WARN("SkinnedMesh: skipping unskinned submesh '{}' (no bones to follow)", mesh->mName.C_Str());
 	}
 
 	data.Positions.reserve(totalVertices);
@@ -106,7 +126,7 @@ void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 			data.Normals.emplace_back(n.x, n.y, n.z);
 			data.TexCoords.emplace_back(u.x, u.y);
 		}
-		for (uint32_t f = 0; f < mesh->mNumFaces; f++)
+		for (uint32_t f = 0; drawn(mesh) && f < mesh->mNumFaces; f++)
 		{
 			const aiFace& face = mesh->mFaces[f];
 			if (face.mNumIndices != 3) continue;
@@ -168,14 +188,23 @@ void LoadMaterials(const aiScene* scene, const std::string& path, SkinnedMeshDat
 	                 : path.substr(0, lastSlash);
 
 	data.MaterialAlbedo.resize(scene->mNumMaterials);
+	data.MaterialMetalRoughness.resize(scene->mNumMaterials);
+	data.MaterialMRFactors.resize(scene->mNumMaterials);
 	for (uint32_t i = 0; i < scene->mNumMaterials; i++)
 	{
-		data.MaterialAlbedo[i] = LoadMaterialTexture(scene, scene->mMaterials[i], aiTextureType_DIFFUSE, dir);
+		const aiMaterial* mat = scene->mMaterials[i];
+		data.MaterialAlbedo[i]         = LoadMaterialTexture(scene, mat, aiTextureType_DIFFUSE, dir);
+		data.MaterialMetalRoughness[i] = LoadMaterialTexture(scene, mat, aiTextureType_METALNESS, dir);
+		// glTF scales the map by these (cloth often has a map but metallic 0). Formats without
+		// them (FBX): the map alone, or the engine's dielectric default when there's no map.
+		data.MaterialMRFactors[i] = data.MaterialMetalRoughness[i] ? glm::vec2(1.f) : glm::vec2(0.f, 0.5f);
+		mat->Get(AI_MATKEY_METALLIC_FACTOR,  data.MaterialMRFactors[i].x);
+		mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, data.MaterialMRFactors[i].y);
 		if (i == 0)
-		{
-			data.NormalMap         = LoadMaterialTexture(scene, scene->mMaterials[i], aiTextureType_NORMALS,   dir);
-			data.MetalRoughnessMap = LoadMaterialTexture(scene, scene->mMaterials[i], aiTextureType_METALNESS, dir);
-		}
+			data.NormalMap = LoadMaterialTexture(scene, mat, aiTextureType_NORMALS, dir);
+		// Any map picks the metal/roughness shader; submeshes without one bind white.
+		if (!data.MetalRoughnessMap)
+			data.MetalRoughnessMap = data.MaterialMetalRoughness[i];
 	}
 }
 
@@ -194,11 +223,17 @@ std::expected<SkinnedMeshData, std::string> ImportSkinnedMesh(const std::string&
 	ExtractGeometry(scene, data);
 	ParseBones(scene, data);
 
-	data.GlobalInverse = glm::inverse(AiToGlm(scene->mRootNode->mTransformation));
+	// glTF skinning: joint world * inverse bind, brought into the space of the node that
+	// draws the mesh. Undoing the scene root instead would also undo exporter axis fixes
+	// (e.g. Sketchfab's Z-up -> Y-up) and leave the model on its side.
+	const auto meshNode = SkinnedMeshNodeTransform(scene, scene->mRootNode, aiMatrix4x4());
+	data.GlobalInverse  = glm::inverse(AiToGlm(meshNode ? *meshNode : scene->mRootNode->mTransformation));
 	FlattenNode(scene->mRootNode, data.Nodes);
 
 	if (scene->mNumAnimations > 0)
 		data.MainAnimation = BuildAnimation(scene->mAnimations[0]);
+	for (uint32_t i = 1; i < scene->mNumAnimations; i++)
+		data.MoreAnimations.push_back(BuildAnimation(scene->mAnimations[i]));
 
 	LoadMaterials(scene, path, data);
 

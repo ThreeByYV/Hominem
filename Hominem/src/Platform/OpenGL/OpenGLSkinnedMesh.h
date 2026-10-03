@@ -33,6 +33,8 @@ namespace Hominem {
 		bool     HasSkeleton()       const override { return m_Skeleton.HasBones(); }
 		int      GetBoneCount()      const override { return m_Skeleton.GetBoneCount(); }
 		uint32_t GetAnimationCount() const override { return m_Skeleton.GetAnimationCount(); }
+		std::optional<uint32_t> FindAnimation(std::string_view name) const override { return m_Skeleton.FindAnimation(name); }
+		float GetAnimationDuration(uint32_t slot) const override { return m_Skeleton.GetAnimationDuration(slot); }
 		uint32_t GetVertexCount()    const override { return static_cast<uint32_t>(m_Positions.size()); }
 		uint32_t GetIndexCount()     const override { return static_cast<uint32_t>(m_Indices.size()); }
 		uint32_t GetSubmeshCount()   const override { return static_cast<uint32_t>(m_Submeshes.size()); }
@@ -55,7 +57,7 @@ namespace Hominem {
 		void CreateGPUBuffers();
 		void ReleaseGPUResources();
 		void UploadToGPU();
-		void DrawSubmeshes(CommandList& cmd);
+		void DrawSubmeshes(const Ref<Shader>& shader, CommandList& cmd);
 		void CreateComputeSSBOs();
 
 		// GL handles
@@ -84,6 +86,8 @@ namespace Hominem {
 		std::vector<SkinnedSubmesh> m_Submeshes;
 		std::vector<VertexBoneData> m_VertexBoneData;
 		std::vector<Ref<Texture2D>> m_Materials;
+		std::vector<Ref<Texture2D>> m_MaterialMR;        // per material; null binds white
+		std::vector<glm::vec2>      m_MaterialMRFactors; // per material: metallic, roughness
 		std::vector<glm::mat4>      m_BoneCache;
 
 		Skeleton    m_Skeleton;
