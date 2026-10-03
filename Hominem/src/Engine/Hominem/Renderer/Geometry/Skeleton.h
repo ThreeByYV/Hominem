@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <string_view>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -60,6 +61,7 @@ namespace Hominem {
 	/// One animation clip: timing plus a nodeName -> channel map.
 	struct Animation
 	{
+		std::string Name;
 		float TicksPerSecond = 25.f;
 		float Duration       = 0.f;
 		std::unordered_map<std::string, AnimChannel> Channels;
@@ -98,6 +100,14 @@ namespace Hominem {
 									float blendFactor,
 									bool disableRootMotion = false);
 
+		/// Two clips, each at its own time: a crossfade keeps the outgoing clip running.
+		void GetBoneTransformsBlended(float startTimeInSeconds, float endTimeInSeconds,
+									std::vector<glm::mat4>& blendedTransforms,
+									uint32_t startAnimIndex,
+									uint32_t endAnimIndex,
+									float blendFactor,
+									bool disableRootMotion = false);
+
 		/// Blend any number of animations by weight (normalised internally).
 		void GetBoneTransformsBlendedN(const std::vector<AnimBlendSample>& samples,
 									   std::vector<glm::mat4>& transforms,
@@ -108,6 +118,11 @@ namespace Hominem {
 		bool HasBones() const { return !m_BoneInfo.empty(); }
 
 		/// Total reachable animations: main (if any) + additional.
+		/// Slot of the animation with this name, if any.
+		std::optional<uint32_t> FindAnimation(std::string_view name) const;
+		/// Length of one play-through in seconds; 0 for an empty slot.
+		float GetAnimationDuration(uint32_t slot) const;
+
 		uint32_t GetAnimationCount() const
 		{
 			return (m_MainAnim ? 1u : 0u) + static_cast<uint32_t>(m_AdditionalAnims.size());
@@ -161,6 +176,8 @@ namespace Hominem {
 
 		const AnimChannel* FindChannel(const Animation& anim, const std::string& nodeName) const;
 		void CalcLocalTransform(LocalTransform& out, float animTimeTicks, const AnimChannel& channel) const;
+		/// The clip's pose for a node, or its bind pose when the clip doesn't animate it.
+		LocalTransform SampleLocal(const Animation& anim, int nodeIndex, float animTimeTicks) const;
 
 	private:
 		std::vector<SkeletonNode>  m_Nodes;          // root at index 0
@@ -172,6 +189,13 @@ namespace Hominem {
 		std::vector<Animation>     m_AdditionalAnims; // slots 1..N
 
 		std::unordered_map<std::string, glm::mat4> m_BonePoseOverrides;
+
+		// The node whose translation is root motion: the deepest one above every bone (the
+		// hips on a Mixamo rig). -1 when there are no bones.
+		int FindRootMotionNode() const;
+		int m_RootMotionNode = -1;
+
+		std::vector<LocalTransform> m_BindLocal; // per node, for clips that don't animate it
 	};
 
 }

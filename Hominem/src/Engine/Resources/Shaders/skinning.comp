@@ -24,6 +24,9 @@ void main()
               + u_Bones[bd.BoneIDs.z] * bd.Weights.z
               + u_Bones[bd.BoneIDs.w] * bd.Weights.w;
 
+    // No weights: stay at the bind position rather than collapse to w = 0.
+    if (dot(bd.Weights, vec4(1.0)) == 0.0) skin = mat4(1.0);
+
     u_OutPos[i]  = skin * u_InPos[i];
     u_OutNorm[i] = vec4(mat3(skin) * u_InNorm[i].xyz, 0.0);
 }

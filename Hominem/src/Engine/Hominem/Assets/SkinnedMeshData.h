@@ -34,8 +34,10 @@ struct SkinnedMeshData
 
     // materials
     std::vector<Ref<Texture2D>> MaterialAlbedo;   // per material index
+    std::vector<Ref<Texture2D>> MaterialMetalRoughness; // per material index; null = factors only
+    std::vector<glm::vec2>      MaterialMRFactors;      // per material index: x metallic, y roughness
     Ref<Texture2D>              NormalMap;         // material 0
-    Ref<Texture2D>              MetalRoughnessMap; // material 0
+    Ref<Texture2D>              MetalRoughnessMap; // first material that has one
 
     // skeleton (fed to Skeleton::SetData / SetMainAnimation)
     std::vector<SkeletonNode>  Nodes;             // root at index 0
@@ -43,6 +45,7 @@ struct SkinnedMeshData
     std::vector<glm::mat4>     BoneOffsets;        // parallel to bone index
     glm::mat4                  GlobalInverse{ 1.f };
     std::optional<Animation>   MainAnimation;      // animation slot 0 (if the file had one)
+    std::vector<Animation>     MoreAnimations;     // the file's others, slots 1..N in file order
 };
 
 }

@@ -48,6 +48,9 @@ namespace Hominem {
 		virtual bool     HasSkeleton()       const = 0;
 		virtual int      GetBoneCount()      const = 0;
 		virtual uint32_t GetAnimationCount() const = 0;
+		/// Slot of the animation with this name (glTF/FBX clip name), if any.
+		virtual std::optional<uint32_t> FindAnimation(std::string_view name) const = 0;
+		virtual float GetAnimationDuration(uint32_t slot) const = 0; ///< seconds
 		virtual uint32_t GetVertexCount()    const = 0;
 		virtual uint32_t GetIndexCount()     const = 0;
 		virtual uint32_t GetSubmeshCount()   const = 0;
@@ -55,7 +58,8 @@ namespace Hominem {
 		virtual Skeleton&       GetSkeleton()       = 0;
 		virtual const Skeleton& GetSkeleton() const = 0;
 
-		/// @brief World-space transform of the named bone joint after the last animation update.
+		/// @brief Mesh-space transform of the named bone after the last animation update; multiply
+		/// by the actor's world transform for world space.
 		/// Returns nullopt when the mesh has no skeleton or the bone name is not found —
 		/// callers should fall back to a hardcoded position in that case.
 		virtual std::optional<glm::mat4>  GetBoneWorldTransform(const std::string& name) const = 0;

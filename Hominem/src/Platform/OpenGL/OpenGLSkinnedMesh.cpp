@@ -2,6 +2,7 @@
 #include "OpenGLSkinnedMesh.h"
 #include "Hominem/Renderer/Frame/RenderThread.h"
 #include "Hominem/Assets/SkinnedMeshImporter.h"
+#include "Hominem/Assets/MaterialTextures.h"
 
 #include <glad/glad.h>
 
@@ -49,6 +50,8 @@ namespace Hominem {
 		m_Submeshes      = std::move(data.Submeshes);
 		m_VertexBoneData = std::move(data.VertexBoneData);
 		m_Materials      = std::move(data.MaterialAlbedo);
+		m_MaterialMR        = std::move(data.MaterialMetalRoughness);
+		m_MaterialMRFactors = std::move(data.MaterialMRFactors);
 
 		m_Material.NormalMap         = data.NormalMap;
 		m_Material.MetalRoughnessMap = data.MetalRoughnessMap;
@@ -57,6 +60,8 @@ namespace Hominem {
 			std::move(data.BoneOffsets), data.GlobalInverse);
 		if (data.MainAnimation)
 			m_Skeleton.SetMainAnimation(std::move(*data.MainAnimation));
+		for (auto& anim : data.MoreAnimations)
+			m_Skeleton.AddAnimation(std::move(anim));
 
 		RenderThread::QueueUpload([this] {
 			CreateGPUBuffers();
@@ -114,12 +119,13 @@ namespace Hominem {
 		HMN_CORE_ASSERT(active, "SkinnedMesh::Render called without a shader");
 
 		cmd.BindShader(active);
+		cmd.SetInt(active, "u_MetalRoughness", 1);
 		cmd.BindVAORaw(m_VAO);
-		DrawSubmeshes(cmd);
+		DrawSubmeshes(active, cmd);
 		cmd.BindVAORaw(0);
 	}
 
-	void OpenGLSkinnedMesh::DrawSubmeshes(CommandList& cmd)
+	void OpenGLSkinnedMesh::DrawSubmeshes(const Ref<Shader>& shader, CommandList& cmd)
 	{
 		if (m_VAO == 0 || m_Submeshes.empty())
 		{
@@ -129,10 +135,17 @@ namespace Hominem {
 
 		for (const auto& submesh : m_Submeshes)
 		{
-			if (submesh.MaterialIndex < m_Materials.size() && m_Materials[submesh.MaterialIndex])
-				cmd.BindTexture(0, m_Materials[submesh.MaterialIndex]->GetRendererID());
-			else
-				cmd.BindTexture(0, 0);
+			const uint32_t m = submesh.MaterialIndex;
+			// No colour texture: white, so the material reads as untextured rather than black.
+			const Ref<Texture2D>& albedo = m < m_Materials.size() && m_Materials[m] ? m_Materials[m] : WhiteTexture();
+			cmd.BindTexture(0, albedo->GetRendererID());
+
+			// Each submesh its own metal/roughness: one rig mixes cloth, skin and gun metal.
+			const Ref<Texture2D>& mr = m < m_MaterialMR.size() && m_MaterialMR[m] ? m_MaterialMR[m] : WhiteTexture();
+			const glm::vec2 factors  = m < m_MaterialMRFactors.size() ? m_MaterialMRFactors[m] : glm::vec2(1.f);
+			cmd.BindTexture(1, mr->GetRendererID());
+			cmd.SetFloat(shader, "u_Metalness", factors.x);
+			cmd.SetFloat(shader, "u_Roughness", factors.y);
 
 			cmd.DrawElementsBaseVertex(
 				submesh.NumIndices,

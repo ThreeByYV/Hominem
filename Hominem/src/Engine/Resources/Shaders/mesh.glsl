@@ -149,12 +149,11 @@ void main()
     vec4 albedoSample = texture(u_Albedo, v_TexCoord, u_TextureLodBias);
     vec3 albedo = albedoSample.rgb;
 
-#ifdef SKINNED
-    if (dot(albedo, albedo) < 0.001) albedo = vec3(0.8, 0.6, 0.4);
-#endif
-
 #ifdef HAS_METALROUGHNESS_TEX
     vec2  mr        = texture(u_MetalRoughness, v_TexCoord, u_TextureLodBias).gb;
+#ifdef SKINNED
+    mr *= vec2(u_Roughness, u_Metalness); // glTF: the map is scaled by the material's factors
+#endif
     float roughness = clamp(mr.x, 0.05, 1.0);
     float metalness = clamp(mr.y, 0.0,  1.0);
 #else
