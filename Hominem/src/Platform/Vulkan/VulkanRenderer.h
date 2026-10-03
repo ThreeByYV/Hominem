@@ -2,7 +2,6 @@
 
 #include "VulkanCore.h"
 #include "VulkanImage.h"
-#include "DLSS/VulkanNGX.h"
 
 #include <array>
 #include <cstdint>
@@ -50,7 +49,6 @@ public:
 
     /// False when the chosen adapter has no ray tracing extensions - DDGI must stay off.
     bool         IsRayTracingSupported() const { return m_RayTracingSupported; }
-    const VulkanNGX& GetNGX() const          { return m_NGX; }
 
     uint32_t     GetCurrentFrameIndex() const { return m_CurrentFrame; }
     bool         IsFrameInProgress()    const { return m_FrameStarted; }
@@ -116,7 +114,6 @@ private:
     VkQueue                  m_GraphicsQueue  = VK_NULL_HANDLE;
     uint32_t                 m_GraphicsFamily = ~0u;
     bool                     m_RayTracingSupported = false;
-    VulkanNGX                m_NGX;
 
     VmaAllocator m_Allocator = VK_NULL_HANDLE;
 
