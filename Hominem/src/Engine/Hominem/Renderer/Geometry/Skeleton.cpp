@@ -265,7 +265,7 @@ namespace Hominem {
 		const std::string& nodeName = node.Name;
 
 		glm::mat4 nodeTransform = node.LocalTransform;
-		const bool isRootNode = nodeIndex == m_RootMotionNode;
+		const bool isRootNode = LegacyRootMotion ? parentTransform == glm::mat4(1.0f) : nodeIndex == m_RootMotionNode;
 
 		const AnimChannel* channel = FindChannel(*m_MainAnim, nodeName);
 		if (channel)

@@ -44,6 +44,8 @@ void ForwardPlusRenderer::Init()
     s_Data->BoneWeightShader     = Shader::Create("engine://Shaders/bone_weight.glsl");
     s_Data->DebugAABBShader      = ShaderLibrary::Engine()->Load("engine://Shaders/debug_aabb.glsl");
     s_Data->DebugSphereShader    = ShaderLibrary::Engine()->Load("engine://Shaders/debug_sphere.glsl");
+    // Games pick this up by name as a mesh override, from threads with no GL context.
+    ShaderLibrary::Engine()->Load("engine://Shaders/silhouette.glsl");
 
     // StaticMeshShader is assigned by InitForwardPlus() on the render thread.
 

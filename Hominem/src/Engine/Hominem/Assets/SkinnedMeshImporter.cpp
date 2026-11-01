@@ -85,8 +85,12 @@ Animation BuildAnimation(const aiAnimation* a)
 void ExtractGeometry(const aiScene* scene, SkinnedMeshData& data)
 {
 	// Unskinned meshes in a skinned file (Sketchfab's baked backdrop, helper meshes) have no
-	// bone to follow, so they keep their vertex slots but draw nothing.
-	auto drawn = [scene](const aiMesh* mesh) { return mesh->HasBones(); };
+	// bone to follow, so they keep their vertex slots but draw nothing. A file with no bones
+	// at all is a static model loaded as skinned, so all of it draws.
+	bool anySkinned = false;
+	for (uint32_t i = 0; i < scene->mNumMeshes; i++)
+		anySkinned |= scene->mMeshes[i]->HasBones();
+	auto drawn = [anySkinned](const aiMesh* mesh) { return mesh->HasBones() || !anySkinned; };
 
 	uint32_t totalVertices = 0, totalIndices = 0;
 	data.Submeshes.resize(scene->mNumMeshes);

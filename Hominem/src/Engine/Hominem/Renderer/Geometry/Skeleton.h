@@ -149,6 +149,18 @@ namespace Hominem {
 
 		void ClearPoseOverrides() { m_BonePoseOverrides.clear(); }
 
+		/// Disabled root motion zeroes every node under an identity parent instead of only the
+		/// root motion node, as before that node existed (GetBoneTransforms path only).
+		bool LegacyRootMotion = false;
+
+		/// Skinning outputs the space of the node that draws the mesh. This maps it back to the
+		/// scene-root space used before that change, for content placed against the old look.
+		glm::mat4 GetRootSpaceTransform() const
+		{
+			if (m_Nodes.empty()) return glm::mat4(1.f);
+			return glm::inverse(m_Nodes[0].LocalTransform) * glm::inverse(m_GlobalInverseTransform);
+		}
+
 	private:
 		struct LocalTransform
 		{
