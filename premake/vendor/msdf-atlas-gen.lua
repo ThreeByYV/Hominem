@@ -1,26 +1,27 @@
-include "msdfgen"
+local dir = HominemRoot .. "/Hominem/vendor/msdf-atlas-gen"
 
 project "msdf-atlas-gen"
+	location (_MAIN_SCRIPT_DIR .. "/build/vendor/msdf-atlas-gen")
 	kind "StaticLib"
 	language "C++"
 	cppdialect "C++17"
     staticruntime "off"
 
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+	objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
 	files
 	{
-		"msdf-atlas-gen/**.h",
-    	"msdf-atlas-gen/**.hpp",
-    	"msdf-atlas-gen/**.cpp"
+		dir .. "/msdf-atlas-gen/**.h",
+    	dir .. "/msdf-atlas-gen/**.hpp",
+    	dir .. "/msdf-atlas-gen/**.cpp"
 	}
 
 	includedirs
 	{
-		"msdf-atlas-gen",
-		"msdfgen",
-		"msdfgen/include"
+		dir .. "/msdf-atlas-gen",
+		dir .. "/msdfgen",
+		dir .. "/msdfgen/include"
 	}
 
 	defines

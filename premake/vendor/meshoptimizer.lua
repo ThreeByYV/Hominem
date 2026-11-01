@@ -1,21 +1,24 @@
+local dir = HominemRoot .. "/Hominem/vendor/meshoptimizer"
+
 project "meshoptimizer"
+    location (_MAIN_SCRIPT_DIR .. "/build/vendor/meshoptimizer")
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
     staticruntime "off"
 
-    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
     files
     {
-        "src/**.cpp",
-        "src/**.h"
+        dir .. "/src/**.cpp",
+        dir .. "/src/**.h"
     }
 
     includedirs
     {
-        "src"
+        dir .. "/src"
     }
 
     filter "system:windows"

@@ -6,10 +6,38 @@
 --
 -- All paths are resolved relative to THIS file (_SCRIPT_DIR), so it works no
 -- matter where the engine submodule lives. Build outputs go under the consuming
--- workspace via %{wks.location}. Linking is by project name, so premake wires the
--- vendor .libs automatically regardless of their output dirs.
+-- workspace via %{wks.location}, and generated project files under its build/
+-- folder, so the submodules stay clean. Linking is by project name, so premake
+-- wires the vendor .libs automatically regardless of their output dirs.
 
 local HMN = _SCRIPT_DIR
+HominemRoot = HMN
+
+-- Walks .gitmodules recursively, so a newly added (or nested) vendor submodule
+-- that was never checked out is caught, not just the first one.
+local function submodules_missing(dir)
+    local gitmodules = dir .. "/.gitmodules"
+    if not os.isfile(gitmodules) then return false end
+    for sub in io.readfile(gitmodules):gmatch("path%s*=%s*(%S+)") do
+        local subdir = dir .. "/" .. sub
+        if not (os.isfile(subdir .. "/.git") or os.isdir(subdir .. "/.git")) or submodules_missing(subdir) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Mirrors the CMake configure-time behavior: init, and if that fails, deep-fetch
+-- and force a retry.
+if submodules_missing(HMN) then
+    print("Hominem: initializing git submodules...")
+    local ok = os.execute('git -C "' .. HMN .. '" submodule update --init --recursive')
+    if ok ~= true and ok ~= 0 then
+        print("Hominem: submodule init incomplete; deep-fetching and retrying...")
+        os.execute('git -C "' .. HMN .. '" submodule foreach --recursive git fetch --quiet --tags origin')
+        os.execute('git -C "' .. HMN .. '" submodule update --init --recursive --force')
+    end
+end
 
 -- Global the vendor premake files expect for their targetdir/objdir.
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
@@ -82,27 +110,6 @@ HominemEngineIncludes = {
     HMN .. "/Hominem/src",
 }
 
-HominemRoot = HMN
-
--- These vendor projects' premake files are owned by the engine (the fork repos
--- don't carry them). Copy each next to its submodule source so the file's relative
--- paths resolve, then include it. Submodules are 'ignore=untracked', so these copies
--- don't show up as dirty. The submodule dirs already exist (the standalone premake5.lua
--- and the game premake5.lua both auto-init submodules before including this module).
-local vendorPremake = {
-    { "GLFW.lua",           "/Hominem/vendor/GLFW/premake5.lua" },
-    { "imgui.lua",          "/Hominem/vendor/imgui/premake5.lua" },
-    { "Box2D.lua",          "/Hominem/vendor/Box2D/premake5.lua" },
-    { "tracy.lua",          "/Hominem/vendor/tracy/premake5.lua" },
-    { "meshoptimizer.lua",  "/Hominem/vendor/meshoptimizer/premake5.lua" },
-    { "assimp.lua",         "/Hominem/vendor/assimp/premake5.lua" },
-    { "msdf-atlas-gen.lua", "/Hominem/vendor/msdf-atlas-gen/premake5.lua" },
-    { "msdfgen.lua",        "/Hominem/vendor/msdf-atlas-gen/msdfgen/premake5.lua" },
-}
-for _, m in ipairs(vendorPremake) do
-    os.copyfile(HMN .. "/premake/vendor/" .. m[1], HMN .. m[2])
-end
-
 -- assimp is a CMake project premake can't build directly, so premake links a prebuilt
 -- lib. Build it once here (via the CMake-based script) when the lib is missing, so a
 -- fresh `premake5 vs2022` needs no manual assimp step. The script is non-interactive.
@@ -114,19 +121,23 @@ if not os.isfile(HMN .. "/Hominem/vendor/assimp/build/lib/Release/assimp.lib") t
     end
 end
 
+-- The engine owns these vendor premake files, so they live in premake/vendor and
+-- root their paths at the submodule explicitly. Any premake5.lua a fork carries is
+-- ignored. Glad is in-tree and keeps its own premake5.lua.
 group "Dependencies"
-    include (HMN .. "/Hominem/vendor/GLFW")
+    include (HMN .. "/premake/vendor/GLFW.lua")
     include (HMN .. "/Hominem/vendor/Glad")
-    include (HMN .. "/Hominem/vendor/imgui")
-    include (HMN .. "/Hominem/vendor/msdf-atlas-gen")
-    include (HMN .. "/Hominem/vendor/assimp")
-    include (HMN .. "/Hominem/vendor/Box2D")
-    include (HMN .. "/Hominem/vendor/tracy")
-    include (HMN .. "/Hominem/vendor/meshoptimizer")
+    include (HMN .. "/premake/vendor/imgui.lua")
+    include (HMN .. "/premake/vendor/msdfgen.lua")
+    include (HMN .. "/premake/vendor/msdf-atlas-gen.lua")
+    include (HMN .. "/premake/vendor/assimp.lua")
+    include (HMN .. "/premake/vendor/Box2D.lua")
+    include (HMN .. "/premake/vendor/tracy.lua")
+    include (HMN .. "/premake/vendor/meshoptimizer.lua")
 group ""
 
 project "Hominem"
-    location  (HMN .. "/build/Hominem")
+    location  (_MAIN_SCRIPT_DIR .. "/build/Hominem")
     kind "StaticLib"
     language "C++"
     cppdialect "C++latest"

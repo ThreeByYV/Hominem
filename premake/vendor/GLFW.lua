@@ -1,51 +1,54 @@
+local dir = HominemRoot .. "/Hominem/vendor/GLFW"
+
 project "GLFW"
+	location (_MAIN_SCRIPT_DIR .. "/build/vendor/GLFW")
 	kind "StaticLib"
 	language "C"
 	staticruntime "off"
 	warnings "off"
 
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+	objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
 	files
 	{
-		"include/GLFW/glfw3.h",
-		"include/GLFW/glfw3native.h",
-		"src/glfw_config.h",
-		"src/context.c",
-		"src/init.c",
-		"src/input.c",
-		"src/monitor.c",
+		dir .. "/include/GLFW/glfw3.h",
+		dir .. "/include/GLFW/glfw3native.h",
+		dir .. "/src/glfw_config.h",
+		dir .. "/src/context.c",
+		dir .. "/src/init.c",
+		dir .. "/src/input.c",
+		dir .. "/src/monitor.c",
 
-		"src/null_init.c",
-		"src/null_joystick.c",
-		"src/null_monitor.c",
-		"src/null_window.c",
+		dir .. "/src/null_init.c",
+		dir .. "/src/null_joystick.c",
+		dir .. "/src/null_monitor.c",
+		dir .. "/src/null_window.c",
 
-		"src/platform.c",
-		"src/vulkan.c",
-		"src/window.c",
+		dir .. "/src/platform.c",
+		dir .. "/src/vulkan.c",
+		dir .. "/src/window.c",
 	}
 
 	filter "system:linux"
 		pic "On"
 
 		systemversion "latest"
-		
+
 		files
 		{
-			"src/x11_init.c",
-			"src/x11_monitor.c",
-			"src/x11_window.c",
-			"src/xkb_unicode.c",
-			"src/posix_module.c",
-			"src/posix_time.c",
-			"src/posix_thread.c",
-			"src/posix_module.c",
-			"src/glx_context.c",
-			"src/egl_context.c",
-			"src/osmesa_context.c",
-			"src/linux_joystick.c"
+			dir .. "/src/x11_init.c",
+			dir .. "/src/x11_monitor.c",
+			dir .. "/src/x11_window.c",
+			dir .. "/src/xkb_unicode.c",
+			dir .. "/src/posix_module.c",
+			dir .. "/src/posix_time.c",
+			dir .. "/src/posix_thread.c",
+			dir .. "/src/posix_module.c",
+			dir .. "/src/glx_context.c",
+			dir .. "/src/egl_context.c",
+			dir .. "/src/osmesa_context.c",
+			dir .. "/src/linux_joystick.c"
 		}
 
 		defines
@@ -58,16 +61,16 @@ project "GLFW"
 
 		files
 		{
-			"src/cocoa_init.m",
-			"src/cocoa_monitor.m",
-			"src/cocoa_window.m",
-			"src/cocoa_joystick.m",
-			"src/cocoa_time.c",
-			"src/nsgl_context.m",
-			"src/posix_thread.c",
-			"src/posix_module.c",
-			"src/osmesa_context.c",
-			"src/egl_context.c"
+			dir .. "/src/cocoa_init.m",
+			dir .. "/src/cocoa_monitor.m",
+			dir .. "/src/cocoa_window.m",
+			dir .. "/src/cocoa_joystick.m",
+			dir .. "/src/cocoa_time.c",
+			dir .. "/src/nsgl_context.m",
+			dir .. "/src/posix_thread.c",
+			dir .. "/src/posix_module.c",
+			dir .. "/src/osmesa_context.c",
+			dir .. "/src/egl_context.c"
 		}
 
 		defines
@@ -80,20 +83,20 @@ project "GLFW"
 
 		files
 		{
-			"src/win32_init.c",
-			"src/win32_joystick.c",
-			"src/win32_module.c",
-			"src/win32_monitor.c",
-			"src/win32_time.c",
-			"src/win32_thread.c",
-			"src/win32_window.c",
-			"src/wgl_context.c",
-			"src/egl_context.c",
-			"src/osmesa_context.c"
+			dir .. "/src/win32_init.c",
+			dir .. "/src/win32_joystick.c",
+			dir .. "/src/win32_module.c",
+			dir .. "/src/win32_monitor.c",
+			dir .. "/src/win32_time.c",
+			dir .. "/src/win32_thread.c",
+			dir .. "/src/win32_window.c",
+			dir .. "/src/wgl_context.c",
+			dir .. "/src/egl_context.c",
+			dir .. "/src/osmesa_context.c"
 		}
 
-		defines 
-		{ 
+		defines
+		{
 			"_GLFW_WIN32",
 			"_CRT_SECURE_NO_WARNINGS"
 		}
@@ -102,7 +105,7 @@ project "GLFW"
 		runtime "Debug"
 		symbols "on"
 
-	filter { "system:windows", "configurations:Debug-AS" }	
+	filter { "system:windows", "configurations:Debug-AS" }
 		runtime "Debug"
 		symbols "on"
 		sanitize { "Address" }

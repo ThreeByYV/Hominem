@@ -1,34 +1,37 @@
+local dir = HominemRoot .. "/Hominem/vendor/imgui"
+
 project "ImGui"
+    location (_MAIN_SCRIPT_DIR .. "/build/vendor/ImGui")
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
     staticruntime "off"
 
-    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
     files
     {
-        "imconfig.h",
-        "imgui.h",
-        "imgui.cpp",
-        "imgui_draw.cpp",
-        "imgui_internal.h",
-        "imgui_tables.cpp",
-        "imgui_widgets.cpp",
-        "imstb_rectpack.h",
-        "imstb_textedit.h",
-        "imstb_truetype.h",
-        "imgui_demo.cpp",
-        "backends/imgui_impl_win32.h",
-        "backends/imgui_impl_win32.cpp",
-        "backends/imgui_impl_opengl3.h",
-        "backends/imgui_impl_opengl3.cpp"
+        dir .. "/imconfig.h",
+        dir .. "/imgui.h",
+        dir .. "/imgui.cpp",
+        dir .. "/imgui_draw.cpp",
+        dir .. "/imgui_internal.h",
+        dir .. "/imgui_tables.cpp",
+        dir .. "/imgui_widgets.cpp",
+        dir .. "/imstb_rectpack.h",
+        dir .. "/imstb_textedit.h",
+        dir .. "/imstb_truetype.h",
+        dir .. "/imgui_demo.cpp",
+        dir .. "/backends/imgui_impl_win32.h",
+        dir .. "/backends/imgui_impl_win32.cpp",
+        dir .. "/backends/imgui_impl_opengl3.h",
+        dir .. "/backends/imgui_impl_opengl3.cpp"
     }
 
     includedirs
     {
-        "."
+        dir
     }
 
     filter "system:windows"

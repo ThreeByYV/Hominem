@@ -1,20 +1,23 @@
+local dir = HominemRoot .. "/Hominem/vendor/tracy"
+
 project "Tracy"
+    location (_MAIN_SCRIPT_DIR .. "/build/vendor/Tracy")
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
     staticruntime "off"
 
-    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
     files
     {
-        "public/TracyClient.cpp"
+        dir .. "/public/TracyClient.cpp"
     }
 
     includedirs
     {
-        "public"
+        dir .. "/public"
     }
 
     filter "system:windows"

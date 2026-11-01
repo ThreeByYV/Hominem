@@ -1,23 +1,26 @@
+local dir = HominemRoot .. "/Hominem/vendor/Box2D"
+
 project "Box2D"
+	location (_MAIN_SCRIPT_DIR .. "/build/vendor/Box2D")
 	kind "StaticLib"
 	language "C"
 	cdialect "C17"
 	staticruntime "off"
 
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+	objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
 	files
 	{
-		"src/**.h",
-		"src/**.c",
-		"include/**.h"
+		dir .. "/src/**.h",
+		dir .. "/src/**.c",
+		dir .. "/include/**.h"
 	}
 
 	includedirs
 	{
-		"include",
-		"src"
+		dir .. "/include",
+		dir .. "/src"
 	}
 
 	filter "system:windows"

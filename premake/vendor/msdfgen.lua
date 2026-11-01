@@ -1,65 +1,67 @@
+local dir = HominemRoot .. "/Hominem/vendor/msdf-atlas-gen/msdfgen"
+
 project "freetype"
-	location "freetype"
+	location (_MAIN_SCRIPT_DIR .. "/build/vendor/freetype")
 	kind "StaticLib"
 	language "C"
     staticruntime "off"
 
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+	objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
 	files
 	{
-		"freetype/include/ft2build.h",
-		"freetype/include/freetype/*.h",
-		"freetype/include/freetype/config/*.h",
-		"freetype/include/freetype/internal/*.h",
+		dir .. "/freetype/include/ft2build.h",
+		dir .. "/freetype/include/freetype/*.h",
+		dir .. "/freetype/include/freetype/config/*.h",
+		dir .. "/freetype/include/freetype/internal/*.h",
 
-		"freetype/src/autofit/autofit.c",
-		"freetype/src/base/ftbase.c",
-		"freetype/src/base/ftbbox.c",
-		"freetype/src/base/ftbdf.c",
-		"freetype/src/base/ftbitmap.c",
-		"freetype/src/base/ftcid.c",
-		"freetype/src/base/ftdebug.c",
-		"freetype/src/base/ftfstype.c",
-		"freetype/src/base/ftgasp.c",
-		"freetype/src/base/ftglyph.c",
-		"freetype/src/base/ftgxval.c",
-		"freetype/src/base/ftinit.c",
-		"freetype/src/base/ftmm.c",
-		"freetype/src/base/ftotval.c",
-		"freetype/src/base/ftpatent.c",
-		"freetype/src/base/ftpfr.c",
-		"freetype/src/base/ftstroke.c",
-		"freetype/src/base/ftsynth.c",
-		"freetype/src/base/ftsystem.c",
-		"freetype/src/base/fttype1.c",
-		"freetype/src/base/ftwinfnt.c",
-		"freetype/src/bdf/bdf.c",
-		"freetype/src/bzip2/ftbzip2.c",
-		"freetype/src/cache/ftcache.c",
-		"freetype/src/cff/cff.c",
-		"freetype/src/cid/type1cid.c",
-		"freetype/src/gzip/ftgzip.c",
-		"freetype/src/lzw/ftlzw.c",
-		"freetype/src/pcf/pcf.c",
-		"freetype/src/pfr/pfr.c",
-		"freetype/src/psaux/psaux.c",
-		"freetype/src/pshinter/pshinter.c",
-		"freetype/src/psnames/psnames.c",
-		"freetype/src/raster/raster.c",
-		"freetype/src/sdf/sdf.c",
-		"freetype/src/sfnt/sfnt.c",
-		"freetype/src/smooth/smooth.c",
-		"freetype/src/truetype/truetype.c",
-		"freetype/src/type1/type1.c",
-		"freetype/src/type42/type42.c",
-		"freetype/src/winfonts/winfnt.c"
+		dir .. "/freetype/src/autofit/autofit.c",
+		dir .. "/freetype/src/base/ftbase.c",
+		dir .. "/freetype/src/base/ftbbox.c",
+		dir .. "/freetype/src/base/ftbdf.c",
+		dir .. "/freetype/src/base/ftbitmap.c",
+		dir .. "/freetype/src/base/ftcid.c",
+		dir .. "/freetype/src/base/ftdebug.c",
+		dir .. "/freetype/src/base/ftfstype.c",
+		dir .. "/freetype/src/base/ftgasp.c",
+		dir .. "/freetype/src/base/ftglyph.c",
+		dir .. "/freetype/src/base/ftgxval.c",
+		dir .. "/freetype/src/base/ftinit.c",
+		dir .. "/freetype/src/base/ftmm.c",
+		dir .. "/freetype/src/base/ftotval.c",
+		dir .. "/freetype/src/base/ftpatent.c",
+		dir .. "/freetype/src/base/ftpfr.c",
+		dir .. "/freetype/src/base/ftstroke.c",
+		dir .. "/freetype/src/base/ftsynth.c",
+		dir .. "/freetype/src/base/ftsystem.c",
+		dir .. "/freetype/src/base/fttype1.c",
+		dir .. "/freetype/src/base/ftwinfnt.c",
+		dir .. "/freetype/src/bdf/bdf.c",
+		dir .. "/freetype/src/bzip2/ftbzip2.c",
+		dir .. "/freetype/src/cache/ftcache.c",
+		dir .. "/freetype/src/cff/cff.c",
+		dir .. "/freetype/src/cid/type1cid.c",
+		dir .. "/freetype/src/gzip/ftgzip.c",
+		dir .. "/freetype/src/lzw/ftlzw.c",
+		dir .. "/freetype/src/pcf/pcf.c",
+		dir .. "/freetype/src/pfr/pfr.c",
+		dir .. "/freetype/src/psaux/psaux.c",
+		dir .. "/freetype/src/pshinter/pshinter.c",
+		dir .. "/freetype/src/psnames/psnames.c",
+		dir .. "/freetype/src/raster/raster.c",
+		dir .. "/freetype/src/sdf/sdf.c",
+		dir .. "/freetype/src/sfnt/sfnt.c",
+		dir .. "/freetype/src/smooth/smooth.c",
+		dir .. "/freetype/src/truetype/truetype.c",
+		dir .. "/freetype/src/type1/type1.c",
+		dir .. "/freetype/src/type42/type42.c",
+		dir .. "/freetype/src/winfonts/winfnt.c"
 	}
 
 	includedirs
 	{
-		"freetype/include"
+		dir .. "/freetype/include"
 	}
 
 	defines
@@ -86,30 +88,31 @@ project "freetype"
         symbols "off"
 
 project "msdfgen"
+	location (_MAIN_SCRIPT_DIR .. "/build/vendor/msdfgen")
 	kind "StaticLib"
 	language "C++"
 	cppdialect "C++17"
     staticruntime "off"
 
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
+	objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
 
 	files
 	{
-		"core/**.h",
-		"core/**.hpp",
-		"core/**.cpp",
-		"ext/**.h",
-		"ext/**.hpp",
-		"ext/**.cpp",
-		"lib/**.cpp",
-		"include/**.h"
+		dir .. "/core/**.h",
+		dir .. "/core/**.hpp",
+		dir .. "/core/**.cpp",
+		dir .. "/ext/**.h",
+		dir .. "/ext/**.hpp",
+		dir .. "/ext/**.cpp",
+		dir .. "/lib/**.cpp",
+		dir .. "/include/**.h"
 	}
 
 	includedirs
 	{
-		"include",
-		"freetype/include"
+		dir .. "/include",
+		dir .. "/freetype/include"
 	}
 
 	defines
