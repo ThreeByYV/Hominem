@@ -1,5 +1,5 @@
 // Scene-wide uniforms — uploaded once per frame, shared by all shaders.
-// std140 layout must match SceneUBOData in ForwardPlusRenderer.h exactly.
+// std140 layout must match SceneUBOData in ClusteredRenderer.h exactly.
 // vec4 used throughout to match glm::vec4 in C++ and avoid vec3 padding quirks.
 layout(std140, binding = 0) uniform SceneUBO
 {
@@ -18,7 +18,11 @@ layout(std140, binding = 0) uniform SceneUBO
     int   u_AreaLightsEnabled; // offset 156
     mat4  u_ViewProjectionUnjittered; // offset 160
     mat4  u_PrevViewProjection;       // offset 224
-    float u_TextureLodBias;           // offset 288 → total 304 (std140 rounds up)
+    float u_TextureLodBias;           // offset 288
+    float u_ZNear;                    // offset 292
+    float u_ZFar;                     // offset 296
+    uint  u_ScreenHeight;             // offset 300
+    mat4  u_View;                     // offset 304 → total 368
 };
 
 uniform mat4 u_Model; // per-mesh — stays as a regular uniform

@@ -8,7 +8,7 @@
 #include "Hominem/Renderer/RHI/RenderCommand.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/2D/Renderer2D.h"
-#include "Hominem/Renderer/ForwardPlusRenderer.h"
+#include "Hominem/Renderer/ClusteredRenderer.h"
 #include "Hominem/Renderer/Lighting/EnvironmentProbe.h"
 #include "Hominem/Renderer/PostProcess/Upscaling/TemporalJitter.h"
 #include "Hominem/Renderer/PostProcess/Upscaling/UpscalerFactory.h"
@@ -27,7 +27,7 @@ void SceneRenderer::Init(const UpscalerContext& upscalerContext)
     m_AutoExposure.Init(ComputeShader::Create("engine://Shaders/luminance.comp"));
 
     RenderSettings::DetectRecommendedRenderScale();
-    ForwardPlusRenderer::InitForwardPlus();
+    ClusteredRenderer::InitClustered();
     // Sits with the GPU/GL lines so a bug report carries the GPU and the state together.
     RenderSettings::LogAll();
 
@@ -267,7 +267,7 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
 
     // Pass the FBO render dimensions so u_ScreenWidth and tile-culling dispatch
     // match gl_FragCoord — they diverge from frame.viewportWidth when renderScale != 1.
-    ForwardPlusRenderer::SceneData scene = ForwardPlusRenderer::BeginScene(frame, cmd, hdrSpec.Width, hdrSpec.Height);
+    ClusteredRenderer::SceneData scene = ClusteredRenderer::BeginScene(frame, cmd, hdrSpec.Width, hdrSpec.Height);
 
     scene.DDGI = frame.vulkanDDGI;
     if (const auto shared = m_SharedImages.load(std::memory_order_acquire))
@@ -277,17 +277,17 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
     }
 
     for (const auto& sm : frame.staticMeshes)
-        ForwardPlusRenderer::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene, &sm.prevTransform);
+        ClusteredRenderer::DrawStaticMesh(*sm.mesh, sm.transform, cmd, scene, &sm.prevTransform);
 
     for (const auto& m : frame.meshes)
     {
-        if (m.overrideShader) ForwardPlusRenderer::SetOverrideShader(m.overrideShader);
+        if (m.overrideShader) ClusteredRenderer::SetOverrideShader(m.overrideShader);
         m.mesh->DispatchSkinning(m.bones, cmd);
-        ForwardPlusRenderer::DrawSkinnedMesh(*m.mesh, m.transform, cmd, scene, &m.prevTransform);
-        if (m.overrideShader) ForwardPlusRenderer::ClearOverrideShader();
+        ClusteredRenderer::DrawSkinnedMesh(*m.mesh, m.transform, cmd, scene, &m.prevTransform);
+        if (m.overrideShader) ClusteredRenderer::ClearOverrideShader();
     }
 
-    cmd.Invoke([]() { ForwardPlusRenderer::EndScene(); });
+    cmd.Invoke([]() { ClusteredRenderer::EndScene(); });
 
     // Everything from here on — debug gizmos, smoke, fire, all 2D — is blended and has no
     // velocity output. GL blend state applies to every draw buffer, so leaving writes on
@@ -297,7 +297,7 @@ void SceneRenderer::GeometryPass(const RenderFrame& frame, CommandList& cmd)
     cmd.SetColorMask(1, false);
 
     if (frame.debugLights && !frame.lights.empty())
-        cmd.Invoke([lights = frame.lights]() { ForwardPlusRenderer::DrawDebugLights(lights); });
+        cmd.Invoke([lights = frame.lights]() { ClusteredRenderer::DrawDebugLights(lights); });
 
     // Procedural smoke quads — alpha-blended, drawn before the fire quads so the
     // fire glow shows through the smoke. Depth-tested but doesn't write depth.

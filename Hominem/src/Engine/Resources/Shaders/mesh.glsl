@@ -130,10 +130,15 @@ in vec4 v_ClipPrev;
     uniform sampler2D u_NormalMap;      // slot 2
 #endif
 
-#ifdef FORWARD_PLUS
-    layout(std430, binding = 1) readonly buffer LightBuffer          { GPULight       lights[];         };
-    layout(std430, binding = 2) readonly buffer LightIndexListBuffer { uint           lightIndexList[];  };
-    layout(std430, binding = 3) readonly buffer LightGridBuffer      { LightGridEntry lightGrid[];       };
+#ifdef CLUSTERED
+    layout(std430, binding = 1) readonly buffer LightBuffer { GPULight lights[];   };
+    layout(std430, binding = 2) readonly buffer Clusters    { Cluster  clusters[]; };
+
+    uint FragClusterIndex()
+    {
+        float viewZ = (u_View * vec4(v_WorldPos, 1.0)).z;
+        return ClusterIndex(gl_FragCoord.xy, viewZ, vec2(u_ScreenWidth, u_ScreenHeight), u_ZNear, u_ZFar);
+    }
 #else
     #define MAX_POINT_LIGHTS 16
     uniform int   u_PointLightCount;
@@ -202,24 +207,21 @@ void main()
     float rim     = step(0.4, fresnel * smoothstep(0.0, 0.4, NdotL_d));
     color += u_LightColor.xyz * rim * 0.3;
 
-    // Point lights for forward plus
-    #ifdef FORWARD_PLUS
-    uint numTilesX_t  = (u_ScreenWidth + 15u) / 16u;
-    uint tileIdx_t    = (uint(gl_FragCoord.y) / 16u) * numTilesX_t + (uint(gl_FragCoord.x) / 16u);
-    uint lightOffset_t = lightGrid[tileIdx_t].offset;
+    // Point lights, only the ones in this fragment's cluster
+    #ifdef CLUSTERED
+    uint clusterIdx_t = FragClusterIndex();
     // Clamped to what the culler guarantees. An out-of-range count walks off the index
     // list and shades with whatever memory follows, which is near impossible to read back
     // from the resulting image.
-    uint lightCount_t  = min(lightGrid[tileIdx_t].count, 128u);
+    uint lightCount_t = min(clusters[clusterIdx_t].count, MAX_LIGHTS_PER_CLUSTER);
     for (uint i = 0u; i < lightCount_t; i++)
     {
-        uint  idx_t    = lightIndexList[lightOffset_t + i];
+        uint  idx_t    = clusters[clusterIdx_t].lightIndices[i];
         vec3  Lp_t     = lights[idx_t].positionAndRadius.xyz - v_WorldPos;
         float dist_t   = length(Lp_t);
         float radius_t = lights[idx_t].positionAndRadius.w;
-        float fo_t     = clamp(1.0 - (dist_t/radius_t)*(dist_t/radius_t), 0.0, 1.0); fo_t *= fo_t;
         vec3  rad_t    = lights[idx_t].colorAndIntensity.xyz * lights[idx_t].colorAndIntensity.w
-                       * (fo_t / max(dist_t*dist_t, 0.0001));
+                       * ClusteredAttenuation(dist_t, radius_t);
         float NdotL_t  = dot(N, normalize(Lp_t));
         vec3  srad_t   = clamp(rad_t * 0.3, vec3(0.0), vec3(0.8));
         color += albedo * srad_t * TOON_BAND(NdotL_t);
@@ -275,23 +277,20 @@ void main()
                      u_LightColor.xyz * u_DiffuseIntensity);
 
     // Point lights
-    #ifdef FORWARD_PLUS
-    uint numTilesX   = (u_ScreenWidth + 15u) / 16u;
-    uint tileIdx     = (uint(gl_FragCoord.y) / 16u) * numTilesX + (uint(gl_FragCoord.x) / 16u);
-    uint lightOffset = lightGrid[tileIdx].offset;
-    uint lightCount  = lightGrid[tileIdx].count;
+    #ifdef CLUSTERED
+    uint clusterIdx = FragClusterIndex();
+    uint lightCount = min(clusters[clusterIdx].count, MAX_LIGHTS_PER_CLUSTER);
 
+    // count == 0 skips only the per-light math, ambient / sun / env above still apply
     for (uint i = 0u; i < lightCount; i++)
     {
-        uint  idx     = lightIndexList[lightOffset + i];
+        uint  idx     = clusters[clusterIdx].lightIndices[i];
         vec3  Lp      = lights[idx].positionAndRadius.xyz - v_WorldPos;
         float dist    = length(Lp);
         float radius  = lights[idx].positionAndRadius.w;
-        float falloff = clamp(1.0 - (dist / radius) * (dist / radius), 0.0, 1.0);
-        falloff      *= falloff;
         vec3  radiance = lights[idx].colorAndIntensity.xyz
                        * lights[idx].colorAndIntensity.w
-                       * (falloff / max(dist * dist, 0.0001));
+                       * ClusteredAttenuation(dist, radius);
 
         if (lights[idx].directionAndType.w > 0.5)
         {
@@ -327,15 +326,17 @@ void main()
     #endif
 #endif
 
-    // Forward+ heatmap debug (PBR only)
-#if defined(FORWARD_PLUS) && !defined(HAS_TOON)
+    // Cluster light-count heatmap
+#ifdef CLUSTERED
     if (u_DebugMode == 1)
     {
-        bool onBorder = (uint(gl_FragCoord.x) % 16u == 0u) || (uint(gl_FragCoord.y) % 16u == 0u);
-        if (onBorder) { FragColor = vec4(1.0); return; }
-        uint numTilesX2 = (u_ScreenWidth + 15u) / 16u;
-        uint tileIdx2   = (uint(gl_FragCoord.y) / 16u) * numTilesX2 + (uint(gl_FragCoord.x) / 16u);
-        float t = clamp(float(lightGrid[tileIdx2].count) / 8.0, 0.0, 1.0);
+        vec2 tileSize = vec2(u_ScreenWidth, u_ScreenHeight) / vec2(CLUSTER_GRID_SIZE.xy);
+        vec2 inTile   = mod(gl_FragCoord.xy, tileSize);
+        if (any(lessThan(inTile, vec2(1.0)))) { FragColor = vec4(1.0); return; }
+        uint count = clusters[FragClusterIndex()].count;
+        // magenta warns the cluster is near the cap, past it lights get dropped and flicker
+        if (count >= MAX_LIGHTS_PER_CLUSTER - 10u) { FragColor = vec4(1.0, 0.0, 1.0, 1.0); return; }
+        float t = clamp(float(count) / 8.0, 0.0, 1.0);
         vec3 heat;
         if      (t < 0.25) heat = mix(vec3(0,0,0), vec3(0,0,1), t * 4.0);
         else if (t < 0.50) heat = mix(vec3(0,0,1), vec3(0,1,0), (t-0.25)*4.0);

@@ -527,6 +527,21 @@ namespace Hominem {
 		glUniform1i(GetUniformLocation(name), value);
 	}
 
+	void OpenGLComputeShader::SetFloat(const std::string& name, float value)
+	{
+		glUniform1f(GetUniformLocation(name), value);
+	}
+
+	void OpenGLComputeShader::SetFloat2(const std::string& name, const glm::vec2& value)
+	{
+		glUniform2f(GetUniformLocation(name), value.x, value.y);
+	}
+
+	void OpenGLComputeShader::SetUint3(const std::string& name, const glm::uvec3& value)
+	{
+		glUniform3ui(GetUniformLocation(name), value.x, value.y, value.z);
+	}
+
 	void OpenGLComputeShader::SetMat4(const std::string& name, const glm::mat4& value)
 	{
 		glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));

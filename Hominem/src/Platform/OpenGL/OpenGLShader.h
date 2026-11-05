@@ -84,6 +84,9 @@ void UploadUniformInt(const std::string& name, int value);
 
 		void SetUint(const std::string& name, uint32_t value) override;
 		void SetInt(const std::string& name, int value) override;
+		void SetFloat(const std::string& name, float value) override;
+		void SetFloat2(const std::string& name, const glm::vec2& value) override;
+		void SetUint3(const std::string& name, const glm::uvec3& value) override;
 		void SetMat4(const std::string& name, const glm::mat4& value) override;
 
 		const std::string& GetName() const override { return m_Name; }

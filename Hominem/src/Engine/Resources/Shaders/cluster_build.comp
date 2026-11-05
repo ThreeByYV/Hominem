@@ -1,0 +1,63 @@
+#version 460 core
+
+// Step 1: one invocation per cluster, dispatched as (2, 2, 24) for a 12x12x24 grid.
+// Depends only on the projection and screen size, so it is rebuilt only when those change.
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+struct Cluster
+{
+    vec4 minPoint;          // AABB min, view space
+    vec4 maxPoint;          // AABB max, view space
+    uint count;
+    uint lightIndices[100];
+};
+
+layout(std430, binding = 2) buffer Clusters { Cluster clusters[]; };
+
+uniform float zNear;
+uniform float zFar;
+uniform mat4  inverseProjection;
+uniform uvec3 gridSize;
+uniform vec2  screenDimensions;
+
+vec3 screenToView(vec2 screenCoord)
+{
+    // z = -1 is the near plane, so this is a point on the near plane, i.e. a ray direction
+    vec4 ndc  = vec4(screenCoord / screenDimensions * 2.0 - 1.0, -1.0, 1.0);
+    vec4 view = inverseProjection * ndc;
+    return view.xyz / view.w;
+}
+
+vec3 lineIntersectionWithZPlane(vec3 startPoint, vec3 endPoint, float zDistance)
+{
+    vec3 direction = endPoint - startPoint;
+    // view space looks down -z, so zDistance is passed as a positive depth
+    vec3 normal = vec3(0.0, 0.0, -1.0);
+
+    float t = (zDistance - dot(normal, startPoint)) / dot(normal, direction);
+    return startPoint + t * direction;
+}
+
+void main()
+{
+    uvec3 cluster = gl_GlobalInvocationID;
+    if (any(greaterThanEqual(cluster, gridSize))) return;
+
+    uint index = cluster.x + cluster.y * gridSize.x + cluster.z * gridSize.x * gridSize.y;
+
+    vec2 tileSize = screenDimensions / vec2(gridSize.xy);
+    vec3 minTile  = screenToView(vec2(cluster.xy)      * tileSize);
+    vec3 maxTile  = screenToView(vec2(cluster.xy + 1u) * tileSize);
+
+    float planeNear = zNear * pow(zFar / zNear, float(cluster.z)      / float(gridSize.z));
+    float planeFar  = zNear * pow(zFar / zNear, float(cluster.z + 1u) / float(gridSize.z));
+
+    vec3 eye = vec3(0.0);
+    vec3 minNear = lineIntersectionWithZPlane(eye, minTile, planeNear);
+    vec3 minFar  = lineIntersectionWithZPlane(eye, minTile, planeFar);
+    vec3 maxNear = lineIntersectionWithZPlane(eye, maxTile, planeNear);
+    vec3 maxFar  = lineIntersectionWithZPlane(eye, maxTile, planeFar);
+
+    clusters[index].minPoint = vec4(min(min(minNear, minFar), min(maxNear, maxFar)), 0.0);
+    clusters[index].maxPoint = vec4(max(max(minNear, minFar), max(maxNear, maxFar)), 0.0);
+}

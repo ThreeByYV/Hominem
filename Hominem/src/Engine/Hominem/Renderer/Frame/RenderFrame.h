@@ -243,8 +243,8 @@ namespace Hominem {
 		glm::mat4 viewProjection2D {};
 		bool      overlay2D        = false; // 2D is a screen-space HUD: drawn after the upscale, untonemapped
 		glm::mat4 viewProjection3D {};
-		glm::mat4 view3D           {};   // separate view matrix — needed by Forward+ light culling
-		glm::mat4 proj3D           {};   // separate projection matrix — needed for tile frustum extraction
+		glm::mat4 view3D           {};   // separate view matrix — needed by clustered light culling
+		glm::mat4 proj3D           {};   // separate projection matrix — needed to build the cluster grid
 		glm::vec3 cameraWorldPos   {};
 		Frustum   frustum3D        {};
 
@@ -270,7 +270,7 @@ namespace Hominem {
 		Ref<Skybox> skybox;
 		float       skyboxIntensity = 1.f;
 
-		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by ForwardPlusRenderer
+		// Environment mapping — filled by Scene::BuildRenderFrame, consumed by ClusteredRenderer
 		Ref<TextureCube> envMap;
 		Ref<TextureCube> irradianceMap;   // diffuse IBL, sampled alongside envMap
 		Ref<TextureCube> prefilteredMap;  // specular IBL mip chain, sampled alongside envMap

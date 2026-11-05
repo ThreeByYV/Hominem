@@ -1,5 +1,5 @@
 #include "hmnpch.h"
-#include "Hominem/Renderer/ForwardPlusRenderer.h"
+#include "Hominem/Renderer/ClusteredRenderer.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
 #include "Hominem/Renderer/RHI/RenderCommand.h"
 #include "Hominem/Core/Profiler.h"
@@ -22,22 +22,33 @@ namespace {
         glm::vec4 coneAngles;        // x = cos(innerAngle), y = cos(outerAngle), z = sourceRadius, w = 0
     };
 
-    struct LightGridEntry
+    // std430: 2 vec4 + uint + uint[100] = 436 bytes, rounded up to the vec4 alignment
+    struct alignas(16) GPUCluster
     {
-        uint32_t offset;
-        uint32_t count;
+        glm::vec4 minPoint;
+        glm::vec4 maxPoint;
+        uint32_t  count;
+        uint32_t  lightIndices[ClusteredRenderer::MAX_LIGHTS_PER_CLUSTER];
     };
+    static_assert(sizeof(GPUCluster) == 448, "GPUCluster must match the std430 Cluster stride");
 
-} 
-    ForwardPlusRendererStorage*     ForwardPlusRenderer::s_Data         = nullptr;
-    uint32_t                        ForwardPlusRenderer::s_DrawCalls     = 0;
-    uint64_t                        ForwardPlusRenderer::s_Triangles     = 0;
-    uint32_t                        ForwardPlusRenderer::s_GroupsTotal   = 0;
-    uint32_t                        ForwardPlusRenderer::s_GroupsCulled  = 0;
+    // Undoes glm::perspective (right handed, -1..1 depth) so callers don't have to pass near / far
+    void ExtractNearFar(const glm::mat4& proj, float& zNear, float& zFar)
+    {
+        zNear = proj[3][2] / (proj[2][2] - 1.f);
+        zFar  = proj[3][2] / (proj[2][2] + 1.f);
+    }
 
-void ForwardPlusRenderer::Init()
+}
+    ClusteredRendererStorage*     ClusteredRenderer::s_Data         = nullptr;
+    uint32_t                      ClusteredRenderer::s_DrawCalls     = 0;
+    uint64_t                      ClusteredRenderer::s_Triangles     = 0;
+    uint32_t                      ClusteredRenderer::s_GroupsTotal   = 0;
+    uint32_t                      ClusteredRenderer::s_GroupsCulled  = 0;
+
+void ClusteredRenderer::Init()
 {
-    s_Data  = new ForwardPlusRendererStorage();
+    s_Data  = new ClusteredRendererStorage();
 
     s_Data->NormalsShader        = Shader::Create("engine://Shaders/normals_debug.glsl");
     s_Data->NormalsSkinnedShader = Shader::Create("engine://Shaders/normals_debug.glsl", {"SKINNED"});
@@ -47,7 +58,7 @@ void ForwardPlusRenderer::Init()
     // Games pick this up by name as a mesh override, from threads with no GL context.
     ShaderLibrary::Engine()->Load("engine://Shaders/silhouette.glsl");
 
-    // StaticMeshShader is assigned by InitForwardPlus() on the render thread.
+    // StaticMeshShader is assigned by InitClustered() on the render thread.
 
     static const uint32_t k_EdgeIndices[24] = {
         0,1, 1,2, 2,3, 3,0,
@@ -63,46 +74,52 @@ void ForwardPlusRenderer::Init()
     s_Data->DebugVAO->SetIndexBuffer(s_Data->DebugIBO);
 }
 
-void ForwardPlusRenderer::InitForwardPlus()
+void ClusteredRenderer::InitClustered()
 {
-    HMN_CORE_ASSERT(s_Data, "ForwardPlusRenderer::InitForwardPlus called before Init()");
+    HMN_CORE_ASSERT(s_Data, "ClusteredRenderer::InitClustered called before Init()");
 
-    s_Data->SceneUBO           = UniformBuffer::Create(sizeof(SceneUBOData), 0);
-    s_Data->LightBuffer        = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPULight));
-    s_Data->GlobalLightCounter = StorageBuffer::Create(sizeof(uint32_t));
+    s_Data->SceneUBO      = UniformBuffer::Create(sizeof(SceneUBOData), 0);
+    s_Data->ClusterBuffer = StorageBuffer::Create(NUM_CLUSTERS * sizeof(GPUCluster));
+    s_Data->LightBuffer   = StorageBuffer::Create(MAX_LIGHTS * sizeof(GPULight));
 
-    // LightIndexList and LightGrid are sized per-viewport in ResizeTileBuffers().
-
-    s_Data->LightCullingShader = ComputeShader::Create("engine://Shaders/light_culling.comp");
+    s_Data->ClusterBuildShader = ComputeShader::Create("engine://Shaders/cluster_build.comp");
+    s_Data->ClusterCullShader  = ComputeShader::Create("engine://Shaders/cluster_cull.comp");
 
     s_Data->MeshVariants = ShaderVariantSet::Create(
         "engine://Shaders/mesh.glsl",
         GetAllVariants());
 
-    HMN_CORE_INFO("ForwardPlusRenderer: Forward+ initialised — MAX_LIGHTS={}, TILE_SIZE={}px",
-                  MAX_LIGHTS, TILE_SIZE);
+    HMN_CORE_INFO("ClusteredRenderer: initialised, grid {}x{}x{} ({} clusters), MAX_LIGHTS={}",
+                  GRID_SIZE_X, GRID_SIZE_Y, GRID_SIZE_Z, NUM_CLUSTERS, MAX_LIGHTS);
 }
 
-void ForwardPlusRenderer::Shutdown()
+void ClusteredRenderer::Shutdown()
 {
     delete s_Data;  s_Data  = nullptr;
 }
 
-void ForwardPlusRenderer::ResizeTileBuffers(uint32_t w, uint32_t h)
+void ClusteredRenderer::BuildClusters(const glm::mat4& invProj, uint32_t w, uint32_t h, float zNear, float zFar)
 {
-    if (w == s_Data->ViewportW && h == s_Data->ViewportH) return;
-    s_Data->ViewportW = w;
-    s_Data->ViewportH = h;
-    s_Data->NumTilesX = (w + TILE_SIZE - 1u) / TILE_SIZE;
-    s_Data->NumTilesY = (h + TILE_SIZE - 1u) / TILE_SIZE;
+    if (w == s_Data->GridW && h == s_Data->GridH && invProj == s_Data->GridInvProjection) return;
+    s_Data->GridW             = w;
+    s_Data->GridH             = h;
+    s_Data->GridInvProjection = invProj;
 
-    const uint32_t numTiles = s_Data->NumTilesX * s_Data->NumTilesY;
-    s_Data->LightIndexList = StorageBuffer::Create(numTiles * MAX_LIGHTS_PER_TILE * sizeof(uint32_t));
-    s_Data->LightGrid      = StorageBuffer::Create(numTiles * sizeof(LightGridEntry));
+    constexpr uint32_t LOCAL_SIZE_XY = 8u;
+    const auto& cs = s_Data->ClusterBuildShader;
+    cs->Bind();
+    cs->SetFloat ("zNear",             zNear);
+    cs->SetFloat ("zFar",              zFar);
+    cs->SetMat4  ("inverseProjection", invProj);
+    cs->SetUint3 ("gridSize",          { GRID_SIZE_X, GRID_SIZE_Y, GRID_SIZE_Z });
+    cs->SetFloat2("screenDimensions",  { (float)w, (float)h });
+    cs->Dispatch((GRID_SIZE_X + LOCAL_SIZE_XY - 1u) / LOCAL_SIZE_XY,
+                 (GRID_SIZE_Y + LOCAL_SIZE_XY - 1u) / LOCAL_SIZE_XY,
+                 GRID_SIZE_Z);
 }
 
-void ForwardPlusRenderer::CullLights(const RenderFrame& frame, CommandList& cmd,
-                             uint32_t renderW, uint32_t renderH)
+void ClusteredRenderer::CullLights(const RenderFrame& frame, CommandList& cmd,
+                                   uint32_t renderW, uint32_t renderH, float zNear, float zFar)
 {
     HMN_PROFILE_FUNCTION();
 
@@ -126,42 +143,34 @@ void ForwardPlusRenderer::CullLights(const RenderFrame& frame, CommandList& cmd,
             };
         });
 
-    // All SSBO/compute work runs on the render thread: ResizeTileBuffers calls
-    // StorageBuffer::Create (glGenBuffers), which requires a valid GL context.
+    // All SSBO/compute work runs on the render thread, it needs a valid GL context.
+    // Unjittered so TAA's per-frame sub-pixel offset doesn't force a grid rebuild every frame.
     cmd.Invoke([gpuLights = std::move(gpuLights), lightCount,
-                renderW, renderH,
+                renderW, renderH, zNear, zFar,
                 view    = frame.view3D,
-                invProj = glm::inverse(frame.proj3D)]() mutable
+                invProj = glm::inverse(frame.proj3DUnjittered)]() mutable
     {
-        ResizeTileBuffers(renderW, renderH);
-
-        constexpr uint32_t zero = 0u;
-        s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
-        s_Data->GlobalLightCounter->SetData(&zero, sizeof(uint32_t));
-
         s_Data->LightBuffer->BindBase(1);
-        s_Data->LightIndexList->BindBase(2);
-        s_Data->LightGrid->BindBase(3);
-        s_Data->GlobalLightCounter->BindBase(4);
+        s_Data->ClusterBuffer->BindBase(2);
 
-        const auto& cs = s_Data->LightCullingShader;
+        BuildClusters(invProj, renderW, renderH, zNear, zFar);
+
+        s_Data->LightBuffer->SetData(gpuLights.data(), lightCount * sizeof(GPULight));
+
+        constexpr uint32_t LOCAL_SIZE = 128u;
+        const auto& cs = s_Data->ClusterCullShader;
         cs->Bind();
-        cs->SetMat4("u_View",          view);
-        cs->SetMat4("u_InvProjection", invProj);
-        cs->SetUint("u_NumLights",     lightCount);
-        cs->SetUint("u_NumTilesX",     s_Data->NumTilesX);
-        cs->SetUint("u_NumTilesY",     s_Data->NumTilesY);
-        cs->SetUint("u_ScreenWidth",   renderW);
-        cs->SetUint("u_ScreenHeight",  renderH);
-        cs->Dispatch(s_Data->NumTilesX, s_Data->NumTilesY, 1);
-        // Slots 1-3 remain bound for the subsequent shading pass.
+        cs->SetMat4("viewMatrix", view);
+        cs->SetUint("lightCount", lightCount);
+        cs->Dispatch((NUM_CLUSTERS + LOCAL_SIZE - 1u) / LOCAL_SIZE);
+        // Slots 1-2 remain bound for the subsequent shading pass.
     });
 }
 
-ForwardPlusRenderer::SceneData ForwardPlusRenderer::BeginScene(const RenderFrame& frame, CommandList& cmd,
-                                               uint32_t renderW, uint32_t renderH)
+ClusteredRenderer::SceneData ClusteredRenderer::BeginScene(const RenderFrame& frame, CommandList& cmd,
+                                                           uint32_t renderW, uint32_t renderH)
 {
-    HMN_CORE_ASSERT(s_Data, "ForwardPlusRenderer::BeginScene called before Init()");
+    HMN_CORE_ASSERT(s_Data, "ClusteredRenderer::BeginScene called before Init()");
 
     // Reset all texture slots to 0 so every draw call in this scene must explicitly
     // bind what it needs. Prevents stale bindings.
@@ -171,9 +180,12 @@ ForwardPlusRenderer::SceneData ForwardPlusRenderer::BeginScene(const RenderFrame
     // Use provided render dimensions; fall back to the frame's viewport if not given.
     // renderW/renderH must equal the actual HDR FBO size — when renderScale != 1.0 they
     // differ from frame.viewportWidth/Height (which is the window size), and using the
-    // wrong value shifts every Forward+ tile index in the fragment shader.
+    // wrong value shifts every cluster tile index in the fragment shader.
     const uint32_t useW = (renderW != 0) ? renderW : frame.viewportWidth;
     const uint32_t useH = (renderH != 0) ? renderH : frame.viewportHeight;
+
+    float zNear = 0.f, zFar = 0.f;
+    ExtractNearFar(frame.proj3D, zNear, zFar);
 
     SceneData scene;
     const uint32_t envID    = frame.envMap ? frame.envMap->GetRendererID() : 0u;
@@ -212,20 +224,23 @@ ForwardPlusRenderer::SceneData ForwardPlusRenderer::BeginScene(const RenderFrame
         ubo.ViewProjectionUnjittered = frame.viewProjection3DUnjittered;
         ubo.PrevViewProjection       = frame.prevViewProjection3D;
         ubo.TextureLodBias           = frame.textureLodBias;
+        ubo.ZNear                    = zNear;
+        ubo.ZFar                     = zFar;
+        ubo.ScreenHeight             = useH;
+        ubo.View                     = frame.view3D;
         cmd.SetUniformBufferData(s_Data->SceneUBO, &ubo, sizeof(ubo));
     }
 
-    // Always cull even with 0 lights, ensures the tile grid is properly sized/cleared.
-    // Skipping leaves a stale grid from a prior bake (512x512) or layer, which the
-    // fragment shader then reads with wrong tile indices → garbage counts → rainbow.
-    if (s_Data->LightCullingShader)
-        CullLights(frame, cmd, useW, useH);
+    // Always cull even with 0 lights, so every cluster count is reset. Skipping leaves
+    // stale lists from a prior bake (512x512, other projection) or layer.
+    if (s_Data->ClusterBuildShader && s_Data->ClusterCullShader)
+        CullLights(frame, cmd, useW, useH, zNear, zFar);
 
     return scene;
 }
 
 
-void ForwardPlusRenderer::EndScene()
+void ClusteredRenderer::EndScene()
 {
     Shader::UnbindAll();
     Texture::UnbindAll();
@@ -233,7 +248,7 @@ void ForwardPlusRenderer::EndScene()
 
 // Ray-traced indirect diffuse. Slots 7/8 stay bound to whatever was there when the volume
 // is off — u_DDGICounts.w == 0 keeps the shader from sampling them.
-static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const ForwardPlusRenderer::SceneData& scene)
+static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const ClusteredRenderer::SceneData& scene)
 {
     const bool active = scene.DDGI.probeNumRays > 0
                      && scene.DDGIIrradianceID != 0
@@ -269,7 +284,7 @@ static void BindDDGI(CommandList& cmd, const Ref<Shader>& shader, const ForwardP
     cmd.SetFloat(shader, "u_DDGIIntensity", scene.DDGI.intensity);
 }
 
-void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+void ClusteredRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
                                   const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
@@ -278,7 +293,7 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
         // Debug shader writes no velocity — mask the attachment so it keeps whatever the
         // scene put there rather than undefined values.
         cmd.SetColorMask(1, false);
-        // Light culling overwrites bindings 3 and 4 — restore the mesh SSBOs before drawing.
+        // Light culling overwrites bindings 1 and 2 — restore the mesh SSBOs before drawing.
         mesh.DispatchSkinning({}, cmd);
         cmd.BindShader(s_Data->BoneWeightShader);
         cmd.SetMat4 (s_Data->BoneWeightShader, "u_Model", transform);
@@ -295,7 +310,7 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
     Ref<Shader> shader = s_Data->OverrideShader;
     if (!shader)
     {
-        HMN_CORE_ASSERT(s_Data->MeshVariants, "ForwardPlusRenderer: variants not loaded");
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "ClusteredRenderer: variants not loaded");
         const bool hasNM = mesh.HasNormalMap() && RenderSettings::SkinnedNormalMaps;
         const bool hasMR = mesh.HasMetalRoughness();
         const bool toon  = RenderSettings::ToonShading;
@@ -305,7 +320,7 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
         else if (hasMR)     name += "_mr";
         shader = s_Data->MeshVariants->Get(name);
     }
-    HMN_CORE_ASSERT(shader, "ForwardPlusRenderer: no shader for skinned mesh");
+    HMN_CORE_ASSERT(shader, "ClusteredRenderer: no shader for skinned mesh");
 
     cmd.BindShader(shader);
     cmd.SetInt (shader, "u_Albedo", 0);
@@ -341,7 +356,7 @@ void ForwardPlusRenderer::DrawSkinnedMesh(SkinnedMesh& mesh, const glm::mat4& tr
     }
 }
 
-void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
+void ClusteredRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& transform, CommandList& cmd, const SceneData& scene,
                                  const glm::mat4* prevTransform)
 {
     HMN_PROFILE_FUNCTION();
@@ -353,7 +368,7 @@ void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& tran
     }
     else
     {
-        HMN_CORE_ASSERT(s_Data->MeshVariants, "ForwardPlusRenderer: variants not loaded — was InitForwardPlus() called?");
+        HMN_CORE_ASSERT(s_Data->MeshVariants, "ClusteredRenderer: variants not loaded — was InitClustered() called?");
 
         const bool hasNM  = mesh.HasNormalMap();
         const bool hasMR  = mesh.HasMetalRoughness();
@@ -369,7 +384,7 @@ void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& tran
         else if (hasEnv)              name += "_env";
         shader = s_Data->MeshVariants->Get(name);
     }
-    HMN_CORE_ASSERT(shader, "ForwardPlusRenderer::DrawStaticMesh: no shader variant available");
+    HMN_CORE_ASSERT(shader, "ClusteredRenderer::DrawStaticMesh: no shader variant available");
 
     cmd.BindShader(shader);
 
@@ -444,7 +459,7 @@ void ForwardPlusRenderer::DrawStaticMesh(StaticMesh& mesh, const glm::mat4& tran
     }
 }
 
-void ForwardPlusRenderer::DrawDebugLights(const std::vector<Light>& lights)
+void ClusteredRenderer::DrawDebugLights(const std::vector<Light>& lights)
 {
     if (lights.empty() || !s_Data->DebugSphereShader) return;
 
