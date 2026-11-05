@@ -8,7 +8,7 @@
 
 namespace Hominem {
 
-	/// Renderer settings that game code can read and write without depending on ForwardPlusRenderer.
+	/// Renderer settings that game code can read and write without depending on ClusteredRenderer.
 	/// The renderer reads these each frame; layers write them directly.
 	struct RenderSettings
 	{

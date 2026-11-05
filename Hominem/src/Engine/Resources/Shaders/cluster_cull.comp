@@ -1,0 +1,59 @@
+#version 460 core
+
+// Step 2: brute force, one invocation per cluster tests every light. 3456 clusters / 128 = 27 groups.
+// Each invocation writes only its own cluster, so no shared memory or atomics.
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+struct Cluster
+{
+    vec4 minPoint;
+    vec4 maxPoint;
+    uint count;
+    uint lightIndices[100];
+};
+
+struct GPULight
+{
+    vec4 positionAndRadius; // xyz = world pos, w = radius
+    vec4 colorAndIntensity;
+    vec4 directionAndType;
+    vec4 coneAngles;
+};
+
+layout(std430, binding = 1) readonly buffer LightBuffer { GPULight lights[];   };
+layout(std430, binding = 2) buffer Clusters             { Cluster  clusters[]; };
+
+uniform mat4 viewMatrix;
+uniform uint lightCount;
+
+bool sphereAABBIntersection(vec3 center, float radius, vec3 aabbMin, vec3 aabbMax)
+{
+    vec3 closestPoint = clamp(center, aabbMin, aabbMax);
+    vec3 diff = closestPoint - center;
+    return dot(diff, diff) <= radius * radius;
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= clusters.length()) return;
+
+    vec3 aabbMin = clusters[index].minPoint.xyz;
+    vec3 aabbMax = clusters[index].maxPoint.xyz;
+    uint count = 0u;
+
+    for (uint i = 0u; i < lightCount; ++i)
+    {
+        // the AABBs live in view space, so the light has to as well
+        vec3  center = (viewMatrix * vec4(lights[i].positionAndRadius.xyz, 1.0)).xyz;
+        float radius = lights[i].positionAndRadius.w;
+
+        if (sphereAABBIntersection(center, radius, aabbMin, aabbMax) && count < 100u)
+        {
+            clusters[index].lightIndices[count] = i;
+            count++;
+        }
+    }
+
+    clusters[index].count = count;
+}

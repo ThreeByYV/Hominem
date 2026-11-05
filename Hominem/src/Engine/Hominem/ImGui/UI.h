@@ -8,7 +8,7 @@
 #include "Hominem/Scene/Scene.h"
 #include "Hominem/Renderer/Frame/RenderFrame.h"
 #include "Hominem/Renderer/Frame/RenderSettings.h"
-#include "Hominem/Renderer/ForwardPlusRenderer.h"
+#include "Hominem/Renderer/ClusteredRenderer.h"
 
 namespace Hominem::UI {
 
@@ -134,12 +134,12 @@ inline void PerfPanel(float fps, float frameMs, Scene* scene)
                                  : ImVec4(1.f,  0.3f, 0.3f, 1.f);
         ImGui::TextColored(col, "%.0f FPS  %.2f ms", fps, frameMs);
 
-        uint64_t tris = ForwardPlusRenderer::GetTriangles();
+        uint64_t tris = ClusteredRenderer::GetTriangles();
         const char* u = tris >= 1000000 ? "M" : tris >= 1000 ? "K" : "";
         float      tv = tris >= 1000000 ? tris / 1000000.f : tris >= 1000 ? tris / 1000.f : (float)tris;
-        ImGui::Text("Draw calls  %u",            ForwardPlusRenderer::GetDrawCalls());
+        ImGui::Text("Draw calls  %u",            ClusteredRenderer::GetDrawCalls());
         ImGui::Text("Triangles   %.1f%s",         tv, u);
-        ImGui::Text("Groups      %u / %u culled", ForwardPlusRenderer::GetGroupsTotal(), ForwardPlusRenderer::GetGroupsCulled());
+        ImGui::Text("Groups      %u / %u culled", ClusteredRenderer::GetGroupsTotal(), ClusteredRenderer::GetGroupsCulled());
         if (scene && scene->GetPhysicsWorld())
             ImGui::Text("Physics     %.2f ms", scene->GetPhysicsWorld()->GetLastStepMs());
     });

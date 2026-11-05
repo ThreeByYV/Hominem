@@ -34,11 +34,14 @@ struct alignas(16) SceneUBOData
     glm::mat4 ViewProjectionUnjittered; // offset 160, 64 bytes
     glm::mat4 PrevViewProjection;       // offset 224, 64 bytes
     float     TextureLodBias;           // offset 288
-    float     _Pad[3];                  // offset 292 → total 304 bytes
+    float     ZNear;                    // offset 292
+    float     ZFar;                     // offset 296
+    uint32_t  ScreenHeight;             // offset 300
+    glm::mat4 View;                     // offset 304 → total 368 bytes
 };
-static_assert(sizeof(SceneUBOData) == 304, "SceneUBOData size mismatch — check std140 layout");
+static_assert(sizeof(SceneUBOData) == 368, "SceneUBOData size mismatch — check std140 layout");
 
-struct ForwardPlusRendererStorage
+struct ClusteredRendererStorage
 {
     Ref<Shader>              OverrideShader;   // optional scene-wide override
     Ref<ShaderVariantSet>    MeshVariants;    // mesh.glsl named variants
@@ -53,24 +56,28 @@ struct ForwardPlusRendererStorage
 
     Ref<UniformBuffer> SceneUBO;             // binding 0 — SceneUBOData, uploaded once per frame
 
-    // Forward+ tile-based light culling
-    Ref<StorageBuffer> LightBuffer;          // slot 1 — GPUPointLight[MAX_LIGHTS]
-    Ref<StorageBuffer> LightIndexList;       // slot 2 — flat uint index list, per-tile
-    Ref<StorageBuffer> LightGrid;            // slot 3 — LightGridEntry[numTiles]
-    Ref<StorageBuffer> GlobalLightCounter;   // slot 4 — atomic uint, reset each frame
-    Ref<ComputeShader> LightCullingShader;
-    uint32_t           NumTilesX = 0;
-    uint32_t           NumTilesY = 0;
-    uint32_t           ViewportW = 0;
-    uint32_t           ViewportH = 0;
+    // Clustered shading, brute force light culling
+    Ref<StorageBuffer> LightBuffer;          // slot 1 — GPULight[MAX_LIGHTS]
+    Ref<StorageBuffer> ClusterBuffer;        // slot 2 — Cluster[NUM_CLUSTERS]
+    Ref<ComputeShader> ClusterBuildShader;
+    Ref<ComputeShader> ClusterCullShader;
+
+    // The grid depends only on these, so it is rebuilt only when one changes
+    glm::mat4          GridInvProjection {0.f};
+    uint32_t           GridW = 0;
+    uint32_t           GridH = 0;
 };
 
-class ForwardPlusRenderer
+class ClusteredRenderer
 {
 public:
-    static constexpr uint32_t TILE_SIZE           = 16u;
-    static constexpr uint32_t MAX_LIGHTS          = 1024u;
-    static constexpr uint32_t MAX_LIGHTS_PER_TILE = 128u;
+    // Must match CLUSTER_GRID_SIZE / MAX_LIGHTS_PER_CLUSTER in includes/types.glsl
+    static constexpr uint32_t GRID_SIZE_X            = 12u;
+    static constexpr uint32_t GRID_SIZE_Y            = 12u;
+    static constexpr uint32_t GRID_SIZE_Z            = 24u;
+    static constexpr uint32_t NUM_CLUSTERS           = GRID_SIZE_X * GRID_SIZE_Y * GRID_SIZE_Z;
+    static constexpr uint32_t MAX_LIGHTS             = 1024u;
+    static constexpr uint32_t MAX_LIGHTS_PER_CLUSTER = 100u;
 
     // Per-call scene state produced by BeginScene() and threaded explicitly into
     // DrawStaticMesh/DrawSkinnedMesh — avoids a shared global so nested scenes
@@ -95,12 +102,12 @@ public:
     };
 
     static void Init();
-    static void InitForwardPlus();
+    static void InitClustered();
     static void Shutdown();
 
     // renderW/renderH: the actual render-target dimensions (HDR FBO size).
-    // Pass these explicitly when renderScale != 1.0 so ScreenWidth and light
-    // culling tile dimensions match gl_FragCoord — they default to frame.viewportWidth/Height.
+    // Pass these explicitly when renderScale != 1.0 so ScreenWidth and the cluster
+    // tile dimensions match gl_FragCoord — they default to frame.viewportWidth/Height.
     [[nodiscard]] static SceneData BeginScene(const RenderFrame& frame, CommandList& cmd,
                                                uint32_t renderW = 0, uint32_t renderH = 0);
     static void EndScene();
@@ -124,12 +131,12 @@ public:
 
 private:
     static void CullLights(const RenderFrame& frame, CommandList& cmd,
-                           uint32_t renderW, uint32_t renderH);
-    static void ResizeTileBuffers(uint32_t w, uint32_t h);
+                           uint32_t renderW, uint32_t renderH, float zNear, float zFar);
+    static void BuildClusters(const glm::mat4& invProj, uint32_t w, uint32_t h, float zNear, float zFar);
 
     static constexpr uint32_t MAX_POINT_LIGHTS_SKINNED = 16u;
 
-    static ForwardPlusRendererStorage* s_Data;
+    static ClusteredRendererStorage* s_Data;
     static uint32_t           s_DrawCalls;
     static uint64_t           s_Triangles;
     static uint32_t           s_GroupsTotal;
